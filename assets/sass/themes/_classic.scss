@@ -1,0 +1,89 @@
+/**
+ * Classic Theme
+ */
+[data-ui-theme='classic'],
+[data-ui-theme='classic_rounded'] {
+  .stage--start {
+    .stage-start__text {
+      width: auto;
+    }
+
+    .names {
+      width: auto;
+      max-width: 40rem;
+      text-align: center;
+    }
+
+    .names-inner {
+      position: relative;
+      padding: 2rem;
+
+      &:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        background: color-mix(in srgb, var(--primary-color), transparent 75%);
+        backdrop-filter: blur(10px);
+      }
+
+      > * {
+        position: relative;
+      }
+    }
+
+    .names--decoration {
+      &:before,
+      &:after,
+      .names-inner:before,
+      .names-inner:after {
+        content: '';
+        display: block;
+        margin: 1rem auto;
+        border-top: 1px solid currentColor;
+      }
+      &:before,
+      &:after {
+        width: 50%;
+      }
+    }
+
+    button[data-command='gallery-button'] {
+      position: fixed;
+      top: 2rem;
+      left: 2rem;
+    }
+    button[data-command='cups-button'] {
+      position: fixed;
+      bottom: 2rem;
+      left: 2rem;
+    }
+  }
+
+  .stage--result {
+    button[data-command='homebtn'] {
+      position: fixed;
+      top: 2rem;
+      right: 2rem;
+    }
+    button[data-command='gallerybtn'] {
+      position: fixed;
+      top: 2rem;
+      left: 2rem;
+    }
+  }
+}
+
+[data-ui-theme='classic_rounded'] {
+  .stage--start {
+    .names-inner,
+    .names-inner:before {
+      border-radius: 1rem;
+    }
+    #collageDiv {
+      border-radius: 1rem;
+    }
+  }
+}

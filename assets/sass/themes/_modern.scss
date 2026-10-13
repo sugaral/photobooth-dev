@@ -1,0 +1,640 @@
+/**
+ * Flat Design Theme
+ * Strict implementation of Flat Design System:
+ * - Pure colors: Background (#FFFFFF), Text (#111827), Primary (#3B82F6), Muted (#F3F4F6), Emerald (#10B981), Amber (#F59E0B)
+ * - Zero artificial depth: NO box-shadows, NO gradients on components, NO blur/backdrop-filter
+ * - Scale & pure color transitions for interactive feedback
+ * - Font family: 'Outfit', sans-serif
+ * - Explicit labels and typography on all buttons across start and result stages
+ */
+
+:root {
+  --flat-bg: #ffffff;
+  --flat-fg: #111827;
+  --flat-primary: #3b82f6;
+  --flat-primary-hover: #2563eb;
+  --flat-secondary: #10b981;
+  --flat-secondary-hover: #059669;
+  --flat-accent: #f59e0b;
+  --flat-accent-hover: #d97706;
+  --flat-muted: #f3f4f6;
+  --flat-muted-hover: #e5e7eb;
+  --flat-border: #e5e7eb;
+  --flat-danger: #ef4444;
+  --flat-danger-hover: #dc2626;
+  --flat-radius: 8px;
+  --flat-font: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  font-family: var(--flat-font) !important;
+  color: var(--flat-fg) !important;
+  background-color: var(--flat-bg) !important;
+}
+
+/* Hide legacy GitHub corner, QR code elements, and Cheese prompts */
+.github-corner,
+[data-command="github-corner"],
+svg.octo,
+.stage--start .logo,
+.cheese,
+.cheese-label,
+.cheese-image {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ========================================================
+   1. Flat Start Stage (Poster Aesthetic)
+   ======================================================== */
+.stage--start {
+  position: relative !important;
+  overflow: hidden !important;
+  background-color: var(--flat-bg) !important;
+  color: var(--flat-fg) !important;
+  box-shadow: none !important;
+  border: none !important;
+
+  /* Abstract Flat Geometric Shapes in Background (Low Opacity Solid Blocks) */
+  .flat-background-decorations {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+
+    .flat-shape {
+      position: absolute;
+      pointer-events: none;
+
+      &--circle-1 {
+        width: 600px;
+        height: 600px;
+        border-radius: 50%;
+        background-color: rgba(59, 130, 246, 0.05); /* 5% Primary */
+        top: -150px;
+        right: -100px;
+      }
+
+      &--square-1 {
+        width: 380px;
+        height: 380px;
+        border-radius: 12px;
+        background-color: rgba(16, 185, 129, 0.04); /* 4% Emerald */
+        bottom: -80px;
+        left: -80px;
+        transform: rotate(18deg);
+      }
+
+      &--circle-2 {
+        width: 260px;
+        height: 260px;
+        border-radius: 50%;
+        background-color: rgba(245, 158, 11, 0.05); /* 5% Amber */
+        top: 40%;
+        left: 8%;
+      }
+    }
+  }
+
+  /* Flat Top Header */
+  .flat-header {
+    position: absolute;
+    top: 1.5rem;
+    left: 2rem;
+    right: 2rem;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.5rem;
+    background-color: #ffffff;
+    border-bottom: 2px solid var(--flat-border);
+    box-shadow: none !important;
+
+    .flat-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+
+      .flat-logo-box {
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--flat-primary);
+        color: #ffffff;
+        border-radius: 6px;
+        font-size: 1.15rem;
+      }
+
+      .flat-brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.1;
+
+        .flat-title {
+          font-size: 1.1rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          color: var(--flat-fg);
+        }
+
+        .flat-status {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.72rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: var(--flat-secondary);
+          margin-top: 0.2rem;
+
+          .flat-status-dot {
+            width: 0.45rem;
+            height: 0.45rem;
+            border-radius: 50%;
+            background-color: var(--flat-secondary);
+          }
+        }
+      }
+    }
+
+    .flat-widgets {
+      .flat-clock {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.45rem 1rem;
+        background-color: var(--flat-muted);
+        border-radius: 6px;
+        color: var(--flat-fg);
+        font-size: 0.9rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+
+        i {
+          color: var(--flat-primary);
+        }
+      }
+    }
+  }
+
+  /* Inner Content */
+  .stage-inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    padding: 6rem 2rem 3rem 2rem;
+    box-sizing: border-box;
+    background: transparent !important;
+  }
+
+  .stage-start__text {
+    margin-bottom: 2.5rem;
+    text-align: center;
+    pointer-events: none;
+
+    .names {
+      text-align: center;
+
+      .start-text,
+      .event-text {
+        margin: 0;
+        font-family: var(--flat-font);
+      }
+
+      h1.start-text {
+        font-size: clamp(2.4rem, 5.5vw, 4rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--flat-fg);
+        margin-bottom: 0.5rem;
+        line-height: 1;
+      }
+
+      h2.start-text {
+        font-size: clamp(1rem, 2vw, 1.25rem);
+        font-weight: 500;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: #6b7280; /* Gray 500 */
+      }
+    }
+  }
+
+  /* Start Page Button Deck */
+  .stage-start__actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 900px;
+  }
+
+  .buttonbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+
+    .button {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 140px;
+      min-height: 100px;
+      padding: 1.2rem 1.6rem;
+      border-radius: var(--flat-radius);
+      border: 0 !important;
+      background-color: var(--flat-muted);
+      color: var(--flat-fg);
+      text-decoration: none;
+      cursor: pointer;
+      outline: none;
+      box-shadow: none !important;
+      transition: all 0.2s ease;
+      gap: 0.5rem;
+
+      .button--icon {
+        font-size: 1.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s ease;
+      }
+
+      .button--label {
+        display: block !important;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      &:hover,
+      &:focus-visible,
+      &.focused {
+        background-color: var(--flat-muted-hover);
+        transform: scale(1.05);
+        color: #000000;
+        box-shadow: none !important;
+
+        .button--icon {
+          transform: scale(1.1);
+        }
+      }
+
+      &:active {
+        transform: scale(0.96);
+      }
+
+      /* PRIMARY ACTION: Take Photo */
+      &.takePic,
+      &[data-command="takePic"] {
+        min-width: 190px;
+        min-height: 110px;
+        background-color: var(--flat-primary) !important;
+        color: #ffffff !important;
+        border-radius: var(--flat-radius) !important;
+
+        .button--icon {
+          font-size: 2.2rem;
+          color: #ffffff;
+        }
+
+        .button--label {
+          font-size: 1.05rem;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          color: #ffffff;
+        }
+
+        &:hover,
+        &:focus-visible,
+        &.focused {
+          background-color: var(--flat-primary-hover) !important;
+          transform: scale(1.05);
+          box-shadow: none !important;
+        }
+
+        &:active {
+          transform: scale(0.96);
+        }
+      }
+    }
+  }
+
+  /* Footer Hint */
+  .flat-footer-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    margin-top: 2rem;
+    background-color: var(--flat-muted);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #4b5563; /* Gray 600 */
+
+    .flat-hint-dot {
+      width: 0.4rem;
+      height: 0.4rem;
+      border-radius: 50%;
+      background-color: var(--flat-primary);
+    }
+  }
+}
+
+/* ========================================================
+   2. Result Stage (Left Sidebar & Flat Design)
+   Fix button text truncation, adapt for touchscreens, left vertical bar
+   ======================================================== */
+.stage--result {
+  position: relative !important;
+  background-color: #0f172a !important; /* High contrast dark canvas for photo display */
+  box-shadow: none !important;
+  overflow: hidden !important;
+
+  &::before,
+  &::after {
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  @media (min-width: 769px) {
+    &::after {
+      left: 270px !important;
+      right: 1.5rem !important;
+      top: 1.5rem !important;
+      bottom: 1.5rem !important;
+      background-size: contain !important;
+      background-position: center center !important;
+    }
+  }
+
+  .stage-inner {
+    padding: 1.5rem !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    height: 100% !important;
+    width: 100% !important;
+    pointer-events: none !important;
+  }
+
+  /* Result Left Vertical Sidebar */
+  .result-sidebar,
+  .buttonbar--sidebar {
+    position: relative !important;
+    z-index: 50 !important;
+    pointer-events: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 0.65rem !important;
+    width: 250px !important;
+    min-width: 250px !important;
+    max-width: 280px !important;
+    height: calc(100vh - 3rem) !important;
+    max-height: calc(100vh - 3rem) !important;
+    padding: 1.2rem 0.9rem !important;
+    background-color: #ffffff !important;
+    border-radius: 8px !important;
+    border: 2px solid var(--flat-border) !important;
+    box-shadow: none !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+
+    .button {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      min-height: 56px !important;
+      padding: 0.65rem 1rem !important;
+      border-radius: 6px !important;
+      border: 0 !important;
+      background-color: var(--flat-muted) !important;
+      color: var(--flat-fg) !important;
+      box-shadow: none !important;
+      cursor: pointer !important;
+      outline: none !important;
+      touch-action: manipulation !important;
+      transition: transform 0.15s ease, background-color 0.15s ease !important;
+      gap: 0.85rem !important;
+      text-decoration: none !important;
+      box-sizing: border-box !important;
+
+      .button--icon {
+        font-size: 1.3rem !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      /* CRITICAL FIX: Ensure all button labels are explicitly visible with bold flat typography */
+      .button--label {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em !important;
+        line-height: 1.2 !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+      }
+
+      &:hover,
+      &:focus-visible,
+      &.focused {
+        background-color: var(--flat-muted-hover) !important;
+        transform: scale(1.03) !important;
+        box-shadow: none !important;
+      }
+
+      &:active {
+        transform: scale(0.96) !important;
+      }
+
+      /* Button specific styles */
+      &.newpic,
+      &[data-command="newpic"] {
+        background-color: var(--flat-primary) !important;
+        color: #ffffff !important;
+        &:hover, &:focus-visible { background-color: var(--flat-primary-hover) !important; }
+      }
+
+      &.rembgbtn,
+      &[data-command="rembgbtn"] {
+        background-color: #6366f1 !important;
+        color: #ffffff !important;
+        &:hover, &:focus-visible { background-color: #4f46e5 !important; }
+      }
+
+      &.printbtn,
+      &[data-command="printbtn"] {
+        background-color: var(--flat-secondary) !important;
+        color: #ffffff !important;
+        &:hover, &:focus-visible { background-color: var(--flat-secondary-hover) !important; }
+      }
+
+      &.imageFilter,
+      &[data-command="imageFilter"] {
+        background-color: var(--flat-accent) !important;
+        color: #ffffff !important;
+        &:hover, &:focus-visible { background-color: var(--flat-accent-hover) !important; }
+      }
+
+      &.qrbtn,
+      &[data-command="qrbtn"] {
+        background-color: #0891b2 !important;
+        color: #ffffff !important;
+        &:hover, &:focus-visible { background-color: #0e7490 !important; }
+      }
+
+      &.gallerybtn,
+      &[data-command="gallerybtn"] {
+        background-color: #e2e8f0 !important;
+        color: #1e293b !important;
+        &:hover, &:focus-visible { background-color: #cbd5e1 !important; }
+      }
+
+      &.homebtn,
+      &[data-command="homebtn"] {
+        background-color: var(--flat-muted) !important;
+        color: var(--flat-fg) !important;
+        &:hover, &:focus-visible { background-color: var(--flat-muted-hover) !important; }
+      }
+
+      &.deletebtn,
+      &[data-command="deletebtn"] {
+        background-color: var(--flat-danger) !important;
+        color: #ffffff !important;
+        margin-top: auto !important;
+        &:hover, &:focus-visible { background-color: var(--flat-danger-hover) !important; }
+      }
+    }
+  }
+}
+
+/* ========================================================
+   3. Loader & Countdown Stage (Flat Bold Typography)
+   ======================================================== */
+.stage--loader {
+  background-color: var(--flat-bg) !important;
+  color: var(--flat-fg) !important;
+  box-shadow: none !important;
+
+  .loader-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .stage-message {
+    font-family: var(--flat-font);
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: var(--flat-fg);
+    letter-spacing: -0.02em;
+    text-shadow: none !important;
+  }
+}
+
+/* ========================================================
+   4. Filter Sidenav Drawer (Flat Color Block Style)
+   ======================================================== */
+#filternav {
+  background-color: #ffffff !important;
+  border-left: 2px solid var(--flat-border) !important;
+  box-shadow: none !important;
+
+  .sidenav-list-item {
+    font-family: var(--flat-font);
+    font-weight: 600;
+    color: var(--flat-fg);
+    border-radius: 6px;
+    margin: 0.25rem 0.5rem;
+    transition: all 0.2s ease;
+    border: 0;
+
+    &:hover {
+      background-color: var(--flat-muted) !important;
+      transform: scale(1.02);
+    }
+
+    &--active {
+      background-color: var(--flat-primary) !important;
+      color: #ffffff !important;
+    }
+  }
+}
+
+/* Global button label visibility enforcement */
+.button .button--label {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.flat-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background-color: rgba(15, 23, 42, 0.75) !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1.5rem !important;
+  box-sizing: border-box !important;
+  pointer-events: auto !important;
+
+  &.active,
+  &.is-open {
+    display: flex !important;
+  }
+}
+
+.rembg-loading-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  display: none !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 100 !important;
+
+  &.active,
+  &.is-loading {
+    display: flex !important;
+  }
+}

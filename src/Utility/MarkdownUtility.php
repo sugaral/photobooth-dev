@@ -1,0 +1,28 @@
+<?php
+
+namespace Photobooth\Utility;
+
+use League\CommonMark\GithubFlavoredMarkdownConverter;
+
+class MarkdownUtility
+{
+    public static function render(string $path): string
+    {
+        $path = PathUtility::getAbsolutePath($path);
+        if (!file_exists($path)) {
+            throw new \Exception('File cannot be found: ' . $path);
+        }
+
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throw new \Exception('File could not be read: ' . $path);
+        }
+
+        $converter = new GithubFlavoredMarkdownConverter([
+            'html_input' => 'strip',
+            'allow_unsafe_links' => false,
+        ]);
+
+        return (string) $converter->convert($content);
+    }
+}

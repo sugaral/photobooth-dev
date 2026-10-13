@@ -1,0 +1,7 @@
+preserve_comments=0
+minify_resources=0
+resource_definition={LOCALE}
+resource_structure=Flat
+use_single_quotes=0
+resource_type=JSON
+flatten_json=0

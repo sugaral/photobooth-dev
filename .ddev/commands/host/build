@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+
+# Host helper to run the project build inside DDEV without recursing back into this script
+ddev exec -s web npm run build

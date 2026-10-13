@@ -1,0 +1,68 @@
+archives/
+bower_components/
+config/*
+!config/config.inc.php
+!config/my.config.inc.php
+!config/tailwind.admin.config.js
+data/
+digicamcontrol/
+HEAD
+manual/faq.*
+node_modules/
+private/*
+!private/README.md
+!private/overrides.css
+scratch/
+*.err
+stats
+trash
+vendor/PhotoSwipe/
+vendor/simple-translator/
+.sass-cache
+/.htaccess
+.htpasswd
+*.patch
+/welcome/.skip_welcome
+.skip_welcome
+.vscode
+venv/
+yarn.lock
+var/
+
+# tooling
+tools/*/vendor
+
+# php-cs-fixer
+.php-cs-fixer.cache
+
+# phplint
+.phplint.cache
+
+# phpunit
+.phpunit.result.cache
+
+# ignore some IDE and OS files
+*.iml
+*.ipr
+*.iws
+.idea/
+**/.DS_Store
+
+/vendor/
+/.ddev/.built
+
+# rembg virtual environment
+scripts/rembg_venv/
+/.venv
+/site
+/.envrc
+__pycache__/
+*.py[cod]
+*$py.class
+*.lock
+cookies.txt
+models/
+
+
+*.log
+*.out

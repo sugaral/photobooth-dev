@@ -1,0 +1,122 @@
+<?php
+
+namespace Photobooth\Service;
+
+use Photobooth\Utility\PathUtility;
+
+class ApplicationService
+{
+    private const DEV_PLACEHOLDER_VERSION = '4.99.0';
+
+    protected string $version;
+
+    public function __construct()
+    {
+        $this->version = $this->calculatePhotoboothVersion();
+    }
+
+    public function getTitle(): string
+    {
+        return 'Photobooth';
+    }
+
+    public function getVersion(): string
+    {
+        return $this->version;
+    }
+
+    protected function calculatePhotoboothVersion(): string
+    {
+        $packageJsonPath = PathUtility::getRootPath() . DIRECTORY_SEPARATOR . 'package.json';
+        if (!is_file($packageJsonPath)) {
+            throw new \Exception('Package file not found.');
+        }
+        $packageContent = file_get_contents($packageJsonPath);
+        if ($packageContent === false) {
+            throw new \Exception('Error loading package file: ' . $packageJsonPath);
+        }
+        $package = json_decode($packageContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \Exception('Error decoding package file: ' . json_last_error_msg());
+        }
+
+        $gitVersion = '';
+        $version = '';
+        if ($package['version'] === self::DEV_PLACEHOLDER_VERSION) {
+            $gitVersion = $this->getGitVersion();
+        } else {
+            $version = $package['version'] ?? 'unknown';
+        }
+
+        return $gitVersion ? $version . ' ' . $gitVersion : $version;
+    }
+
+    private function getGitVersion(): string
+    {
+        $gitDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . '.git';
+        if (!is_dir($gitDir)) {
+            return '';
+        }
+
+        $devNull = stripos(PHP_OS, 'WIN') === 0 ? '2>nul' : '2>/dev/null';
+        $hash = trim(shell_exec("git rev-parse --short HEAD $devNull") ?: '');
+        $date = trim(shell_exec("git log -1 --format=%cd --date=short $devNull") ?: '');
+
+        if ($hash && $date) {
+            return sprintf('%s-dev %s', $hash, $date);
+        }
+
+        return $hash ? sprintf('%s-dev', $hash) : '';
+    }
+
+    public function getLatestRelease(): string
+    {
+        $gh = 'PhotoboothProject';
+        $url = 'https://api.github.com/repos/' . $gh . '/photobooth/releases/latest';
+        $options = [
+            'http' => [
+                'method' => 'GET',
+                'header' => "User-Agent: $gh/photobooth\r\n",
+            ],
+        ];
+
+        $context = stream_context_create($options);
+        $content = file_get_contents($url, false, $context);
+        if ($content === false) {
+            throw new \Exception('Failed to fetch latest release from GitHub API');
+        }
+
+        $data = json_decode($content, true);
+        if (!$data || !isset($data['tag_name'])) {
+            throw new \Exception('Invalid data returned from GitHub API');
+        }
+
+        $remoteVersion = substr($data['tag_name'], 1);
+        return $remoteVersion;
+    }
+
+    /**
+     * Check whether an update to the photobooth software is available.
+     */
+    public function checkUpdate(): bool
+    {
+        try {
+            $remoteVersion = $this->getLatestRelease();
+            $localVersion = $this->getVersion();
+            $updateAvailable = version_compare($localVersion, $remoteVersion, '<');
+
+            return $updateAvailable;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    public static function getInstance(): self
+    {
+        if (!isset($GLOBALS[self::class])) {
+            $GLOBALS[self::class] = new self();
+        }
+
+        return $GLOBALS[self::class];
+    }
+}

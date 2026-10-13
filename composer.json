@@ -1,0 +1,79 @@
+{
+    "name": "sugaral/photobooth",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "ext-gd": "*",
+        "ext-mbstring": "*",
+        "ext-xml": "*",
+        "ext-zip": "*",
+        "ext-fileinfo": "*",
+        "endroid/qr-code": "^6.0",
+        "league/commonmark": "^2.4",
+        "league/flysystem": "^3.29",
+        "league/flysystem-ftp": "^3.29",
+        "league/flysystem-sftp-v3": "^3.29",
+        "monolog/monolog": "^3.5",
+        "phpmailer/phpmailer": "^7.0",
+        "symfony/asset": "^8.0",
+        "symfony/config": "^7.0",
+        "symfony/console": "^8.0",
+        "symfony/filesystem": "^7.0",
+        "symfony/finder": "^8.0",
+        "symfony/translation": "^8.0"
+    },
+    "config": {
+        "bin-dir": "bin",
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "vendor-dir": "vendor",
+        "disable-tls": true,
+        "secure-http": false
+    },
+    "autoload": {
+        "psr-4": {
+            "Photobooth\\": ["src/", "private/src/"]
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Photobooth\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@tools:install"
+        ],
+        "post-update-cmd": [
+            "@tools:update"
+        ],
+        "cgl": [
+            "tools/php-cs-fixer/vendor/bin/php-cs-fixer --diff -v fix --config=.php-cs-fixer.dist.php"
+        ],
+        "cgl:ci": [
+            "tools/php-cs-fixer/vendor/bin/php-cs-fixer --diff -v fix --config=.php-cs-fixer.dist.php -v --dry-run"
+        ],
+        "lint": [
+            "tools/phplint/vendor/bin/phplint"
+        ],
+        "phpunit": [
+            "tools/phpunit/vendor/bin/phpunit"
+        ],
+        "phpstan": [
+            "tools/phpstan/vendor/bin/phpstan analyze --configuration phpstan.neon"
+        ],
+        "tools:install": [
+            "composer install --working-dir=tools/php-cs-fixer",
+            "composer install --working-dir=tools/phplint",
+            "composer install --working-dir=tools/phpunit",
+            "composer install --working-dir=tools/phpstan"
+        ],
+        "tools:update": [
+            "composer update -w --working-dir=tools/php-cs-fixer",
+            "composer update -w --working-dir=tools/phplint",
+            "composer update -w --working-dir=tools/phpunit",
+            "composer update -w --working-dir=tools/phpstan"
+        ]
+    }
+}

@@ -1,0 +1,2173 @@
+/* eslint n/no-unsupported-features/node-builtins: "off" */
+/* globals initPhotoSwipeFromDOM initRemoteBuzzerFromDOM processChromaImage remoteBuzzerClient rotaryController globalGalleryHandle photoboothTools photoboothPreview virtualKeyboard csrf */
+
+/* global createScreensaver */
+const photoBooth = (function () {
+    const PhotoStyle = {
+            PHOTO: 'photo',
+            COLLAGE: 'collage',
+            CHROMA: 'chroma',
+            VIDEO: 'video',
+            CUSTOM: 'custom'
+        },
+        CameraDisplayMode = {
+            INIT: 1,
+            BACKGROUND: 2,
+            COUNTDOWN: 3,
+            TEST: 4
+        },
+        PreviewMode = {
+            NONE: 'none',
+            DEVICE: 'device_cam',
+            URL: 'url'
+        },
+        PreviewStyle = {
+            FILL: 'fill',
+            CONTAIN: 'contain',
+            COVER: 'cover',
+            NONE: 'none',
+            SCALE_DOWN: 'scale-down'
+        },
+        CollageFrameMode = {
+            OFF: 'off',
+            ALWAYS: 'always',
+            ONCE: 'once'
+        };
+
+    const api = {},
+        startPage = $('.stage[data-stage="start"]'),
+        loader = $('.stage[data-stage="loader"]'),
+        loaderButtonBar = loader.find('.buttonbar'),
+        loaderMessage = loader.find('.stage-message'),
+        loaderImage = loader.find('.stage-image'),
+        resultPage = $('.stage[data-stage="result"]'),
+        screensaverOverlay = $('#screensaver-overlay'),
+        screensaverVideo = $('#screensaver-video'),
+        screensaverImage = $('#screensaver-image'),
+        screensaverTextTop = $('#screensaver-text-top'),
+        screensaverTextCenter = $('#screensaver-text-center'),
+        screensaverTextBottom = $('#screensaver-text-bottom'),
+        previewIpcam = $('#preview--ipcam'),
+        previewVideo = $('#preview--video'),
+        previewFramePicture = $('#previewframe--picture'),
+        videoBackground = $('#video-background'),
+        videoSensor = $('#video--sensor'),
+        buttonDelete = $('[data-command="deletebtn"]'),
+        buttonPrint = $('[data-command="printbtn"]'),
+        gallery = $('#gallery'),
+        filternav = $('#filternav'),
+        galimages = $('#galimages'),
+        videoAnimation = $('#videoAnimation'),
+        resultVideo = $('#resultVideo'),
+        resultVideoQR = $('#resultVideoQR'),
+        usesBackgroundPreview =
+            config.preview.asBackground &&
+            config.preview.mode === PreviewMode.DEVICE.valueOf() &&
+            ((config.commands.preview && !config.preview.bsm) || !config.commands.preview),
+        timeToLive = parseInt(config.picture.time_to_live, 10) * 1000,
+        retryTimeout = config.picture.retry_timeout * 1000,
+        notificationTimeout = config.ui.notification_timeout * 1000,
+        screensaverMode = config.screensaver.mode,
+        screensaverEnabled =
+            config.screensaver.enabled &&
+            config.screensaver.timeout_minutes > 0 &&
+            (screensaverMode === 'gallery' ||
+                screensaverMode === 'folder' ||
+                (screensaverMode === 'video' ? !!config.screensaver.video_source : !!config.screensaver.image_source)),
+        screensaverTimeoutMs = (config.screensaver.timeout_minutes || 0) * 60000,
+        screensaverSwitchMs = (config.screensaver.switch_seconds || 60) * 1000,
+        urlSafe = (src) => (src ? encodeURI(src) : '');
+
+    let timeOut,
+        chromaFile = '',
+        imgFilter = config.filters.defaults,
+        isProcessingEffects = false,
+        command,
+        startTime,
+        endTime,
+        totalTime;
+
+    api.takingPic = false;
+    api.chromaimage = '';
+    api.filename = '';
+    api.photoStyle = '';
+
+    api.isTimeOutPending = function () {
+        return typeof timeOut !== 'undefined';
+    };
+
+    api.clearTimeOut = function () {
+        clearTimeout(timeOut);
+        photoboothTools.console.log('Timeout for auto reload cleared via clearTimeOut.');
+    };
+
+    api.resetTimeOut = function () {
+        if (timeToLive === 0) {
+            return;
+        }
+        clearTimeout(timeOut);
+
+        photoboothTools.console.log('Timeout for auto reload cleared.');
+
+        if (!api.takingPic) {
+            photoboothTools.console.logDev('Timeout for auto reload set to ' + timeToLive + ' milliseconds.');
+            timeOut = setTimeout(function () {
+                photoboothTools.reloadPage();
+            }, timeToLive);
+        }
+    };
+
+    api.reset = function () {
+        loader.css('--stage-background', 'var(--background-countdown-color)');
+        loader.removeClass('stage--active');
+        loaderButtonBar.empty();
+        loaderMessage.empty();
+        loaderMessage.removeClass('stage-message--error');
+        resultPage.removeAttr('style data-img');
+        resultPage.removeClass('stage--active');
+        gallery.removeClass('gallery--open');
+        gallery.find('.gallery__inner').hide();
+        previewVideo.hide();
+        previewFramePicture.hide();
+        previewVideo.css('z-index', 0);
+        videoSensor.hide();
+        previewIpcam.hide();
+
+        photoboothTools.overlay.close();
+        photoboothTools.modal.close();
+
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        } else {
+            $('#rembgModal').removeClass('active sidenav--open').hide();
+            $('#stageCutoutViewport').hide();
+            $('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar').hide();
+            resultPage.removeClass('cutout-mode-active').removeAttr('data-original-img');
+        }
+    };
+
+    api.init = function () {
+        api.reset();
+        startPage.addClass('stage--active');
+        if (usesBackgroundPreview) {
+            photoboothPreview.startVideo(CameraDisplayMode.BACKGROUND);
+            photoboothTools.console.logDev('Preview: core: start video (BACKGROUND) from api.init.');
+        } else if (config.commands.preview && !config.preview.bsm) {
+            photoboothTools.console.logDev('Preview: core: start video (INIT) from api.init.');
+            photoboothPreview.startVideo(CameraDisplayMode.INIT);
+        }
+
+        initRemoteBuzzerFromDOM();
+        rotaryController.focusSet(startPage);
+
+        initPhotoSwipeFromDOM('#galimages');
+
+        api.screensaver.resetTimer();
+
+        initQuickSettings();
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('screensaverPreview')) {
+            api.screensaver.show(true);
+        }
+    };
+
+    api.screensaver = createScreensaver({
+        config,
+        environment,
+        startPage,
+        overlay: screensaverOverlay,
+        videoEl: screensaverVideo,
+        imageEl: screensaverImage,
+        textTop: screensaverTextTop,
+        textCenter: screensaverTextCenter,
+        textBottom: screensaverTextBottom,
+        screensaverEnabled,
+        screensaverMode,
+        screensaverTimeoutMs,
+        screensaverSwitchMs,
+        urlSafe,
+        photoboothTools
+    });
+
+    const initQuickSettings = function () {
+        const modal = $('#quickSettingsModal');
+        if (!modal.length) return;
+
+        const btnOpen = $('#btnQuickSettings');
+        const btnClose = $('#btnQuickSettingsClose, #btnQuickSettingsDone, #quickSettingsBackdrop');
+        const selectCamera = $('#settingCameraSelect');
+        const btnRefresh = $('#btnRefreshCameras');
+        const hintText = $('#settingCameraHint');
+        const flipSwitch = $('#settingCameraFlip');
+        const miniVideo = document.getElementById('settingCameraMiniVideo');
+        const placeholder = $('.settings-camera-preview-placeholder');
+
+        // 1. 初始化镜像开关状态 (优先读取本地偏好，若未设置则跟随配置)
+        const storedFlip = localStorage.getItem('photobooth_camera_flip');
+        if (storedFlip === 'false' || (storedFlip === null && config.preview && config.preview.flip !== 'flip-horizontal')) {
+            flipSwitch.prop('checked', false);
+            if (miniVideo) $(miniVideo).removeClass('flip-horizontal');
+        } else {
+            flipSwitch.prop('checked', true);
+            if (miniVideo) $(miniVideo).addClass('flip-horizontal');
+        }
+
+        flipSwitch.on('change', function () {
+            const isFlipped = $(this).is(':checked');
+            if (window.photoboothPreview && typeof window.photoboothPreview.setFlip === 'function') {
+                window.photoboothPreview.setFlip(isFlipped);
+            }
+            if (miniVideo) {
+                $(miniVideo).toggleClass('flip-horizontal', isFlipped);
+            }
+        });
+
+        // 同步活动视频流到设置面板的迷你取景框
+        function syncMiniVideo() {
+            if (miniVideo && window.photoboothPreview && window.photoboothPreview.stream) {
+                try {
+                    miniVideo.srcObject = window.photoboothPreview.stream;
+                    $(miniVideo).show();
+                    placeholder.hide();
+                } catch (e) {
+                    photoboothTools.console.log('Error attaching stream to mini preview: ', e);
+                }
+            }
+        }
+
+        // 2. 加载与刷新摄像头设备列表
+        function refreshCameraList() {
+            selectCamera.prop('disabled', true);
+            selectCamera.empty().append($('<option>').val('').text('正在检测可用摄像头...'));
+            hintText.html('<i class="fa fa-spinner fa-spin"></i> 正在读取系统摄像头设备...');
+
+            if (!window.photoboothPreview || typeof window.photoboothPreview.getAvailableCameras !== 'function') {
+                selectCamera.empty().append($('<option>').val('').text('暂不支持检测摄像头'));
+                hintText.html('<i class="fa fa-triangle-exclamation"></i> 预览模块未就绪');
+                selectCamera.prop('disabled', false);
+                return;
+            }
+
+            window.photoboothPreview.getAvailableCameras(function (cameras) {
+                selectCamera.prop('disabled', false);
+                if (!cameras || !cameras.length) {
+                    selectCamera.empty().append($('<option>').val('').text('未检测到可用摄像头'));
+                    hintText.html('<i class="fa fa-triangle-exclamation" style="color: #ef4444;"></i> 未检测到视频输入设备，请检查摄像头连接');
+                    return;
+                }
+
+                const preferredId = localStorage.getItem('photobooth_preferred_camera');
+                selectCamera.empty();
+                let matched = false;
+
+                cameras.forEach(function (cam, index) {
+                    const label = cam.label || ('摄像头 ' + (index + 1));
+                    const opt = $('<option>').val(cam.deviceId).text(label);
+                    if (preferredId && cam.deviceId === preferredId) {
+                        opt.prop('selected', true);
+                        matched = true;
+                    }
+                    selectCamera.append(opt);
+                });
+
+                if (!matched && cameras.length > 0) {
+                    selectCamera.val(cameras[0].deviceId);
+                }
+
+                syncMiniVideo();
+                hintText.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 共检测到 ' + cameras.length + ' 个摄像头设备');
+            });
+        }
+
+        // 3. 切换摄像头
+        selectCamera.on('change', function () {
+            const selectedId = $(this).val();
+            if (!selectedId) return;
+
+            hintText.html('<i class="fa fa-spinner fa-spin"></i> 正在切换摄像头画面...');
+            selectCamera.prop('disabled', true);
+
+            if (window.photoboothPreview && typeof window.photoboothPreview.switchCamera === 'function') {
+                window.photoboothPreview.switchCamera(selectedId, function (success) {
+                    selectCamera.prop('disabled', false);
+                    if (success) {
+                        syncMiniVideo();
+                        hintText.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 摄像头切换成功，画面已更新');
+                    } else {
+                        hintText.html('<i class="fa fa-circle-exclamation" style="color: #ef4444;"></i> 摄像头切换失败，请重试');
+                    }
+                });
+            }
+        });
+
+        btnRefresh.on('click', function (e) {
+            e.preventDefault();
+            refreshCameraList();
+        });
+
+        // 4. CPU 并行核心数设置 (即时生效)
+        const selectCpu = $('#settingCpuThreadsSelect');
+        const cpuHint = $('#settingCpuThreadsHint');
+
+        function loadCpuConfig() {
+            if (!selectCpu.length) return;
+            $.ajax({
+                url: 'api/rembgCpuConfig.php',
+                type: 'GET',
+                dataType: 'json',
+                cache: false,
+                success: function (res) {
+                    if (res && res.success) {
+                        const threads = res.live_threads || res.threads || 4;
+                        selectCpu.val(String(threads));
+                        cpuHint.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 当前运行状态：' + threads + ' 核心并行计算 (即时生效)');
+                    }
+                },
+                error: function () {
+                    const fallbackThreads = (config.rembg && config.rembg.cpu_threads) ? config.rembg.cpu_threads : 4;
+                    selectCpu.val(String(fallbackThreads));
+                }
+            });
+        }
+
+        if (selectCpu.length) {
+            loadCpuConfig();
+            selectCpu.on('change', function () {
+                const newThreads = parseInt($(this).val(), 10) || 4;
+                cpuHint.html('<i class="fa fa-spinner fa-spin"></i> 正在即时应用核心配置...');
+                selectCpu.prop('disabled', true);
+
+                $.ajax({
+                    url: 'api/rembgCpuConfig.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ threads: newThreads }),
+                    dataType: 'json',
+                    success: function (res) {
+                        selectCpu.prop('disabled', false);
+                        if (res && res.success) {
+                            if (config.rembg) {
+                                config.rembg.cpu_threads = newThreads;
+                            }
+                            cpuHint.html('<i class="fa fa-circle-check" style="color: #10b981; font-weight: bold;"></i> ' + (res.message || ('已即时生效为 ' + newThreads + ' 核心并行计算')));
+                        } else {
+                            cpuHint.html('<i class="fa fa-circle-exclamation" style="color: #ef4444;"></i> 设置失败：' + (res.error || '未知错误'));
+                        }
+                    },
+                    error: function () {
+                        selectCpu.prop('disabled', false);
+                        cpuHint.html('<i class="fa fa-circle-exclamation" style="color: #ef4444;"></i> 网络请求失败，请检查服务状态');
+                    }
+                });
+            });
+        }
+
+        // 5. 打开 / 关闭模态框
+        function openModal() {
+            modal.fadeIn(180).attr('aria-hidden', 'false');
+            if (window.photoboothPreview && !window.photoboothPreview.stream && typeof window.photoboothPreview.initializeMedia === 'function') {
+                window.photoboothPreview.initializeMedia(function () {
+                    syncMiniVideo();
+                });
+            } else {
+                syncMiniVideo();
+            }
+            refreshCameraList();
+            loadCpuConfig();
+        }
+
+        function closeModal() {
+            modal.fadeOut(150).attr('aria-hidden', 'true');
+        }
+
+        btnOpen.on('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openModal();
+        });
+
+        btnClose.on('click', function (e) {
+            e.preventDefault();
+            closeModal();
+        });
+
+        $(document).on('keydown', function (e) {
+            if (e.key === 'Escape' && modal.is(':visible')) {
+                closeModal();
+            }
+        });
+    };
+
+    const updateFilterPreviews = function () {
+        if (!resultPage.attr('data-original-img')) {
+            resultPage.attr('data-original-img', resultPage.attr('data-img'));
+        }
+        const baseFile = resultPage.attr('data-original-img') || resultPage.attr('data-img') || api.filename;
+        if (!baseFile || baseFile === 'undefined') return;
+        const imagesFolder = (typeof environment !== 'undefined' && environment.publicFolders && environment.publicFolders.images)
+            ? environment.publicFolders.images
+            : '/data/images';
+        const imgUrl = imagesFolder + '/' + baseFile + '?v=' + Date.now();
+        $('.filter-preview-img').each(function () {
+            if ($(this).attr('src') !== imgUrl) {
+                $(this).attr('src', imgUrl);
+            }
+        });
+    };
+
+    api.navbar = {
+        open: function () {
+            if ($('#rembgModal').hasClass('sidenav--open')) {
+                $('#rembgModal').removeClass('active sidenav--open').hide();
+            }
+            updateFilterPreviews();
+            filternav.addClass('sidenav--open');
+            rotaryController.focusSet(filternav);
+        },
+        close: function () {
+            filternav.removeClass('sidenav--open');
+        },
+        toggle: function () {
+            if (!filternav.hasClass('sidenav--open')) {
+                if ($('#rembgModal').hasClass('sidenav--open')) {
+                    $('#rembgModal').removeClass('active sidenav--open').hide();
+                }
+                updateFilterPreviews();
+            }
+            filternav.toggleClass('sidenav--open');
+
+            if (filternav.hasClass('sidenav--open')) {
+                rotaryController.focusSet(filternav);
+            }
+        }
+    };
+
+    const setFiltersEnabled = (enabled) => {
+        isProcessingEffects = !enabled;
+        filternav.css('pointer-events', enabled ? '' : 'none');
+        filternav.toggleClass('filters--disabled', !enabled);
+    };
+
+    api.stopPreviewAndCaptureFromVideo = () => {
+        if (config.preview.camTakesPic) {
+            if (photoboothPreview.stream) {
+                videoSensor.get(0).width = previewVideo.get(0).videoWidth;
+                videoSensor.get(0).height = previewVideo.get(0).videoHeight;
+                videoSensor.get(0).getContext('2d').drawImage(previewVideo.get(0), 0, 0);
+            }
+        }
+        if (!config.commands.preview_kill || config.preview.camTakesPic) {
+            photoboothTools.console.logDev('Preview: core: stopping preview from stopPreviewAndCaptureFromVideo.');
+            photoboothPreview.stopPreview();
+        }
+    };
+
+    api.countdown = {
+        element: null,
+        audioElement: null,
+        create: () => {
+            if (api.countdown.element === null) {
+                const element = document.createElement('div');
+                element.classList.add('countdown');
+                document.body.append(element);
+                api.countdown.element = element;
+            }
+
+            if (api.countdown.audioElement === null) {
+                const audioElement = document.createElement('audio');
+                document.body.append(audioElement);
+                api.countdown.audioElement = audioElement;
+            }
+        },
+        destroy: () => {
+            if (api.countdown.element !== null) {
+                api.countdown.element.remove();
+                api.countdown.element = null;
+            }
+            if (api.countdown.audioElement !== null) {
+                api.countdown.audioElement.remove();
+                api.countdown.audioElement = null;
+            }
+        },
+        start: (seconds) => {
+            photoboothTools.console.log('Countdown started. Set to ' + seconds + ' seconds.');
+            api.countdown.create();
+
+            return new Promise((resolve) => {
+                const stop =
+                    parseInt(config.preview.stop_time, 10) > seconds ? 0 : parseInt(config.preview.stop_time, 10);
+                photoboothTools.console.logDev('Preview: core: stop at ' + stop);
+                const startTime = performance.now();
+                const targetTime = startTime + seconds * 1000;
+                let lastSecondShown = null;
+
+                const tick = () => {
+                    const now = performance.now();
+                    const remainingSeconds = Math.ceil((targetTime - now) / 1000);
+
+                    // Only update when we moved to the next integer second
+                    if (remainingSeconds !== lastSecondShown) {
+                        lastSecondShown = remainingSeconds;
+                        photoboothTools.console.logDev('Preview: core: countdown seconds ' + remainingSeconds);
+                        api.countdown.element.innerHTML = '';
+                        if (remainingSeconds > 0) {
+                            // dont show the 0 as countdown number
+                            const numberElement = document.createElement('div');
+                            numberElement.classList.add('countdown-number');
+                            numberElement.textContent = Number(remainingSeconds).toString();
+                            api.countdown.element.appendChild(numberElement);
+                        }
+                        if (config.sound.enabled && config.sound.countdown_enabled) {
+                            const soundfile = photoboothTools.getSound(
+                                'counter-' + Number(remainingSeconds).toString()
+                            );
+                            if (soundfile !== null) {
+                                api.countdown.audioElement.src = soundfile;
+                                api.countdown.audioElement.play().catch((error) => {
+                                    photoboothTools.console.log('Error with audio.play: ' + error);
+                                });
+                            }
+                        }
+
+                        // stop second hit
+                        if (remainingSeconds === stop && !config.preview.camTakesPic) {
+                            photoboothTools.console.logDev('Preview: core: stopping preview at countdown.');
+                            photoboothPreview.stopPreview();
+                        }
+
+                        // after 1 is faded out, on second 0
+                        if (remainingSeconds <= 0) {
+                            photoboothTools.console.log('Countdown finished.');
+                            api.countdown.destroy();
+                            resolve();
+
+                            return;
+                        }
+                    }
+
+                    if (remainingSeconds > 0) {
+                        if (typeof window.requestAnimationFrame === 'function') {
+                            window.requestAnimationFrame(tick);
+                        } else {
+                            setTimeout(tick, 50);
+                        }
+                    }
+                };
+
+                tick();
+            });
+        }
+    };
+
+    api.cheese = {
+        element: null,
+        audioElement: null,
+        create: () => {
+            if (api.cheese.audioElement === null) {
+                const audioElement = document.createElement('audio');
+                document.body.append(audioElement);
+                api.cheese.audioElement = audioElement;
+            }
+
+            if (api.cheese.element === null) {
+                const element = document.createElement('div');
+                element.classList.add('cheese');
+
+                if (config.ui.shutter_cheese_img != null && config.ui.shutter_cheese_img !== '') {
+                    const image = document.createElement('img');
+                    image.src = config.ui.shutter_cheese_img;
+                    const imageElement = document.createElement('div');
+                    imageElement.classList.add('cheese-image');
+                    imageElement.appendChild(image);
+                    element.appendChild(imageElement);
+                } else if (api.photoStyle === PhotoStyle.VIDEO) {
+                    const labelElement = document.createElement('div');
+                    labelElement.classList.add('cheese-label');
+                    labelElement.textContent = config.video.cheese;
+                    element.appendChild(labelElement);
+                } else {
+                    const labelElement = document.createElement('div');
+                    labelElement.classList.add('cheese-label');
+                    labelElement.textContent = photoboothTools.getTranslation('cheese');
+                    element.appendChild(labelElement);
+                }
+
+                document.body.append(element);
+                api.cheese.element = element;
+            }
+        },
+        destroy: () => {
+            if (api.cheese.audioElement !== null) {
+                api.cheese.audioElement.remove();
+                api.cheese.audioElement = null;
+            }
+            if (api.cheese.element !== null) {
+                api.cheese.element.remove();
+                api.cheese.element = null;
+            }
+        },
+        start: () => {
+            photoboothTools.console.log('Cheese: Start');
+            api.cheese.create();
+
+            return new Promise((resolve) => {
+                if (config.sound.enabled && config.sound.cheese_enabled) {
+                    const soundfile = photoboothTools.getSound('cheese');
+                    if (soundfile !== null) {
+                        api.cheese.audioElement.src = soundfile;
+                        api.cheese.audioElement.play().catch((error) => {
+                            photoboothTools.console.log('Error with audio.play: ' + error);
+                        });
+                    }
+                }
+                setTimeout(() => {
+                    photoboothTools.console.log('Cheese: End');
+                    resolve();
+                }, config.picture.cheese_time);
+            });
+        }
+    };
+
+    api.shutter = {
+        element: null,
+        create: () => {
+            if (api.shutter.element === null) {
+                const flash = document.createElement('div');
+                flash.classList.add('shutter-flash');
+                const aperture = document.createElement('div');
+                aperture.classList.add('shutter-aperture');
+                const element = document.createElement('div');
+                element.classList.add('shutter');
+                element.appendChild(flash);
+                element.appendChild(aperture);
+                document.body.append(element);
+                api.shutter.element = element;
+            }
+        },
+        destroy: () => {
+            if (api.shutter.element !== null) {
+                api.shutter.element.remove();
+                api.shutter.element = null;
+            }
+        },
+        start: () => {
+            api.shutter.create();
+
+            return new Promise((resolve) => {
+                photoboothTools.console.log('Shutter: Start');
+                const flash = api.shutter.element.querySelector('.shutter-flash');
+                flash.style.transition = 'opacity 0.5s';
+                const flashAnimation = flash.animate([{}, { opacity: 1 }], {
+                    duration: 500,
+                    fill: 'forwards'
+                });
+                flashAnimation.onfinish = () => {
+                    resolve();
+                };
+            });
+        },
+        stop: () => {
+            api.shutter.create();
+
+            return new Promise((resolve) => {
+                photoboothTools.console.log('Shutter: Stop');
+                const aperture = api.shutter.element.querySelector('.shutter-aperture');
+                aperture.style.transition = 'width 0.5s, padding-bottom 0.5s';
+                const apertureAnimation = aperture.animate(
+                    [
+                        {},
+                        {
+                            width: 0,
+                            paddingBottom: 0
+                        }
+                    ],
+                    {
+                        duration: 500,
+                        fill: 'forwards'
+                    }
+                );
+                apertureAnimation.onfinish = () => {
+                    api.shutter.destroy();
+                    resolve();
+                };
+            });
+        }
+    };
+
+    api.clearLoaderImage = () => {
+        loaderImage.css({ display: 'none', 'background-image': '' });
+        loaderImage.removeAttr('data-img');
+    };
+
+    api.shellCommand = function (cmd, file = '') {
+        command = {
+            mode: cmd,
+            filename: file
+        };
+        photoboothTools.console.log('Run', cmd);
+
+        photoboothTools
+            .ajaxWithCsrf({
+                url: environment.publicFolders.api + '/shellCommand.php',
+                method: 'POST',
+                data: command
+            })
+            .done(function (result) {
+                photoboothTools.console.log(cmd, 'result: ', result);
+            })
+            .fail(function (xhr, status, errorThrown) {
+                if (photoboothTools.isCsrfErrorResponse(xhr)) {
+                    photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/shellCommand.php');
+                    return;
+                }
+                photoboothTools.console.log(cmd, 'result: ', errorThrown);
+            });
+    };
+
+    api.thrill = async (photoStyle, retry = 0) => {
+        if (api.takingPic) {
+            photoboothTools.console.logDev('ERROR: Taking picture in progress already!');
+
+            return;
+        }
+
+        if (config.selfie_mode) {
+            photoboothTools.console.logDev('ERROR: Taking picture unsupported on selfie mode!');
+
+            return;
+        }
+
+        try {
+            api.navbar.close();
+            api.reset();
+            api.closeGallery();
+            api.clearLoaderImage();
+
+            remoteBuzzerClient.inProgress(photoStyle);
+            api.takingPic = true;
+            photoboothTools.console.logDev('Taking picture in progress: ' + api.takingPic);
+
+            if (api.isTimeOutPending()) {
+                api.resetTimeOut();
+            }
+
+            if (config.commands.pre_photo) {
+                api.shellCommand('pre-command');
+            }
+
+            if (chromaFile) {
+                photoStyle = PhotoStyle.CHROMA;
+            }
+            api.photoStyle = photoStyle;
+            photoboothTools.console.log('PhotoStyle: ' + api.photoStyle);
+
+            let countdownTime;
+            switch (api.photoStyle) {
+                case PhotoStyle.VIDEO:
+                    countdownTime = config.video.cntdwn_time;
+                    break;
+                case PhotoStyle.CUSTOM:
+                    countdownTime = config.custom.cntdwn_time;
+                    break;
+                case PhotoStyle.PHOTO:
+                default:
+                    countdownTime = config.picture.cntdwn_time;
+                    break;
+            }
+
+            let maxGetMediaRetry = Math.max(countdownTime - 1, 0);
+            if (config.commands.preview_kill && maxGetMediaRetry > 0) {
+                maxGetMediaRetry = Math.max(countdownTime - parseInt(config.preview.stop_time, 10), 0);
+            }
+            photoboothPreview.startVideo(CameraDisplayMode.COUNTDOWN, retry, maxGetMediaRetry);
+
+            if (
+                config.preview.mode !== PreviewMode.NONE.valueOf() &&
+                (config.preview.style === PreviewStyle.CONTAIN.valueOf() ||
+                    config.preview.style === PreviewStyle.SCALE_DOWN.valueOf()) &&
+                config.preview.showFrame
+            ) {
+                if (
+                    (api.photoStyle === PhotoStyle.PHOTO || api.photoStyle === PhotoStyle.CUSTOM) &&
+                    config.picture.take_frame
+                ) {
+                    previewFramePicture.show();
+                }
+            }
+
+            videoBackground.hide();
+            startPage.removeClass('stage--active');
+            loader.addClass('stage--active');
+            api.screensaver.hide();
+
+            if (config.get_request.countdown) {
+                let getMode;
+                switch (api.photoStyle) {
+                    case PhotoStyle.VIDEO:
+                        getMode = config.get_request.video;
+                        break;
+                    case PhotoStyle.CUSTOM:
+                        getMode = config.get_request.custom;
+                        break;
+                    case PhotoStyle.PHOTO:
+                    default:
+                        getMode = config.get_request.picture;
+                        break;
+                }
+                const getUrl = config.get_request.server + '/' + getMode;
+                photoboothTools.getRequest(getUrl);
+            }
+
+            await api.countdown.start(countdownTime);
+            await api.cheese.start();
+
+            if (config.preview.camTakesPic && !photoboothPreview.stream && !config.dev.demo_images) {
+                api.errorPic({
+                    error: 'No preview by device cam available!'
+                });
+            } else if (api.photoStyle === PhotoStyle.VIDEO) {
+                api.takeVideo(retry);
+            } else {
+                api.takePic(retry);
+            }
+        } catch (error) {
+            photoboothTools.console.log('thrill: unexpected error:', error);
+            api.errorPic({ error: error.message || 'Unexpected error in thrill' });
+        }
+    };
+
+    api.takeVideo = function (retry) {
+        remoteBuzzerClient.inProgress('in-progress');
+        const data = {
+            style: api.photoStyle
+        };
+        api.callTakeVideoApi(data, retry);
+    };
+
+    api.takePic = function (retry) {
+        try {
+            remoteBuzzerClient.inProgress('in-progress');
+
+            api.stopPreviewAndCaptureFromVideo();
+
+            const data = {
+                filter: imgFilter,
+                style: api.photoStyle,
+                canvasimg: videoSensor.get(0).toDataURL('image/jpeg')
+            };
+
+            if (api.photoStyle === PhotoStyle.CHROMA) {
+                data.file = chromaFile;
+            }
+
+            loader.css('--stage-background', 'var(--background-countdown-color)');
+
+            api.callTakePicApi(data, retry);
+        } catch (error) {
+            photoboothTools.console.log('takePic: unexpected error:', error);
+            api.errorPic({ error: error.message || 'Unexpected error in takePic' });
+        }
+    };
+
+    api.retryTakePic = function (retry) {
+        api.takingPic = false;
+        retry += 1;
+        loaderMessage.text(
+            photoboothTools.getTranslation('retry_message') + ' ' + retry + '/' + config.picture.retry_on_error
+        );
+        photoboothTools.console.logDev('Retry to capture image: ' + retry);
+        setTimeout(() => {
+            api.thrill(api.photoStyle, retry);
+        }, retryTimeout);
+    };
+
+    api.callTakePicApi = async (data, retry = 0) => {
+        startTime = new Date().getTime();
+        photoboothTools.console.logDev('Capture image.');
+        photoboothTools
+            .ajaxWithCsrf({
+                url: environment.publicFolders.api + '/capture.php',
+                method: 'POST',
+                data: data,
+                timeout: 25000
+            })
+            .done(async (result) => {
+                try {
+                    api.cheese.destroy();
+                    if (config.ui.shutter_animation) {
+                        await api.shutter.start();
+                        await api.shutter.stop();
+                    }
+                    endTime = new Date().getTime();
+                    totalTime = endTime - startTime;
+                    photoboothTools.console.log('Took ' + data.style, result);
+                    imgFilter = config.filters.defaults;
+                    const defFilter = (typeof imgFilter === 'object' && imgFilter !== null && imgFilter.value) ? imgFilter.value : imgFilter;
+                    $('#filternav .filter-card, #filternav .sidenav-list-item, .filter-card, .sidenav-list-item').removeClass('filter-card--active sidenav-list-item--active focused');
+                    $(`#filternav .filter-card[data-filter="${defFilter}"], #filternav .sidenav-list-item[data-filter="${defFilter}"]`).addClass('filter-card--active sidenav-list-item--active');
+                    previewFramePicture.hide();
+                    if (result.error) {
+                        photoboothTools.console.logDev('Error while taking picture.');
+                        if (config.picture.retry_on_error > 0 && retry < config.picture.retry_on_error) {
+                            api.retryTakePic(retry);
+                        } else {
+                            api.errorPic(result);
+                        }
+                    } else if (result.success === PhotoStyle.CHROMA) {
+                        chromaFile = result.file;
+                        api.processPic(result);
+                    } else {
+                        api.processPic(result);
+                    }
+                } catch (error) {
+                    photoboothTools.console.log('callTakePicApi.done: unexpected error:', error);
+                    api.errorPic({ error: error.message || 'Unexpected error processing capture result' });
+                }
+            })
+            .fail(async (xhr, status, result) => {
+                try {
+                    if (photoboothTools.isCsrfErrorResponse(xhr)) {
+                        photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/capture.php');
+                        return;
+                    }
+                    endTime = new Date().getTime();
+                    totalTime = endTime - startTime;
+                    api.cheese.destroy();
+                    if (result === null || result === undefined || typeof result === 'string') {
+                        result = { error: result || 'Unexpected error: result is null or undefined' };
+                    } else if (!result.error) {
+                        result.error = 'Unknown error occurred';
+                    }
+                    photoboothTools.console.log('Took ' + data.style, result);
+                    photoboothTools.console.logDev('Failed after ' + totalTime + 'ms');
+                    if (config.picture.retry_on_error > 0 && retry < config.picture.retry_on_error) {
+                        photoboothTools.console.logDev(
+                            'ERROR: Taking picture failed. Retrying. Retry: ' +
+                                retry +
+                                ' / ' +
+                                config.picture.retry_on_error
+                        );
+                        api.retryTakePic(retry);
+                    } else {
+                        api.errorPic(result);
+                    }
+                } catch (error) {
+                    photoboothTools.console.log('Unexpected error in .fail block', error);
+                    api.errorPic({ error: error.message || 'An unexpected error occurred during failure handling' });
+                }
+            });
+    };
+
+    api.callTakeVideoApi = function (data) {
+        if (config.video.animation) {
+            videoAnimation.show();
+        }
+        startTime = new Date().getTime();
+        photoboothTools
+            .ajaxWithCsrf({
+                url: environment.publicFolders.api + '/capture.php',
+                method: 'POST',
+                data: data,
+                timeout: 25000
+            })
+            .done(async (result) => {
+                try {
+                    api.cheese.destroy();
+                    if (config.video.animation) {
+                        videoAnimation.hide();
+                    }
+                    endTime = new Date().getTime();
+                    totalTime = endTime - startTime;
+                    photoboothTools.console.log('Took ' + data.style, result);
+                    photoboothTools.console.logDev('Taking video took ' + totalTime + 'ms');
+                    imgFilter = config.filters.defaults;
+                    const defVideoFilter = (typeof imgFilter === 'object' && imgFilter !== null && imgFilter.value) ? imgFilter.value : imgFilter;
+                    $('#filternav .filter-card, #filternav .sidenav-list-item, .filter-card, .sidenav-list-item').removeClass('filter-card--active sidenav-list-item--active focused');
+                    $(`#filternav .filter-card[data-filter="${defVideoFilter}"], #filternav .sidenav-list-item[data-filter="${defVideoFilter}"]`).addClass('filter-card--active sidenav-list-item--active');
+
+                    if (result.error) {
+                        api.errorPic(result);
+                    } else {
+                        api.processVideo(result);
+                    }
+                } catch (error) {
+                    photoboothTools.console.log('callTakeVideoApi.done: unexpected error:', error);
+                    api.errorPic({ error: error.message || 'Unexpected error processing video result' });
+                }
+            })
+            .fail(function (xhr, status, result) {
+                try {
+                    if (photoboothTools.isCsrfErrorResponse(xhr)) {
+                        photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/capture.php');
+                        return;
+                    }
+                    api.cheese.destroy();
+                    if (result === null || result === undefined || typeof result === 'string') {
+                        result = { error: result || 'Unexpected error: result is null or undefined' };
+                    } else if (!result.error) {
+                        result.error = 'Unknown error occurred';
+                    }
+                    api.errorPic(result);
+                } catch (error) {
+                    photoboothTools.console.log('Unexpected error in .fail block', error);
+                    api.errorPic({ error: error.message || 'An unexpected error occurred during failure handling' });
+                }
+            });
+    };
+
+    api.errorPic = function (data) {
+        setTimeout(function () {
+            try {
+                api.cheese.destroy();
+                api.shutter.destroy();
+                setFiltersEnabled(true);
+
+                loaderMessage.empty();
+                loaderButtonBar.empty();
+                previewVideo.hide();
+                videoSensor.hide();
+                previewFramePicture.hide();
+                if (config.video.animation) {
+                    videoAnimation.hide();
+                }
+                loaderMessage.addClass('stage-message--error');
+                loaderMessage.append($('<p>').text(photoboothTools.getTranslation('error')));
+                photoboothTools.console.log('An error occurred:', data.error);
+                if (config.dev.loglevel > 1) {
+                    loaderMessage.append($('<p>').text(data.error));
+                }
+                api.takingPic = false;
+                remoteBuzzerClient.inProgress(false);
+                photoboothTools.console.logDev('Taking picture in progress: ' + api.takingPic);
+            } catch (e) {
+                photoboothTools.console.log('errorPic: exception during cleanup:', e);
+                api.takingPic = false;
+            }
+
+            if (config.dev.reload_on_error) {
+                try {
+                    loaderMessage.append($('<p>').text(photoboothTools.getTranslation('auto_reload')));
+                } catch {
+                    // ignore UI update failure
+                }
+                setTimeout(function () {
+                    photoboothTools.reloadPage();
+                }, notificationTimeout || 5000);
+            } else {
+                const reloadButton = $('<button type="button" class="button rotaryfocus">');
+                reloadButton.append('<span class="button--icon"><i class="' + config.icons.refresh + '"></i></span>');
+                reloadButton.append(
+                    '<span class="button--label">' + photoboothTools.getTranslation('reload') + '</span>'
+                );
+                reloadButton.appendTo(loaderButtonBar).on('click', () => {
+                    photoboothTools.reloadPage();
+                });
+            }
+        }, 500);
+    };
+
+    api.processPic = function (result) {
+        startTime = new Date().getTime();
+        loader.addClass('stage--active');
+        startPage.removeClass('stage--active');
+        resultPage.removeClass('stage--active');
+        setFiltersEnabled(false);
+        loaderMessage.html(
+            '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busy')
+        );
+
+        if (
+            (api.photoStyle === PhotoStyle.PHOTO || api.photoStyle === PhotoStyle.CUSTOM) &&
+            config.picture.preview_before_processing
+        ) {
+            const tempImageUrl = environment.publicFolders.tmp + '/' + result.file;
+            const preloadImage = new Image();
+            preloadImage.onload = () => {
+                loader.css('background-image', `url(${tempImageUrl})`);
+                loader.addClass('showBackgroundImage');
+            };
+            preloadImage.src = tempImageUrl;
+        }
+
+        photoboothTools
+            .ajaxWithCsrf({
+                method: 'POST',
+                url: environment.publicFolders.api + '/applyEffects.php',
+                data: {
+                    file: result.file,
+                    filter: imgFilter,
+                    style: api.photoStyle
+                }
+            })
+            .done((data) => {
+                try {
+                    setFiltersEnabled(true);
+                    photoboothTools.console.log(api.photoStyle + ' processed', data);
+                    endTime = new Date().getTime();
+                    totalTime = endTime - startTime;
+                    photoboothTools.console.logDev(
+                        'Processing ' + api.photoStyle + ' took ' + totalTime + 'ms for filter `' + imgFilter + '`'
+                    );
+                    photoboothTools.console.logDev('Images:', data.images);
+
+                    if (config.get_request.processed) {
+                        const getUrl = config.get_request.server + '/' + api.photoStyle;
+                        photoboothTools.getRequest(getUrl);
+                    }
+
+                    if (data.error) {
+                        api.errorPic(data);
+                    } else if (api.photoStyle === PhotoStyle.CHROMA) {
+                        api.renderChroma(data.file);
+                    } else {
+                        api.renderPic(data.file, data.images);
+                    }
+                } catch (error) {
+                    photoboothTools.console.log('processPic.success: unexpected error:', error);
+                    api.errorPic({ error: error.message || 'Unexpected error processing picture' });
+                }
+            })
+            .fail((jqXHR, textStatus) => {
+                if (photoboothTools.isCsrfErrorResponse(jqXHR)) {
+                    photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/applyEffects.php');
+                    return;
+                }
+                setFiltersEnabled(true);
+                api.errorPic({
+                    error: 'Request failed: ' + textStatus
+                });
+            });
+    };
+
+    api.processVideo = function (result) {
+        startTime = new Date().getTime();
+
+        videoSensor.hide();
+        previewVideo.hide();
+        videoBackground.hide();
+        loader.css('--stage-background', 'var(--background-countdown-color)');
+        loaderMessage.html(
+            '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busyVideo')
+        );
+
+        photoboothTools
+            .ajaxWithCsrf({
+                method: 'POST',
+                url: environment.publicFolders.api + '/applyVideoEffects.php',
+                data: {
+                    file: result.file
+                }
+            })
+            .done((data) => {
+                try {
+                    photoboothTools.console.log('video processed', data);
+                    endTime = new Date().getTime();
+                    totalTime = endTime - startTime;
+                    photoboothTools.console.logDev('Processing video took ' + totalTime + 'ms');
+                    photoboothTools.console.logDev('Video:', data.file);
+
+                    if (config.get_request.processed) {
+                        const getUrl = config.get_request.server + '/video';
+                        photoboothTools.getRequest(getUrl);
+                    }
+
+                    if (data.error) {
+                        api.errorPic(data);
+                    } else {
+                        api.renderPic(data.file, data.images);
+                        const file = environment.publicFolders.images + '/' + data.file;
+                        if (config.video.gif) {
+                            resultVideo.attr('src', file);
+                        } else {
+                            const source = document.createElement('source');
+                            source.setAttribute('src', file);
+                            source.setAttribute('type', 'video/mp4');
+                            resultVideo.append(source);
+                            resultVideo.get(0).play();
+                        }
+                        resultVideo.show();
+                        if (config.video.qr) {
+                            resultVideoQR.attr(
+                                'src',
+                                environment.publicFolders.api + '/qrcode.php?filename=' + data.file
+                            );
+                            resultVideoQR.show();
+                        }
+                    }
+                } catch (error) {
+                    photoboothTools.console.log('processVideo.success: unexpected error:', error);
+                    api.errorPic({ error: error.message || 'Unexpected error processing video' });
+                }
+            })
+            .fail((jqXHR, textStatus) => {
+                if (photoboothTools.isCsrfErrorResponse(jqXHR)) {
+                    photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/applyVideoEffects.php');
+                    return;
+                }
+                api.errorPic({
+                    error: 'Request failed: ' + textStatus
+                });
+            });
+    };
+
+    api.renderChroma = function (filename) {
+        api.filename = filename;
+
+        if (config.keying.show_all) {
+            api.addImage(filename);
+        }
+
+        startPage.removeClass('stage--active');
+        loader.removeClass('stage--active');
+        resultPage.addClass('stage--active');
+
+        const chromaimage = environment.publicFolders.keying + '/' + filename;
+        processChromaImage(chromaimage, true, filename);
+        rotaryController.focusSet(resultPage);
+
+        api.takingPic = false;
+        remoteBuzzerClient.inProgress(false);
+        photoboothTools.console.logDev('Taking picture in progress: ' + api.takingPic);
+
+        api.resetTimeOut();
+    };
+
+    api.showMailForm = function (image) {
+        photoboothTools.modal.open('mail');
+        const body = photoboothTools.modal.element.querySelector('.modal-body');
+        const buttonbar = photoboothTools.modal.element.querySelector('.modal-buttonbar');
+
+        // Text
+        const text = document.createElement('p');
+        text.textContent = config.mail.send_all_later
+            ? photoboothTools.getTranslation('insertMailToDB')
+            : photoboothTools.getTranslation('insertMail');
+        body.appendChild(text);
+
+        // Form
+        const form = document.createElement('form');
+        form.id = 'send-mail-form';
+        form.classList.add('form');
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (document.querySelector('#send-mail-message')) {
+                document.querySelector('#send-mail-message').remove();
+            }
+            const message = document.createElement('div');
+            message.id = 'send-mail-message';
+            message.classList.add('form-message');
+            form.appendChild(message);
+            const submitButton = document.querySelector('#send-mail-submit');
+            submitButton.disabled = true;
+            const fd = new FormData(form);
+            if (typeof csrf !== 'undefined') {
+                fd.append(csrf.key, csrf.token);
+            }
+            fetch(environment.publicFolders.api + '/sendPic.php', {
+                method: 'post',
+                body: fd
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        document.querySelector('#send-mail-recipient').value = '';
+                        message.classList.add('text-success');
+                        if (data.saved) {
+                            message.textContent = photoboothTools.getTranslation('mailSaved');
+                        } else {
+                            message.textContent = photoboothTools.getTranslation('mailSent');
+                        }
+                    } else {
+                        message.classList.add('text-danger');
+                        message.textContent = data.error;
+                    }
+                    submitButton.disabled = false;
+                })
+                .catch(() => {
+                    message.classList.add('text-danger');
+                    message.textContent = photoboothTools.getTranslation('mailError');
+                    submitButton.disabled = false;
+                });
+        });
+        body.appendChild(form);
+
+        // Image
+        const imageInput = document.createElement('input');
+        imageInput.type = 'hidden';
+        imageInput.name = 'image';
+        imageInput.value = image;
+        form.appendChild(imageInput);
+
+        // Recipient
+        const recipientInput = document.createElement('input');
+        recipientInput.classList.add('form-input');
+        recipientInput.id = 'send-mail-recipient';
+        recipientInput.type = 'text';
+        recipientInput.name = 'recipient';
+        recipientInput.addEventListener('focusin', (event) => {
+            // workaround for photoswipe blocking input
+            event.stopImmediatePropagation();
+        });
+        form.appendChild(recipientInput);
+
+        if (config.mail.virtualKeyboard) {
+            virtualKeyboard.initialize(config.mail.keyboardLayout, '#send-mail-recipient', '#send-mail-form');
+        }
+
+        // Submit
+        const submitLabel = config.mail.send_all_later
+            ? photoboothTools.getTranslation('add')
+            : photoboothTools.getTranslation('send');
+        const submitButton = photoboothTools.button.create(submitLabel, 'fa fa-check', 'primary', 'modal-');
+        submitButton.id = 'send-mail-submit';
+        submitButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                const tmpSubmit = document.createElement('button');
+                tmpSubmit.type = 'submit';
+                tmpSubmit.style.display = 'none';
+                form.appendChild(tmpSubmit);
+                tmpSubmit.click();
+                form.removeChild(tmpSubmit);
+            }
+        });
+        buttonbar.insertBefore(submitButton, buttonbar.firstChild);
+    };
+
+    api.showQrCode = function (filename) {
+        if (!config.qr.enabled) {
+            return;
+        }
+
+        photoboothTools.modal.open();
+        const body = photoboothTools.modal.element.querySelector('.modal-body');
+
+        const image = document.createElement('img');
+        image.src = environment.publicFolders.api + '/qrcode.php?filename=' + filename;
+        body.appendChild(image);
+
+        const qrHelpText = config.qr.custom_text
+            ? config.qr.text
+            : photoboothTools.getTranslation('qrHelp') + '<br><b>' + config.webserver.ssid + '</b>';
+        const text = document.createElement('p');
+        text.innerHTML = qrHelpText;
+        body.appendChild(text);
+    };
+
+    api.renderPic = function (filename, files) {
+        api.filename = filename;
+
+        if (config.print.auto && config.filters.enabled === false) {
+            setTimeout(function () {
+                photoboothTools.printImage(filename, 1, () => {
+                    remoteBuzzerClient.inProgress(false);
+                });
+            }, config.print.auto_delay);
+        }
+
+        buttonPrint.off('click').on('click', async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const currentFile = api.filename || resultPage.attr('data-img') || filename;
+            const copies = config.print.max_multi === 1 ? 1 : await photoboothTools.askCopies();
+
+            if (copies && !isNaN(copies)) {
+                photoboothTools.printImage(currentFile, copies, () => {
+                    remoteBuzzerClient.inProgress(false);
+                    buttonPrint.trigger('blur');
+                });
+            }
+        });
+
+        resultPage
+            .find('[data-command="qrbtn"]')
+            .off('click')
+            .on('click', (event) => {
+                event.preventDefault();
+                const currentFile = api.filename || resultPage.attr('data-img') || filename;
+                api.showQrCode(currentFile);
+            });
+
+        resultPage
+            .find('.deletebtn')
+            .off('click')
+            .on('click', async (ev) => {
+                ev.preventDefault();
+
+                const really = config.delete.no_request
+                    ? true
+                    : await photoboothTools.confirm(
+                          filename + ' ' + photoboothTools.getTranslation('really_delete_image')
+                      );
+                if (really) {
+                    files.forEach(function (file, index, array) {
+                        photoboothTools.console.logDev('Index:', index);
+                        photoboothTools.console.logDev('Array:', array);
+                        api.deleteImage(file, () => {
+                            return;
+                        });
+                    });
+                    setTimeout(function () {
+                        photoboothTools.reloadPage();
+                    }, notificationTimeout);
+                } else {
+                    buttonDelete.trigger('blur');
+                }
+            });
+
+        // gallery doesn't support videos atm
+        if (!photoboothTools.isVideoFile(filename)) {
+            api.addImage(filename);
+        }
+
+        // if image is a video render the qr code as image (video should be displayed over this)
+        const imageUrl = photoboothTools.isVideoFile(filename)
+            ? environment.publicFolders.api + '/qrcode.php?filename=' + filename
+            : environment.publicFolders.images + '/' + filename;
+
+        const preloadImage = new Image();
+        preloadImage.onload = () => {
+            startPage.removeClass('stage--active');
+
+            if (typeof window.rembgReset === 'function') {
+                window.rembgReset();
+            } else {
+                resultPage.removeClass('cutout-mode-active').removeAttr('data-original-img');
+                $('#stageCutoutViewport').hide();
+                $('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar').hide();
+                $('#rembgModal').removeClass('active sidenav--open').hide();
+            }
+
+            resultPage.attr('data-camera-img', filename);
+            resultPage.attr('data-original-img', filename);
+            resultPage.removeAttr('data-matted-composite');
+
+            resultPage.removeClass(allFilterClasses);
+            $('#stageCutoutViewport').removeClass(allFilterClasses);
+            $('#stageCutoutPerson').removeClass(allFilterClasses);
+            document.documentElement.style.setProperty('--stage-result-filter', 'none');
+            if (resultPage[0]) resultPage[0].style.setProperty('--stage-result-filter', 'none');
+            const initialVp = document.getElementById('stageCutoutViewport');
+            if (initialVp) initialVp.style.removeProperty('filter');
+            const initialCp = document.getElementById('stageCutoutPerson');
+            if (initialCp) initialCp.style.removeProperty('filter');
+
+            if (imgFilter && imgFilter !== 'plain') {
+                resultPage.addClass('filter-effect-' + imgFilter);
+                $('#stageCutoutViewport').addClass('filter-effect-' + imgFilter);
+                $('#stageCutoutPerson').addClass('filter-effect-' + imgFilter);
+                const curCssFilter = filterCssMap[imgFilter] || 'none';
+                document.documentElement.style.setProperty('--stage-result-filter', curCssFilter);
+                if (resultPage[0]) resultPage[0].style.setProperty('--stage-result-filter', curCssFilter);
+            }
+
+            resultPage.css({
+                '--stage-background-image': `url("${imageUrl}?filter=${imgFilter}")`
+            });
+            if (resultPage[0]) {
+                resultPage[0].style.setProperty('--stage-background-image', `url("${imageUrl}?filter=${imgFilter}")`);
+            }
+            resultPage.attr('data-img', filename);
+            resultPage.addClass('stage--active');
+
+            loader.removeClass('stage--active showBackgroundImage');
+            loader.css('background-image', '');
+
+            if (config.qr.enabled && config.qr.result != 'hidden') {
+                if (document.getElementById('resultQR')) {
+                    document.getElementById('resultQR').remove();
+                }
+                const qrWrapper = document.createElement('div');
+                qrWrapper.id = 'resultQR';
+                qrWrapper.setAttribute('class', 'stage-code ' + config.qr.result);
+
+                const qrResultImage = document.createElement('img');
+                qrResultImage.addEventListener('load', () => {
+                    resultPage.append(qrWrapper);
+                });
+
+                qrResultImage.src = environment.publicFolders.api + '/qrcode.php?filename=' + filename;
+                qrResultImage.alt = 'QR-Code';
+                qrResultImage.classList.add('stage-code__image');
+                qrWrapper.append(qrResultImage);
+
+                const qrShortText = config.qr.short_text;
+                if (qrShortText && qrShortText.length > 0) {
+                    const qrCaption = document.createElement('p');
+                    qrCaption.classList.add('stage-code__caption');
+                    qrCaption.textContent = qrShortText;
+                    qrWrapper.append(qrCaption);
+                }
+            }
+
+            if (!filternav.hasClass('sidenav--open')) {
+                rotaryController.focusSet(resultPage);
+            }
+        };
+
+        preloadImage.onerror = () => {
+            photoboothTools.console.log('ERROR: Failed to preload image: ' + imageUrl);
+            loader.removeClass('stage--active showBackgroundImage');
+            loader.css('background-image', '');
+            photoboothTools.modal.open('error');
+            photoboothTools.modal.empty();
+            const modalMessage = $('<p>').text(photoboothTools.getTranslation('error'));
+            photoboothTools.modal.append(modalMessage);
+            const closeBtn = photoboothTools.button.create('close', 'fa fa-times', 'default', 'close');
+            closeBtn.on('click', () => {
+                photoboothTools.modal.close();
+                api.reset();
+                startPage.addClass('stage--active');
+            });
+            photoboothTools.modal.append(closeBtn);
+        };
+
+        preloadImage.src = imageUrl;
+
+        api.takingPic = false;
+        remoteBuzzerClient.inProgress(false);
+        photoboothTools.console.logDev('Taking picture in progress: ' + api.takingPic);
+
+        api.resetTimeOut();
+
+        if (config.commands.preview && !config.preview.bsm) {
+            photoboothTools.console.logDev('Preview: core: start video from api.renderPic');
+            photoboothPreview.startVideo(CameraDisplayMode.INIT);
+        }
+
+        if (config.commands.post_photo) {
+            api.shellCommand('post-command', filename);
+        }
+
+        api.screensaver.resetTimer();
+    };
+
+    api.addImage = function (imageName) {
+        if (!config.gallery.enabled) {
+            return;
+        }
+        const useThumb = config.gallery.use_thumb;
+        const thumbImg = new Image();
+        const bigImg = new Image();
+        let thumbSize = '';
+        let bigSize = '';
+        let bigSizeW = '';
+        let bigSizeH = '';
+        const maxSizeW = config.gallery.picture_width || 800;
+        const maxSizeH = config.gallery.picture_height || 600;
+
+        let imgtoLoad = 2;
+
+        thumbImg.onload = function () {
+            thumbSize = this.width + 'x' + this.height;
+            if (--imgtoLoad === 0) {
+                allLoaded();
+            }
+        };
+
+        bigImg.onload = function () {
+            bigSizeW = this.width;
+            bigSizeH = this.height;
+            bigSize = bigSizeW + 'x' + bigSizeH;
+            // Calculate PSWP dimensions to max 800x600 while keeping aspect ratio
+            let aspectRatio = bigSizeW / bigSizeH;
+            if (aspectRatio >= 1) {
+                // Landscape or square
+                if (bigSizeW > maxSizeW) {
+                    bigSizeW = maxSizeW;
+                    bigSizeH = Math.round(bigSizeW / aspectRatio);
+                } else if (bigSizeH > maxSizeH) {
+                    bigSizeH = maxSizeH;
+                    bigSizeW = Math.round(bigSizeH * aspectRatio);
+                }
+            } else {
+                // Portrait
+                if (bigSizeH > maxSizeH) {
+                    bigSizeH = maxSizeH;
+                    bigSizeW = Math.round(bigSizeH * aspectRatio);
+                } else if (bigSizeW > maxSizeW) {
+                    bigSizeW = maxSizeW;
+                    bigSizeH = Math.round(bigSizeW / aspectRatio);
+                }
+            }
+
+            if (--imgtoLoad === 0) {
+                allLoaded();
+            }
+        };
+
+        bigImg.src = environment.publicFolders.images + '/' + imageName;
+        const thumbUrl =
+            (useThumb ? environment.publicFolders.thumbs : environment.publicFolders.images) + '/' + imageName;
+        thumbImg.src = thumbUrl;
+
+        function allLoaded() {
+            const linkElement = $('<a>').html(thumbImg);
+
+            linkElement.attr('class', 'gallery-list-item rotaryfocus');
+            linkElement.attr('data-size', bigSize);
+            linkElement.attr('data-pswp-width', bigSizeW);
+            linkElement.attr('data-pswp-height', bigSizeH);
+            linkElement.attr('href', environment.publicFolders.images + '/' + imageName);
+            linkElement.attr('data-med', thumbUrl);
+            linkElement.attr('data-med-size', thumbSize);
+
+            if (config.gallery.newest_first) {
+                linkElement.prependTo(galimages);
+            } else {
+                linkElement.appendTo(galimages);
+            }
+
+            galimages.children().not('a').remove();
+        }
+    };
+
+    api.openGallery = function () {
+        if (config.gallery.scrollbar) {
+            gallery.addClass('scrollbar');
+        }
+
+        gallery.addClass('gallery--open');
+
+        setTimeout(() => {
+            gallery.find('.gallery__inner').show();
+            rotaryController.focusSet(gallery);
+        }, 300);
+    };
+
+    api.closeGallery = function () {
+        if (typeof globalGalleryHandle !== 'undefined') {
+            if (globalGalleryHandle.pswp) {
+                globalGalleryHandle.pswp.close();
+            }
+        }
+
+        gallery.find('.gallery__inner').hide();
+        gallery.removeClass('gallery--open');
+
+        if (resultPage.is(':visible')) {
+            rotaryController.focusSet(resultPage);
+        } else if (startPage.is(':visible')) {
+            rotaryController.focusSet(startPage);
+        }
+    };
+
+    api.deleteImage = function (imageName, cb) {
+        const errorMsg =
+            photoboothTools.getTranslation('error') + '</br>' + photoboothTools.getTranslation('auto_reload');
+        $.ajax({
+            url: environment.publicFolders.api + '/deletePhoto.php',
+            method: 'POST',
+            data: {
+                file: imageName,
+                [csrf.key]: csrf.token
+            },
+            success: (data) => {
+                if (data.success) {
+                    const msg =
+                        data.file +
+                        ' ' +
+                        photoboothTools.getTranslation('deleted_successfully') +
+                        '</br>' +
+                        photoboothTools.getTranslation('auto_reload');
+                    photoboothTools.console.log('Deleted ' + data.file);
+                    photoboothTools.overlay.showSuccess(msg);
+                } else {
+                    photoboothTools.console.log('Error while deleting ' + data.file);
+                    photoboothTools.console.log('Failed: ' + data.failed);
+                    photoboothTools.overlay.showError(errorMsg);
+                }
+                setTimeout(() => photoboothTools.overlay.close(), notificationTimeout);
+                cb(data);
+            },
+            error: (jqXHR, textStatus) => {
+                photoboothTools.console.log('Error while deleting image: ', textStatus);
+                photoboothTools.overlay.showError(errorMsg);
+                setTimeout(() => photoboothTools.reloadPage(), notificationTimeout);
+            }
+        });
+    };
+
+    $('.imageFilter').on('click', function (e) {
+        e.preventDefault();
+        api.navbar.toggle();
+    });
+
+    let activeFilterRequest = null;
+    let filterDebounceTimer = null;
+    let filterRequestId = 0;
+    const filterCssMap = {
+        'plain': 'none',
+        'grayscale': 'grayscale(100%)',
+        'antique': 'sepia(65%) contrast(90%) brightness(105%) saturate(120%)',
+        'vintage': 'sepia(35%) contrast(125%) saturate(115%)',
+        'retro': 'sepia(45%) contrast(120%) brightness(95%) saturate(110%)',
+        'cool': 'hue-rotate(170deg) contrast(110%) brightness(95%)',
+        'summer': 'saturate(160%) brightness(105%) hue-rotate(-15deg)',
+        'sepia-light': 'sepia(50%) contrast(105%)',
+        'sepia-dark': 'sepia(90%) contrast(115%) brightness(90%)',
+        'color': 'contrast(135%) saturate(170%)',
+        'washed': 'brightness(115%) contrast(85%) saturate(80%)',
+        'everglow': 'brightness(90%) contrast(110%) sepia(40%) saturate(130%)',
+        'aqua': 'hue-rotate(150deg) saturate(140%) brightness(105%)',
+        'blue': 'hue-rotate(190deg) saturate(180%) contrast(110%)',
+        'green': 'hue-rotate(90deg) saturate(180%) contrast(105%)',
+        'red': 'hue-rotate(330deg) saturate(200%) contrast(110%)',
+        'pink': 'hue-rotate(290deg) saturate(160%) brightness(105%)',
+        'yellow': 'hue-rotate(35deg) saturate(180%)',
+        'smooth': 'blur(0.8px) contrast(105%)',
+        'blur': 'blur(2.5px)',
+        'selective-blur': 'blur(2px) contrast(110%)',
+        'pixelate': 'contrast(120%) saturate(140%)',
+        'negate': 'invert(100%)',
+        'emboss': 'contrast(250%) grayscale(100%)',
+        'edge': 'contrast(300%) grayscale(100%) invert(20%)',
+        'mean': 'contrast(140%) brightness(95%)'
+    };
+
+    const allFilterClasses = Object.keys(filterCssMap).map(f => 'filter-effect-' + f).join(' ');
+
+    $(document).on('click', '.filter-card[data-filter], .sidenav-list-item[data-filter]', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const clickedFilter = $(this).data('filter');
+        $('#filternav .filter-card, #filternav .sidenav-list-item, .filter-card, .sidenav-list-item').removeClass('filter-card--active sidenav-list-item--active focused');
+        $(this).addClass('filter-card--active sidenav-list-item--active');
+        if (typeof this.blur === 'function') {
+            this.blur();
+        }
+
+        imgFilter = clickedFilter;
+
+        // 1. Instantaneous 0ms visual filter on stage & cutout viewport via class + style properties
+        resultPage.removeClass(allFilterClasses);
+        $('#stageCutoutViewport').removeClass(allFilterClasses);
+        $('#stageCutoutPerson').removeClass(allFilterClasses);
+
+        if (clickedFilter !== 'plain') {
+            resultPage.addClass('filter-effect-' + clickedFilter);
+            $('#stageCutoutViewport').addClass('filter-effect-' + clickedFilter);
+            $('#stageCutoutPerson').addClass('filter-effect-' + clickedFilter);
+        }
+
+        const cssFilter = filterCssMap[clickedFilter] || 'none';
+        document.documentElement.style.setProperty('--stage-result-filter', cssFilter);
+        if (resultPage[0]) {
+            resultPage[0].style.setProperty('--stage-result-filter', cssFilter);
+        }
+        resultPage.css('--stage-result-filter', cssFilter);
+
+        const cutoutVp = document.getElementById('stageCutoutViewport');
+        if (cutoutVp) {
+            cutoutVp.style.setProperty('--stage-result-filter', cssFilter);
+            if (clickedFilter !== 'plain') {
+                cutoutVp.style.setProperty('filter', cssFilter, 'important');
+            } else {
+                cutoutVp.style.removeProperty('filter');
+            }
+        }
+        const cutoutPerson = document.getElementById('stageCutoutPerson');
+        if (cutoutPerson) {
+            if (clickedFilter !== 'plain') {
+                cutoutPerson.style.setProperty('filter', cssFilter, 'important');
+            } else {
+                cutoutPerson.style.removeProperty('filter');
+            }
+        }
+
+        // Keep timeout timer alive during interactions
+        api.clearTimeOut();
+
+        // 2. Debounced background persistence (300ms) with request sequence guard and in-memory preloading
+        if (filterDebounceTimer) {
+            clearTimeout(filterDebounceTimer);
+            filterDebounceTimer = null;
+        }
+
+        if (activeFilterRequest) {
+            try {
+                activeFilterRequest.abort();
+            } catch (err) {}
+            activeFilterRequest = null;
+        }
+
+        const curRequestId = ++filterRequestId;
+
+        filterDebounceTimer = setTimeout(function () {
+            filterDebounceTimer = null;
+
+            if (!resultPage.attr('data-original-img')) {
+                resultPage.attr('data-original-img', resultPage.attr('data-img'));
+            }
+            const baseFile = resultPage.attr('data-original-img') || resultPage.attr('data-img');
+            if (!baseFile) {
+                return;
+            }
+
+            const apiUrl = (typeof environment !== 'undefined' && environment.publicFolders && environment.publicFolders.api)
+                ? environment.publicFolders.api + '/applyEffects.php'
+                : 'api/applyEffects.php';
+
+            activeFilterRequest = photoboothTools.ajaxWithCsrf({
+                method: 'POST',
+                url: apiUrl,
+                data: {
+                    file: baseFile,
+                    filter: clickedFilter,
+                    style: api.photoStyle || 'photo'
+                },
+                timeout: 25000
+            }).done(function (data) {
+                activeFilterRequest = null;
+                // Discard stale response if user has clicked another filter since this request was queued
+                if (curRequestId !== filterRequestId) {
+                    return;
+                }
+                if (data && data.file) {
+                    const newFile = data.file;
+                    const imagesFolder = (typeof environment !== 'undefined' && environment.publicFolders && environment.publicFolders.images)
+                        ? environment.publicFolders.images
+                        : '/data/images';
+                    const newUrl = imagesFolder + '/' + newFile + '?v=' + Date.now();
+
+                    // In-memory preloader: DO NOT replace stage background until the image is 100% loaded in browser memory!
+                    const preloader = new Image();
+                    preloader.onload = function () {
+                        if (curRequestId !== filterRequestId) return;
+                        resultPage.attr('data-img', newFile);
+                        api.filename = newFile;
+                        resultPage.css('--stage-background-image', `url("${newUrl}")`);
+                        if (resultPage[0]) {
+                            resultPage[0].style.setProperty('--stage-background-image', `url("${newUrl}")`);
+                        }
+
+                        // When returning to plain, ensure all filters are cleanly cleared
+                        if (clickedFilter === 'plain') {
+                            resultPage.removeClass(allFilterClasses);
+                            $('#stageCutoutViewport').removeClass(allFilterClasses);
+                            $('#stageCutoutPerson').removeClass(allFilterClasses);
+                            document.documentElement.style.setProperty('--stage-result-filter', 'none');
+                            if (resultPage[0]) resultPage[0].style.setProperty('--stage-result-filter', 'none');
+                            if (cutoutVp) cutoutVp.style.removeProperty('filter');
+                            if (cutoutPerson) cutoutPerson.style.removeProperty('filter');
+                        }
+
+                        const qrResultImage = document.querySelector('#resultQR img.stage-code__image');
+                        if (qrResultImage && environment && environment.publicFolders) {
+                            qrResultImage.src = environment.publicFolders.api + '/qrcode.php?filename=' + newFile;
+                        }
+
+                        if (typeof api.addImage === 'function') {
+                            api.addImage(newFile);
+                        }
+                    };
+                    preloader.onerror = function () {
+                        photoboothTools.console.log('Filter image preload error, keeping visual CSS filter.');
+                    };
+                    preloader.src = newUrl;
+                }
+                api.resetTimeOut();
+            }).fail(function (xhr, status) {
+                activeFilterRequest = null;
+                if (status !== 'abort') {
+                    api.resetTimeOut();
+                }
+            });
+        }, 300);
+    });
+
+    $('.takePic, .newpic').on('click', function (e) {
+        e.preventDefault();
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        }
+        api.thrill(PhotoStyle.PHOTO);
+        $(this).trigger('blur');
+    });
+
+    $('.takeCustom, .newcustom').on('click', function (e) {
+        e.preventDefault();
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        }
+        api.thrill(PhotoStyle.CUSTOM);
+        $(this).trigger('blur');
+    });
+
+    $('.takeVideo, .newVideo, .newvideo').on('click', function (e) {
+        e.preventDefault();
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        }
+        api.thrill(PhotoStyle.VIDEO);
+        $(this).trigger('blur');
+    });
+
+    $(document).on('click', '.uploadBtn, [data-command="uploadBtn"]', function (e) {
+        e.preventDefault();
+        $('#uploadPhotoInput').trigger('click');
+        $(this).trigger('blur');
+    });
+
+    $(document).on('change', '#uploadPhotoInput', function () {
+        if (!this.files || !this.files[0]) {
+            return;
+        }
+        const file = this.files[0];
+        const fileInput = this;
+
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        }
+
+        const formData = new FormData();
+        formData.append('photo', file);
+
+        if (window.photoboothTools && window.photoboothTools.overlay) {
+            photoboothTools.overlay.showWaiting('正在上传图片，请稍候...');
+        }
+
+        $.ajax({
+            url: 'api/uploadPhoto.php',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function (res) {
+                fileInput.value = '';
+                if (window.photoboothTools && window.photoboothTools.overlay) {
+                    photoboothTools.overlay.close();
+                }
+                if (res && res.success && res.file) {
+                    api.renderPic(res.file);
+                } else {
+                    const errMsg = (res && res.error) ? res.error : '上传图片失败，请重试';
+                    if (window.photoboothTools && window.photoboothTools.showNotification) {
+                        photoboothTools.showNotification('error', errMsg);
+                    } else {
+                        alert(errMsg);
+                    }
+                }
+            },
+            error: function (xhr, status, error) {
+                fileInput.value = '';
+                if (window.photoboothTools && window.photoboothTools.overlay) {
+                    photoboothTools.overlay.close();
+                }
+                let errMsg = '上传失败: ' + (error || status);
+                if (xhr && xhr.responseJSON && xhr.responseJSON.error) {
+                    errMsg = '上传失败: ' + xhr.responseJSON.error;
+                } else if (xhr && xhr.responseText) {
+                    try {
+                        const parsed = JSON.parse(xhr.responseText);
+                        if (parsed && parsed.error) {
+                            errMsg = '上传失败: ' + parsed.error;
+                        }
+                    } catch (e) {}
+                }
+                if (window.photoboothTools && window.photoboothTools.showNotification) {
+                    photoboothTools.showNotification('error', errMsg);
+                } else {
+                    alert(errMsg);
+                }
+            }
+        });
+    });
+
+    $('[data-command="sidenav-close"]').on('click', function (e) {
+        e.preventDefault();
+        api.navbar.close();
+        rotaryController.focusSet(resultPage);
+    });
+
+    $('.gallery-button, .gallerybtn').on('click', function (e) {
+        e.preventDefault();
+        api.navbar.close();
+        api.openGallery($(this));
+    });
+
+    $('[data-command="gallery__refresh"]').on('click', function (e) {
+        e.preventDefault();
+        photoboothTools.reloadPage();
+    });
+
+    $('[data-command="gallery__close"]').on('click', function (e) {
+        e.preventDefault();
+        api.closeGallery();
+    });
+
+    $('.mailbtn').on('click touchstart', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const img = resultPage.attr('data-img');
+        api.showMailForm(img);
+    });
+
+    resultPage.on('click', function () {
+        if (!filternav.hasClass('sidenav--open')) {
+            rotaryController.focusSet(resultPage);
+        }
+    });
+
+    $('.homebtn').on('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        photoboothTools.reloadPage();
+        rotaryController.focusSet(startPage);
+    });
+
+    if (screensaverEnabled) {
+        $(document).on('click touchstart keydown mousemove', function () {
+            api.screensaver.resetTimer();
+        });
+
+        screensaverOverlay.on('click touchstart', function (e) {
+            e.preventDefault();
+            api.screensaver.resetTimer();
+        });
+    }
+
+    $('.cups-button').on('click', function (ev) {
+        ev.preventDefault();
+
+        const url = `http://${location.hostname}:631/jobs/`;
+        const features = 'width=1024,height=600,left=0,top=0,screenX=0,screenY=0,resizable=NO,scrollbars=NO';
+
+        window.open(url, 'newwin', features);
+    });
+
+    $('.print-unlock-button').on('click', function (e) {
+        e.preventDefault();
+        photoboothTools.overlay.showWaiting(photoboothTools.getTranslation('wait_message'));
+        $.ajax({
+            method: 'GET',
+            url: environment.publicFolders.api + '/printDB.php',
+            data: {
+                action: 'unlockPrint',
+                [csrf.key]: csrf.token
+            },
+            success: (data) => {
+                if (data.success) {
+                    photoboothTools.overlay.showSuccess(photoboothTools.getTranslation('success'));
+                    $(this).addClass('hidden');
+                } else {
+                    photoboothTools.overlay.showError(photoboothTools.getTranslation('error'));
+                }
+                setTimeout(function () {
+                    photoboothTools.overlay.close();
+                }, 2000);
+            }
+        });
+    });
+
+    api.handleButtonPressWhileTakingPic = function () {
+        photoboothTools.console.logDev('Taking picture already in progress!');
+    };
+
+    $(document).on('keyup', function (ev) {
+        if (api.isTimeOutPending()) {
+            if (typeof onStandaloneGalleryView !== 'undefined' || startPage.is(':visible')) {
+                clearTimeout(timeOut);
+                photoboothTools.console.logDev('Timeout for auto reload cleared.');
+            } else {
+                api.resetTimeOut();
+            }
+        }
+
+        if (config.selfie_mode) {
+            return;
+        }
+
+        if (typeof onStandaloneGalleryView === 'undefined' && typeof onCaptureChromaView === 'undefined') {
+            if (
+                (config.picture.key && parseInt(config.picture.key, 10) === ev.keyCode) ||
+                (config.custom.key && parseInt(config.custom.key, 10) === ev.keyCode)
+            ) {
+                if (api.takingPic) {
+                    api.handleButtonPressWhileTakingPic();
+
+                    return;
+                }
+                api.closeGallery();
+            } else if (config.print.from_result && config.print.key && parseInt(config.print.key, 10) === ev.keyCode) {
+                if (photoboothTools.isPrinting) {
+                    photoboothTools.console.log('Printing already in progress!');
+                } else {
+                    buttonPrint.trigger('click');
+                }
+
+                return;
+            } else {
+                return;
+            }
+
+            // picture
+            if (config.picture.key && parseInt(config.picture.key, 10) === ev.keyCode) {
+                if (config.picture.enabled) {
+                    api.thrill(PhotoStyle.PHOTO);
+                } else {
+                    photoboothTools.console.logDev(
+                        'Picture key pressed, but taking pictures disabled. Please enable picture in your config.'
+                    );
+                }
+            }
+
+            // custom
+            if (config.custom.key && parseInt(config.custom.key, 10) === ev.keyCode) {
+                if (config.custom.enabled) {
+                    api.thrill(PhotoStyle.CUSTOM);
+                } else {
+                    photoboothTools.console.logDev(
+                        'Custom key pressed, but custom action disabled. Please enable custom action in your config.'
+                    );
+                }
+            }
+        }
+    });
+
+    $(document).on('click', function () {
+        if (api.isTimeOutPending()) {
+            if (typeof onStandaloneGalleryView !== 'undefined' || startPage.is(':visible')) {
+                clearTimeout(timeOut);
+                photoboothTools.console.logDev('Timeout for auto reload cleared.');
+            } else {
+                api.resetTimeOut();
+            }
+        }
+    });
+
+    // Disable Right-Click
+    if (config.dev.loglevel > 0) {
+        $(this).on('contextmenu', function (e) {
+            e.preventDefault();
+        });
+    }
+
+    previewVideo.on('loadedmetadata', function (ev) {
+        const videoEl = ev.target;
+        let newWidth = videoEl.offsetWidth;
+        let newHeight = videoEl.offsetHeight;
+        if (config.preview.style === PreviewStyle.SCALE_DOWN.valueOf()) {
+            newWidth = videoEl.videoWidth;
+            newHeight = videoEl.videoHeight;
+        }
+        if (newWidth !== 0 && newHeight !== 0) {
+            previewFramePicture.css({ width: newWidth, height: newHeight });
+        }
+    });
+
+    return api;
+})();
+
+$(function () {
+    photoBooth.init();
+});

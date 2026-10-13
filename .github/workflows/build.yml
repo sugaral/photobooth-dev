@@ -1,0 +1,76 @@
+---
+name: Build and check git status
+
+on:
+  push:
+    branches:
+      - dev
+      - stable4
+  pull_request:
+    branches:
+      - dev
+      - stable4
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        php:
+          - '8.4'
+        node:
+          - 20
+        python:
+          - 3.11
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+
+      - name: Setup node ${{ matrix.node }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install modules
+        run: npm install
+
+      - name: Cleanup Composer auth token
+        run: rm -f "$HOME/.composer/auth.json" "$HOME/.config/composer/auth.json"
+
+      - name: Build
+        run: npm run build
+
+      - name: PHP Coding Guidelines
+        run: composer cgl:ci
+
+      - name: PHP Lint
+        run: composer lint
+
+      - name: PHPStan
+        run: composer phpstan -- --error-format=github
+
+      - name: PHP Unit
+        run: composer phpunit
+
+      - name: Status
+        run: |-
+          git status
+          git diff
+          git status | grep -q "nothing to commit, working tree clean"

@@ -1,0 +1,44 @@
+name: gulp-sass
+
+on:
+  push:
+    branches:
+      - dev
+      - stable4
+    paths:
+      - '**.scss'
+  pull_request:
+    branches:
+      - dev
+      - stable4
+    paths:
+      - '**.scss'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        node: [20]
+        python: [3.11]
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup node ${{ matrix.node }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Setup Python ${{ matrix.python }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Running gulp-sass
+        run: npm run build:sass

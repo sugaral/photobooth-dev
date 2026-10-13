@@ -1,0 +1,23 @@
+includes:
+    - tools/phpstan/vendor/phpstan/phpstan-symfony/extension.neon
+
+parameters:
+    level: 8
+    reportUnmatchedIgnoredErrors: false
+
+    ignoreErrors:
+        - identifier: missingType.iterableValue
+        - '#^Call to method [A-Za-z0-9_]+\(\) on an unknown class Symfony\\Component\\Config\\Definition\\Builder\\NodeBuilder<.+>\.$#'
+        - '#^Call to method [A-Za-z0-9_]+\(\) on an unknown class Symfony\\Component\\Config\\Definition\\Builder\\ExprBuilder<.+>\.$#'
+
+    bootstrapFiles:
+        - %currentWorkingDirectory%/tools/phpunit/vendor/autoload.php
+
+    scanFiles:
+        - %currentWorkingDirectory%/lib/boot.php
+        - %currentWorkingDirectory%/admin/admin_boot.php
+
+    paths:
+        - %currentWorkingDirectory%/api/
+        - %currentWorkingDirectory%/src/
+        - %currentWorkingDirectory%/tests/

@@ -1,0 +1,151 @@
+.pswp__button--close,
+.pswp__button--qrcode,
+.pswp__button--print,
+.pswp__button--print-chroma-keying,
+.pswp__button--download,
+.pswp__button--custom-download,
+.pswp__button--mail,
+.pswp__button--playpause,
+.pswp__button--share,
+.pswp__button--zoom,
+.pswp__button--fs,
+.pswp__button--delete,
+.pswp__button--reload {
+  color: var(--gallery-button-color);
+  background: transparent !important;
+  font-size: 1.625em;
+  width: calc(2.375 * 1em);
+  height: calc(1.375 * 1em);
+
+  &:hover {
+    opacity: 1;
+  }
+
+  > i {
+    position: relative;
+    z-index: -1;
+  }
+
+  .center {
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.pswp__counter {
+  width: 56px;
+}
+
+.pswp__top-bar {
+  top: 13px;
+  padding-right: 30px;
+}
+
+.pswp__custom-caption {
+  color: var(--gallery-button-color);
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 16px;
+  width: 20ch;
+  max-width: 400px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  position: absolute;
+  left: 30px;
+  bottom: 16px;
+}
+.pswp__custom-caption a {
+  color: var(--gallery-button-color);
+  text-decoration: underline;
+}
+
+.pswp__print-counter {
+  color: var(--gallery-button-color);
+  background: rgba(0, 0, 0, 0.5);
+  font-size: 16px;
+  line-height: 1;
+  font-weight: bold;
+  height: auto;
+  align-self: center;
+  padding: 4px 6px 5px;
+  margin-right: 4px;
+}
+
+.pswp__button--print,
+.pswp__print-counter {
+  &.warning {
+    color: orange;
+  }
+  &.error {
+    color: var(--error-color);
+  }
+}
+
+.pswp-rotary-focus {
+  background: var(--primary-color) !important;
+}
+
+.pswp-qrcode {
+  position: absolute;
+  width: 8rem;
+  box-sizing: border-box;
+  background: #fff;
+  color: #000;
+  padding: 0.5rem;
+  border-radius: var(--button-border-radius, 0.8rem);
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+
+  &__image {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  &__caption {
+    margin: 0;
+    font-size: 1.2rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  &.left {
+    left: 2rem;
+    &--top {
+      top: 4rem;
+    }
+    &--center {
+      top: 50%;
+      translate: 0 -50%;
+    }
+    &--bottom {
+      bottom: 4rem;
+    }
+  }
+  &.right {
+    right: 2rem;
+    &--top {
+      top: 4rem;
+    }
+    &--center {
+      top: 50%;
+      translate: 0 -50%;
+    }
+    &--bottom {
+      bottom: 4rem;
+    }
+  }
+  &.center {
+    left: 50%;
+    translate: -50% 0;
+    &--bottom {
+      bottom: 4rem;
+    }
+    &--top {
+      top: 4rem;
+    }
+  }
+}

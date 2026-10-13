@@ -1,0 +1,168 @@
+<?php
+
+use Photobooth\Utility\ComponentUtility;
+
+echo '<div class="stage stage--result rotarygroup" data-stage="result">';
+
+// Dynamic Visual Cutout & Background Separation Layer
+echo '
+<div class="stage-cutout-viewport" id="stageCutoutViewport" style="display:none;">
+    <div class="stage-cutout-bg" id="stageCutoutBg"></div>
+    <div class="stage-cutout-person" id="stageCutoutPerson">
+        <img id="stagePersonImg" src="" alt="Person Cutout" />
+    </div>
+    <canvas class="stage-contour-canvas" id="stageContourCanvas"></canvas>
+    
+    <!-- Cutout Person Interactive Resizer & Selection Controls -->
+    <div class="stage-person-transform-box" id="stagePersonTransformBox" style="display:none;">
+        <div class="person-transform-outline"></div>
+        <div class="person-transform-handle handle-tl" data-handle="tl"></div>
+        <div class="person-transform-handle handle-tr" data-handle="tr"></div>
+        <div class="person-transform-handle handle-bl" data-handle="bl"></div>
+        <div class="person-transform-handle handle-br" data-handle="br"></div>
+        <div class="person-transform-tip"><i class="fa fa-arrows-up-down-left-right"></i> 拖拽调整人像位置 · 四角缩放</div>
+    </div>
+    <div class="stage-person-resizer-bar" id="stagePersonResizerBar" style="display:none;">
+        <span class="resizer-label"><i class="fa fa-user"></i> 人像比例:</span>
+        <button type="button" class="resizer-btn" id="btnPersonScaleMinus" title="缩小人像"><i class="fa fa-minus"></i></button>
+        <span class="resizer-val" id="lblPersonScaleVal">100%</span>
+        <button type="button" class="resizer-btn" id="btnPersonScalePlus" title="放大人像"><i class="fa fa-plus"></i></button>
+        <button type="button" class="resizer-btn resizer-action" id="btnPersonReset" title="居中重置"><i class="fa fa-rotate-left"></i> 居中重置</button>
+    </div>
+
+    <!-- Custom Template Interactive Resizer & Transform Controls -->
+    <div class="stage-transform-box" id="stageTransformBox" style="display:none;">
+        <div class="transform-outline"></div>
+        <div class="transform-handle handle-tl" data-handle="tl"></div>
+        <div class="transform-handle handle-tr" data-handle="tr"></div>
+        <div class="transform-handle handle-bl" data-handle="bl"></div>
+        <div class="transform-handle handle-br" data-handle="br"></div>
+        <div class="transform-move-tip"><i class="fa fa-arrows-up-down-left-right"></i> 拖动调整背景位置 · 四角缩放</div>
+    </div>
+    <div class="stage-bg-resizer-bar" id="stageBgResizerBar" style="display:none;">
+        <span class="resizer-label"><i class="fa fa-expand"></i> 模板尺寸:</span>
+        <button type="button" class="resizer-btn" id="btnBgScaleMinus" title="缩小"><i class="fa fa-minus"></i></button>
+        <span class="resizer-val" id="lblBgScaleVal">100%</span>
+        <button type="button" class="resizer-btn" id="btnBgScalePlus" title="放大"><i class="fa fa-plus"></i></button>
+        <button type="button" class="resizer-btn resizer-action" id="btnBgScaleFit" title="铺满"><i class="fa fa-maximize"></i> 铺满</button>
+        <button type="button" class="resizer-btn resizer-action" id="btnBgScaleReset" title="重置"><i class="fa fa-rotate-left"></i> 重置</button>
+    </div>
+</div>
+
+<!-- AI Matting Loading Feedback Overlay -->
+<div class="stage-matting-loader" id="stageMattingLoader" style="display:none;" aria-live="polite">
+    <div class="stage-matting-loader-backdrop"></div>
+    <div class="stage-matting-loader-card">
+        <div class="stage-matting-spinner">
+            <i class="fa fa-circle-notch fa-spin"></i>
+        </div>
+        <div class="stage-matting-title">AI 智能人像抠图中...</div>
+        <div class="stage-matting-desc">正在精确分离人像与发丝轮廓，请稍候</div>
+        <div class="stage-matting-engine-pill" id="stageMattingEnginePill">
+            <i class="fa fa-microchip"></i>
+            <span id="stageMattingEngineHint">BiRefNet (半身照/发丝优化) 模型推理中...</span>
+        </div>
+    </div>
+</div>
+';
+
+echo '<div class="stage-inner">';
+
+// Left Sidebar for Results Action Buttons
+echo '<aside class="result-sidebar buttonbar buttonbar--sidebar" id="resultSidebar">';
+
+if ($config['button']['homescreen']) {
+    echo ComponentUtility::renderButton('home', $config['icons']['home'], 'homebtn');
+}
+
+if ($config['ui']['result_buttons']) {
+    if (!$config['button']['force_buzzer']) {
+        if ($config['picture']['enabled']) {
+            echo ComponentUtility::renderButton('newPhoto', $config['icons']['take_picture'], 'newpic');
+        }
+        if ($config['custom']['enabled']) {
+            echo ComponentUtility::renderButton('newCustom', $config['icons']['take_custom'], 'newcustom');
+        }
+        if ($config['video']['enabled']) {
+            echo ComponentUtility::renderButton('newVideo', $config['icons']['take_video'], 'newvideo');
+        }
+    }
+}
+
+// AI Cutout & Background Replace Button (Optional feature invoked from sidebar)
+if (!empty($config['rembg']['enabled'])) {
+    echo ComponentUtility::renderButton('rembg', $config['icons']['rembg'], 'rembgbtn');
+}
+
+if ($config['ui']['result_buttons']) {
+    if ($config['qr']['enabled']) {
+        echo ComponentUtility::renderButton('qr', $config['icons']['qr'], 'qrbtn');
+    }
+    if ($config['gallery']['enabled']) {
+        echo ComponentUtility::renderButton('gallery', $config['icons']['gallery'], 'gallerybtn');
+    }
+    if ($config['mail']['enabled']) {
+        echo ComponentUtility::renderButton('mail', $config['icons']['mail'], 'mailbtn');
+    }
+}
+
+if ($config['print']['from_result']) {
+    echo ComponentUtility::renderButton('print', $config['icons']['print'], 'printbtn');
+}
+if ($config['filters']['enabled']) {
+    echo ComponentUtility::renderButton('selectFilter', $config['icons']['filter'], 'imageFilter');
+}
+if ($config['picture']['allow_delete']) {
+    echo ComponentUtility::renderButton('delete', $config['icons']['delete'], 'deletebtn');
+}
+
+echo '</aside>';
+echo '</div>'; // .stage-inner
+echo '</div>'; // .stage--result
+
+// Right-side Drawer for AI Cutout & Background Selection (Outside stage--result for root viewport positioning)
+echo '
+<div class="rembg-drawer rotarygroup" id="rembgModal" style="display:none;" aria-hidden="true">
+    <div class="rembg-drawer-header">
+        <div class="rembg-drawer-title">
+            <i class="fa fa-wand-magic-sparkles"></i>
+            <span>更换背景模板</span>
+        </div>
+        <button type="button" class="rembg-drawer-close-btn rotaryfocus" id="btnRembgClose" title="关闭">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+    <div class="rembg-drawer-toolbar">
+        <div class="rembg-engine-switcher" role="group" aria-label="AI matting engine">
+            <button type="button" class="rembg-engine-btn active" data-engine="birefnet" title="BiRefNet-Portrait：专为人像发丝优化（最适合半身照、自拍照、大头贴）">
+                <i class="fa fa-user"></i> BiRefNet (半身照/发丝)
+            </button>
+            <button type="button" class="rembg-engine-btn" data-engine="rmbg2" title="RMBG-2.0：商业级高清稳定（最适合全身照、站姿、多人合影、复杂服装）">
+                <i class="fa fa-users"></i> RMBG-2.0 (全身照/合影)
+            </button>
+        </div>
+        <label class="rembg-upload-btn" id="lblUploadTemplate" for="rembgTemplateUpload">
+            <i class="fa fa-cloud-arrow-up"></i>
+            <span>上传自定义背景</span>
+            <input type="file" id="rembgTemplateUpload" accept="image/png,image/jpeg,image/webp" style="display:none;">
+        </label>
+        <span id="rembgSelectedName" class="rembg-selected-name" style="display:none;">透明背景 (PNG)</span>
+    </div>
+    
+    <!-- Vertically scrollable background image list -->
+    <div class="rembg-scrollable-list" id="rembgTemplateGrid">
+        <!-- Dynamically populated background cards -->
+    </div>
+    
+    <div class="rembg-drawer-footer">
+        <button type="button" class="rembg-btn-footer rembg-btn-revert" id="btnRembgRevert">
+            <i class="fa fa-rotate-left"></i>
+            <span>还原原图</span>
+        </button>
+        <button type="button" class="rembg-btn-footer rembg-btn-done" id="btnRembgDone">
+            <i class="fa fa-check"></i>
+            <span>完成</span>
+        </button>
+    </div>
+</div>
+';
