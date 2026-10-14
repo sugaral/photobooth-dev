@@ -13,7 +13,6 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/AI_Engine-BiRefNet%20%7C%20RMBG--2.0-FF6F00?style=flat-square&logo=pytorch&logoColor=white" alt="AI Engine" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-4E7AB5?style=flat-square" alt="Platform" />
-  <img src="https://img.shields.io/badge/Author-sugaral-4338CA?style=flat-square" alt="Author" />
 </p>
 
 ---
@@ -154,13 +153,6 @@ photobooth-dev/
 
 ---
 
-## 👨‍💻 作者信息
-
-- **作者**：`sugaral`
-- **项目定位**：开源商业级互动照相亭 / 自助自拍机一体化软硬件解决方案
-
----
-
 <p align="center">
-  <sub>Made with ❤️ by sugaral · 赋能每一场精彩活动的定格时刻</sub>
+  <sub>Photobooth AI · 赋能每一场精彩活动的定格时刻</sub>
 </p>

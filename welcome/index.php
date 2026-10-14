@@ -29,7 +29,7 @@ include PathUtility::getAbsolutePath('admin/helper/index.php');
                     </div>
 
                         <p>Photobooth AI 智能相馆与互动自拍亭系统。</p>
-                        <p class="mt-2">系统由 <b>sugaral</b> 定制开发与维护，融合 SOTA AI 智能抠图换景、双图层交互与经典艺术滤镜。</p>
+                        <p class="mt-2">系统融合 SOTA AI 智能抠图换景、双图层交互与经典艺术滤镜。</p>
                         <h3 class="text-brand-1 font-bold mb-2 mt-4">Here are some basic information for you:</h3>
                         <p class="mb-2">
                             <b class="flex mb-1">Location of your Photobooth installation:</b>

@@ -24,7 +24,7 @@ Photobooth turns a connected camera and screen into an offline-friendly photo bo
 - Requires a supported OS and basic configuration; it is not a one‑click kiosk appliance.
 
 ## Project background
-Photobooth AI 智能相馆系统由 sugaral 定制开发与维护。
+Photobooth turns a connected camera and screen into an offline-friendly photo booth for events on Linux and Windows.
 
 ## News and releases
 Catch up on recent announcements, release highlights and community updates in the [News](news.md). Full version details are listed in the [Changelog](changelog.md).
