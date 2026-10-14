@@ -105,7 +105,7 @@
   "resources/js/admin/videoSelect.js": "3b9d6182b7b946ca315b0663f32dca7d84bc8765",
   "resources/js/adminshortcut.js": "b4f9fdb1be08aab7700059df3f6395f014f85b2b",
   "resources/js/chromakeying.js": "f29e00f301240136f21f9c7ff7e62c80544a26b4",
-  "resources/js/core.js": "ffea10ecbfa388317c12681a454070a0c44749ac",
+  "resources/js/core.js": "9532e5d8db4d7223d6e6d86b4b53899bf00884e3",
   "resources/js/debugpanel.js": "c1459f77de1e4f81319d94d90737cc1c64c0b859",
   "resources/js/gallery-updatecheck.js": "b76b4362ce8ec41861c048ce704aeb58ad3976ef",
   "resources/js/gallery.js": "83779e69e1ce60cc636d6c4bedf3e132296fd5c9",
@@ -113,7 +113,7 @@
   "resources/js/photoswipe.js": "201d7b47f515887a3858e27748bee31c4bf12cb7",
   "resources/js/preview.js": "c145c6a1dcf5a59c218ac27f388e661e09fd3803",
   "resources/js/README.md": "c4bb038eb9e63df15ba0c4098ff83f6ca8caf74b",
-  "resources/js/rembg.js": "60f3fb91316830e3e017f52dc2ffb9c0f70606f9",
+  "resources/js/rembg.js": "4e90efd6b61f31e0e8608e5ea26e853f61a70ed1",
   "resources/js/remotebuzzer-client.js": "2515a79e8902149e398bee5191dae082a238e7ab",
   "resources/js/remotebuzzer-server.js": "98913cba59f0260313886ab351bd7b52e27a6196",
   "resources/js/screensaver.js": "e039ac725286dd1508f7c8884632471d99c39833",
@@ -205,5 +205,7 @@
   "resources/template/.htaccess": "2478c030b2b6bdfbe79059274658014a1bf9c66f",
   "resources/template/index.php": "e82fafd84dbb459e9e4481e292aa6bc833640138",
   "resources/videos/background/backgroud-01.mp4": "5f75cf50d9f0a10ae2ee3adaea21fa5f72ac2379",
-  "resources/windows/php.ini": "76f12cf37189eac487a65029cac063463322a715"
+  "resources/windows/php.ini": "76f12cf37189eac487a65029cac063463322a715",
+  "resources/js/beauty.js": "4ca0e7f0e6d6f68346bd5a6b367f4a0adaa20509",
+  "assets/js/beauty.js": "4ca0e7f0e6d6f68346bd5a6b367f4a0adaa20509"
 }

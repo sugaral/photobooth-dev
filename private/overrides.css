@@ -2496,3 +2496,386 @@ button, .button, a {
   box-shadow: 1px 1px 0px 0px #1E293B;
 }
 
+
+/* ==========================================================================
+   AI Real-time Beauty Retouching System Styles (Playful Geometric Style)
+   ========================================================================== */
+
+/* 1. Quick Settings Beauty Card */
+.settings-card--beauty {
+  border-left: 4px solid #ec4899 !important;
+}
+
+.settings-beauty-row {
+  margin-bottom: 0.85rem;
+}
+
+.settings-beauty-row:last-child {
+  margin-bottom: 0.4rem;
+}
+
+.settings-beauty-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--pg-fg, #1e293b);
+  margin-bottom: 0.35rem;
+}
+
+.settings-beauty-label i {
+  color: #ec4899;
+  margin-right: 0.35rem;
+}
+
+.settings-beauty-val {
+  font-family: monospace;
+  font-size: 0.85rem;
+  background: rgba(236, 72, 153, 0.12);
+  color: #db2777;
+  padding: 0.1rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 800;
+}
+
+.settings-beauty-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-beauty-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(236, 72, 153, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-beauty-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.18);
+}
+
+.settings-beauty-slider::-webkit-slider-thumb:active {
+  transform: scale(0.95);
+}
+
+/* 2. Beauty Action Button in Results Sidebar */
+.beautybtn,
+[data-command="beautybtn"] {
+  background: linear-gradient(135deg, #f43f5e, #a855f7) !important;
+  color: #ffffff !important;
+  border-color: #1e293b !important;
+}
+
+.beautybtn:hover,
+[data-command="beautybtn"]:hover {
+  background: linear-gradient(135deg, #e11d48, #9333ea) !important;
+  transform: translate(-3px, -3px) !important;
+  box-shadow: 5px 5px 0px 0px #1e293b !important;
+}
+
+/* 3. AI Beauty Retouch Drawer */
+.beauty-drawer {
+  position: fixed !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  left: auto !important;
+  width: 385px !important;
+  max-width: 92vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  background-color: var(--pg-bg, #f8fafc) !important;
+  background-image: radial-gradient(rgba(30, 41, 59, 0.08) 1.5px, transparent 1.5px) !important;
+  background-size: 20px 20px !important;
+  border-left: 3px solid var(--pg-border, #1e293b) !important;
+  box-shadow: -8px 0px 0px 0px rgba(30, 41, 59, 0.4) !important;
+  z-index: 1005 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  translate: none !important;
+  transform: translateX(100%) !important;
+  transition: transform 0.35s var(--pg-ease-bounce, cubic-bezier(0.34, 1.56, 0.64, 1)), visibility 0.35s ease !important;
+  visibility: hidden !important;
+}
+
+.beauty-drawer.active,
+.beauty-drawer.sidenav--open {
+  translate: none !important;
+  transform: translateX(0) !important;
+  display: flex !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+
+.beauty-drawer * {
+  pointer-events: auto !important;
+}
+
+.beauty-drawer-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 1.15rem 1.3rem !important;
+  border-bottom: 2.5px solid var(--pg-border, #1e293b) !important;
+  background-color: #ffffff !important;
+}
+
+.beauty-drawer-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.7rem !important;
+  color: var(--pg-fg, #1e293b) !important;
+  font-family: var(--pg-font-heading, inherit) !important;
+  font-size: 1.15rem !important;
+  font-weight: 800 !important;
+}
+
+.beauty-drawer-title i {
+  color: #ec4899;
+  font-size: 1.25rem;
+}
+
+.beauty-drawer-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--pg-border, #1e293b);
+  background-color: #ffffff;
+  color: var(--pg-fg, #1e293b);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.95rem;
+  box-shadow: 2px 2px 0px 0px var(--pg-border, #1e293b);
+  transition: all 0.15s ease;
+}
+
+.beauty-drawer-close-btn:hover {
+  background-color: #f1f5f9;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px 0px var(--pg-border, #1e293b);
+}
+
+.beauty-drawer-body {
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  padding: 1.25rem 1.3rem !important;
+  box-sizing: border-box !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.beauty-sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.12));
+  border: 1.5px solid rgba(236, 72, 153, 0.25);
+  color: #9333ea;
+  padding: 0.6rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.83rem;
+  font-weight: 700;
+  margin-bottom: 1.3rem;
+  box-shadow: 0 2px 8px rgba(147, 51, 234, 0.08);
+}
+
+.beauty-sync-badge i {
+  font-size: 1rem;
+  color: #ec4899;
+}
+
+.beauty-control-group {
+  background: #ffffff;
+  border: 2px solid var(--pg-border, #1e293b);
+  border-radius: 14px;
+  padding: 0.95rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 3px 3px 0px 0px var(--pg-border, #1e293b);
+  transition: transform 0.15s ease;
+}
+
+.beauty-control-group:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px 0px var(--pg-border, #1e293b);
+}
+
+.beauty-control-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.beauty-control-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--pg-fg, #1e293b);
+}
+
+.beauty-control-title i {
+  color: #ec4899;
+}
+
+.beauty-control-val {
+  font-family: monospace;
+  font-size: 0.88rem;
+  background: #fdf2f8;
+  color: #db2777;
+  padding: 0.12rem 0.6rem;
+  border-radius: 9999px;
+  font-weight: 800;
+  border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.beauty-slider-wrap {
+  width: 100%;
+}
+
+.beauty-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+}
+
+.beauty-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ec4899, #8b5cf6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 8px rgba(236, 72, 153, 0.45);
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.beauty-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.beauty-slider::-webkit-slider-thumb:active {
+  transform: scale(0.92);
+}
+
+.beauty-compare-wrap {
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.beauty-compare-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 2px dashed #94a3b8;
+  color: #334155;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  box-shadow: 2px 2px 0px 0px rgba(30, 41, 59, 0.15);
+}
+
+.beauty-compare-btn:hover {
+  background: #f8fafc;
+  border-color: #64748b;
+  transform: translate(-1px, -1px);
+}
+
+.beauty-compare-btn:active,
+.beauty-compare-btn.is-comparing {
+  background: linear-gradient(135deg, #3b82f6, #6366f1) !important;
+  border: 2px solid #1e293b !important;
+  color: #ffffff !important;
+  transform: scale(0.97) !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4) !important;
+}
+
+.beauty-drawer-footer {
+  display: flex !important;
+  gap: 0.85rem !important;
+  padding: 1.15rem 1.3rem !important;
+  border-top: 2.5px solid var(--pg-border, #1e293b) !important;
+  background-color: #ffffff !important;
+}
+
+.beauty-btn-footer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 9999px;
+  border: 2px solid var(--pg-border, #1e293b);
+  font-family: var(--pg-font-heading, inherit);
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 3px 3px 0px 0px var(--pg-border, #1e293b);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.beauty-btn-reset {
+  background-color: #ffffff;
+  color: var(--pg-fg, #1e293b);
+}
+
+.beauty-btn-reset:hover {
+  background-color: #f1f5f9;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px 0px var(--pg-border, #1e293b);
+}
+
+.beauty-btn-done {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+}
+
+.beauty-btn-done:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0px 0px var(--pg-border, #1e293b);
+}
+
+.beauty-btn-footer:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0px 0px var(--pg-border, #1e293b);
+}

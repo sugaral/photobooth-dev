@@ -144,6 +144,12 @@ const photoBooth = (function () {
             $('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar').hide();
             resultPage.removeClass('cutout-mode-active').removeAttr('data-original-img');
         }
+
+        if (typeof window.beautyReset === 'function') {
+            window.beautyReset();
+        } else {
+            $('#beautyModal').removeClass('active sidenav--open').hide();
+        }
     };
 
     api.init = function () {
@@ -421,6 +427,9 @@ const photoBooth = (function () {
             if ($('#rembgModal').hasClass('sidenav--open')) {
                 $('#rembgModal').removeClass('active sidenav--open').hide();
             }
+            if ($('#beautyModal').hasClass('sidenav--open')) {
+                $('#beautyModal').removeClass('active sidenav--open').hide();
+            }
             updateFilterPreviews();
             filternav.addClass('sidenav--open');
             rotaryController.focusSet(filternav);
@@ -432,6 +441,9 @@ const photoBooth = (function () {
             if (!filternav.hasClass('sidenav--open')) {
                 if ($('#rembgModal').hasClass('sidenav--open')) {
                     $('#rembgModal').removeClass('active sidenav--open').hide();
+                }
+                if ($('#beautyModal').hasClass('sidenav--open')) {
+                    $('#beautyModal').removeClass('active sidenav--open').hide();
                 }
                 updateFilterPreviews();
             }
@@ -1442,6 +1454,12 @@ const photoBooth = (function () {
                 $('#stageCutoutViewport').hide();
                 $('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar').hide();
                 $('#rembgModal').removeClass('active sidenav--open').hide();
+            }
+
+            if (typeof window.beautyReset === 'function') {
+                window.beautyReset();
+            } else {
+                $('#beautyModal').removeClass('active sidenav--open').hide();
             }
 
             resultPage.attr('data-camera-img', filename);

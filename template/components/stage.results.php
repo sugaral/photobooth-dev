@@ -94,6 +94,11 @@ if (!empty($config['rembg']['enabled'])) {
     echo ComponentUtility::renderButton('rembg', $config['icons']['rembg'], 'rembgbtn');
 }
 
+// AI Beauty Retouch Button
+if (!empty($config['beauty']['enabled'])) {
+    echo ComponentUtility::renderButton('beauty', $config['icons']['beauty'] ?? 'fa fa-wand-magic-sparkles', 'beautybtn');
+}
+
 if ($config['ui']['result_buttons']) {
     if ($config['qr']['enabled']) {
         echo ComponentUtility::renderButton('qr', $config['icons']['qr'], 'qrbtn');
@@ -162,6 +167,87 @@ echo '
         <button type="button" class="rembg-btn-footer rembg-btn-done" id="btnRembgDone">
             <i class="fa fa-check"></i>
             <span>完成</span>
+        </button>
+    </div>
+</div>
+
+<!-- AI Beauty Retouch Drawer (微调大眼、瘦脸、磨皮、美白) -->
+<div class="beauty-drawer rotarygroup" id="beautyModal" aria-hidden="true">
+    <div class="beauty-drawer-header">
+        <div class="beauty-drawer-title">
+            <i class="fa fa-wand-magic-sparkles"></i>
+            <span>AI 人像美颜微调</span>
+        </div>
+        <button type="button" class="beauty-drawer-close-btn rotaryfocus" id="btnBeautyClose" title="关闭">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+    <div class="beauty-drawer-body">
+        <div class="beauty-sync-badge">
+            <i class="fa fa-users"></i>
+            <span>合影所有人脸自动同步修饰</span>
+        </div>
+
+        <!-- 1. 自然大眼 -->
+        <div class="beauty-control-group">
+            <div class="beauty-control-header">
+                <span class="beauty-control-title"><i class="fa fa-eye"></i> 自然大眼</span>
+                <span class="beauty-control-val" id="lblBeautyEye">15%</span>
+            </div>
+            <div class="beauty-slider-wrap">
+                <input type="range" id="sliderBeautyEye" min="0" max="100" value="15" class="beauty-slider">
+            </div>
+        </div>
+
+        <!-- 2. 精致瘦脸 -->
+        <div class="beauty-control-group">
+            <div class="beauty-control-header">
+                <span class="beauty-control-title"><i class="fa fa-heart"></i> 精致瘦脸</span>
+                <span class="beauty-control-val" id="lblBeautySlim">15%</span>
+            </div>
+            <div class="beauty-slider-wrap">
+                <input type="range" id="sliderBeautySlim" min="0" max="100" value="15" class="beauty-slider">
+            </div>
+        </div>
+
+        <!-- 3. 质感磨皮 -->
+        <div class="beauty-control-group">
+            <div class="beauty-control-header">
+                <span class="beauty-control-title"><i class="fa fa-sparkles"></i> 质感磨皮</span>
+                <span class="beauty-control-val" id="lblBeautySmooth">20%</span>
+            </div>
+            <div class="beauty-slider-wrap">
+                <input type="range" id="sliderBeautySmooth" min="0" max="100" value="20" class="beauty-slider">
+            </div>
+        </div>
+
+        <!-- 4. 透亮美白 -->
+        <div class="beauty-control-group">
+            <div class="beauty-control-header">
+                <span class="beauty-control-title"><i class="fa fa-sun"></i> 透亮美白</span>
+                <span class="beauty-control-val" id="lblBeautyWhite">15%</span>
+            </div>
+            <div class="beauty-slider-wrap">
+                <input type="range" id="sliderBeautyWhite" min="0" max="100" value="15" class="beauty-slider">
+            </div>
+        </div>
+
+        <!-- Compare Button: 按住对比原图 -->
+        <div class="beauty-compare-wrap">
+            <button type="button" class="beauty-compare-btn" id="btnBeautyCompare">
+                <i class="fa fa-eye"></i> 按住对比原图
+            </button>
+        </div>
+    </div>
+    
+    <div class="beauty-drawer-footer">
+        <button type="button" class="beauty-btn-footer beauty-btn-reset" id="btnBeautyReset">
+            <i class="fa fa-rotate-left"></i>
+            <span>重置为默认</span>
+        </button>
+        <button type="button" class="beauty-btn-footer beauty-btn-done" id="btnBeautyDone">
+            <i class="fa fa-check"></i>
+            <span>完成保存</span>
         </button>
     </div>
 </div>

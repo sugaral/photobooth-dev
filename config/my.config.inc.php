@@ -36,4 +36,7 @@ return [
     'collage' => [
         'enabled' => false,
     ],
+    'beauty' => [
+        'default_slim' => 12,
+    ],
 ];

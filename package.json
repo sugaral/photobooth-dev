@@ -33,7 +33,6 @@
     "watch:gulp": "gulp watch",
     "watch:lint": "npm-run-all --parallel watch:gulp eslint -- --watch"
   },
-  "author": "sugaral",
   "license": "MIT",
   "keywords": [
     "photobooth",

@@ -195,6 +195,63 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
                     </div>
                 </div>
 
+                <!-- 4. AI 智能人像美颜设置 -->
+                <?php
+                $beautyAuto = !empty($config['beauty']['auto_apply']);
+                $bEye = (int)($config['beauty']['default_eye'] ?? 15);
+                $bSlim = (int)($config['beauty']['default_slim'] ?? 15);
+                $bSmooth = (int)($config['beauty']['default_smooth'] ?? 20);
+                $bWhite = (int)($config['beauty']['default_white'] ?? 15);
+                ?>
+                <div class="settings-card settings-card--beauty">
+                    <div class="settings-card-header">
+                        <div class="settings-card-icon" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); color: #fff;">
+                            <i class="fa fa-wand-magic-sparkles"></i>
+                        </div>
+                        <div class="settings-card-info">
+                            <span class="settings-card-label">拍照自动微量美颜 (Auto Beauty)</span>
+                            <span class="settings-card-desc">拍摄及上传后默认赋予自然初修效果，合影中所有人脸自动同步</span>
+                        </div>
+                        <label class="settings-switch">
+                            <input type="checkbox" id="settingBeautyAutoApply" <?= $beautyAuto ? 'checked' : '' ?>>
+                            <span class="settings-slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-card-content" id="settingBeautySlidersBox" style="<?= $beautyAuto ? '' : 'display:none;' ?>">
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-eye"></i> 默认大眼强度</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautyEye"><?= $bEye ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautyEye" min="0" max="100" value="<?= $bEye ?>" class="settings-beauty-slider">
+                        </div>
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-heart"></i> 默认瘦脸强度</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautySlim"><?= $bSlim ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautySlim" min="0" max="100" value="<?= $bSlim ?>" class="settings-beauty-slider">
+                        </div>
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-sparkles"></i> 默认磨皮强度</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautySmooth"><?= $bSmooth ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautySmooth" min="0" max="100" value="<?= $bSmooth ?>" class="settings-beauty-slider">
+                        </div>
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-sun"></i> 默认美白强度</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautyWhite"><?= $bWhite ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautyWhite" min="0" max="100" value="<?= $bWhite ?>" class="settings-beauty-slider">
+                        </div>
+                        <div class="settings-camera-hint" id="settingBeautyHint">
+                            <i class="fa fa-circle-check" style="color: #10b981;"></i> 默认美颜参数已生效 · 新拍照片自动同步初修
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="quick-settings-footer">

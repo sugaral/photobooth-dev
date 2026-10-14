@@ -58,6 +58,7 @@ final class IconsConfiguration
                 ->scalarNode('slideshow_toggle')->defaultValue('fa-play fa-pause')->end()
                 ->scalarNode('take_custom')->defaultValue('fa fa-paint-brush')->end()
                 ->scalarNode('rembg')->defaultValue('fa fa-wand-magic-sparkles')->end()
+                ->scalarNode('beauty')->defaultValue('fa fa-wand-magic-sparkles')->end()
             ->end();
     }
 }

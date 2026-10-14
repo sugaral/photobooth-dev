@@ -445,6 +445,9 @@
             if ($('#filternav').hasClass('sidenav--open')) {
                 $('#filternav').removeClass('sidenav--open');
             }
+            if ($('#beautyModal').length) {
+                $('#beautyModal').removeClass('active sidenav--open').hide();
+            }
 
             if (window.photoBooth && typeof window.photoBooth.clearTimeOut === 'function') {
                 window.photoBooth.clearTimeOut();
@@ -547,6 +550,9 @@
 
                 // 3. Smoothly pop open the right-side template selection drawer
                 setTimeout(function () {
+                    if ($('#beautyModal').length) {
+                        $('#beautyModal').removeClass('active sidenav--open').hide();
+                    }
                     modal.addClass('active sidenav--open').show();
                     loadTemplates();
                 }, 200);

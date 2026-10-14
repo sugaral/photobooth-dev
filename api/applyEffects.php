@@ -7,6 +7,7 @@ require_once __DIR__ . '/../lib/boot.php';
 use Photobooth\Image;
 use Photobooth\Collage;
 use Photobooth\Rembg;
+use Photobooth\Beauty;
 use Photobooth\Enum\FolderEnum;
 use Photobooth\Enum\ImageFilterEnum;
 use Photobooth\Processor\ImageProcessor;
@@ -232,6 +233,11 @@ try {
                     if (!$imageResource instanceof \GdImage) {
                         throw new \Exception('Error resizing resource.');
                     }
+                }
+
+                // Apply auto beauty micro-retouch if enabled
+                if (!empty($config['beauty']['enabled']) && !empty($config['beauty']['auto_apply'])) {
+                    [$imageHandler, $imageResource] = Beauty::process($imageHandler, $vars, $config['beauty'], $imageResource);
                 }
 
                 // Apply rembg only if auto_apply is explicitly enabled (otherwise it is an optional choice on result screen)

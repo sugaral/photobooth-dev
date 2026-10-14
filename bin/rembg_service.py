@@ -12,10 +12,17 @@ try:
 except ImportError:
     from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads
 
+try:
+    from beauty_core import BeautyEngine
+except ImportError:
+    from bin.beauty_core import BeautyEngine
+
 HOST = "127.0.0.1"
 PORT = 8001
 MANAGER = MattingEngineManager(default_engine=DEFAULT_ENGINE, prefer_cpu=True, threads=get_persisted_threads())
 MANAGER_LOCK = threading.Lock()
+BEAUTY_ENGINE = None
+BEAUTY_LOCK = threading.Lock()
 
 
 class RembgHandler(BaseHTTPRequestHandler):
@@ -63,6 +70,29 @@ class RembgHandler(BaseHTTPRequestHandler):
                     "threads": MANAGER.threads,
                     "message": f"AI抠图已即时切换为 {MANAGER.threads} 核心并行计算",
                 })
+            except Exception as exc:
+                self._json({"success": False, "error": str(exc)}, 500)
+            return
+
+        if self.path == "/beauty":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+                global BEAUTY_ENGINE
+                with BEAUTY_LOCK:
+                    if BEAUTY_ENGINE is None:
+                        BEAUTY_ENGINE = BeautyEngine()
+                    result = BEAUTY_ENGINE.process_image(
+                        input_path=data.get("input"),
+                        output_path=data.get("output"),
+                        eye=float(data.get("eye", 15)),
+                        slim=float(data.get("slim", 15)),
+                        smooth=float(data.get("smooth", 20)),
+                        white=float(data.get("white", 15)),
+                        preview=bool(data.get("preview", False)),
+                        preview_max=int(data.get("preview_max", 960)),
+                    )
+                self._json(result, 200 if result.get("success") else 500)
             except Exception as exc:
                 self._json({"success": False, "error": str(exc)}, 500)
             return

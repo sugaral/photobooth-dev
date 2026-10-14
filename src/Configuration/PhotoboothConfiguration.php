@@ -4,6 +4,7 @@ namespace Photobooth\Configuration;
 
 use Photobooth\Configuration\Section\AdminPanelConfiguration;
 use Photobooth\Configuration\Section\BackgroundConfiguration;
+use Photobooth\Configuration\Section\BeautyConfiguration;
 use Photobooth\Configuration\Section\ButtonConfiguration;
 use Photobooth\Configuration\Section\ChromaCaptureConfiguration;
 use Photobooth\Configuration\Section\CollageConfiguration;
@@ -106,6 +107,7 @@ class PhotoboothConfiguration implements ConfigurationInterface
                 ->append(MailConfiguration::getNode())
                 ->append(SoundConfiguration::getNode())
                 ->append(RembgConfiguration::getNode())
+                ->append(BeautyConfiguration::getNode())
                 ->append(ThemeConfiguration::getNode())
             ->end();
 
