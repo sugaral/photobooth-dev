@@ -139,7 +139,7 @@ $postData = json_encode([
     'white' => $white,
     'preview' => $isPreview,
     'preview_max' => 960,
-], JSON_UNESCAPED_SLASHES);
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 $resultJson = null;
 $returnCode = 1;
@@ -151,7 +151,7 @@ if (function_exists('curl_init')) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
         curl_setopt($ch, CURLOPT_TIMEOUT_MS, 15000);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 1500);
         curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
@@ -173,7 +173,7 @@ if ($returnCode !== 0) {
     $script = realpath(__DIR__ . '/../bin/beauty_core.py');
     if ($script) {
         $cmd = sprintf(
-            'python %s --input %s --output %s --eye %f --slim %f --smooth %f --white %f%s',
+            'python -X utf8 %s --input %s --output %s --eye %f --slim %f --smooth %f --white %f%s',
             escapeshellarg($script),
             escapeshellarg($sourceInput),
             escapeshellarg($outputPath),

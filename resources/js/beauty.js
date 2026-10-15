@@ -254,6 +254,7 @@
                 resultPage.attr('data-original-img', currentBaseFile);
             }
             originalRawUrl = getTmpFolder() + '/orig_' + currentBaseFile + '?v=' + Date.now();
+            currentPreviewUrl = getImagesFolder() + '/' + currentBaseFile + '?v=' + Date.now();
         }
 
         // Open the drawer with silky smooth sliding animation

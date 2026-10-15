@@ -41,6 +41,51 @@ def find_model_path():
     return None
 
 
+def cv_read_image(path):
+    """
+    Robust image loader on Windows supporting non-ASCII / Unicode paths.
+    Bypasses OpenCV C++ imread ANSI path limitations.
+    """
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        if not data:
+            return None
+        return cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except Exception as exc:
+        print(f"[BeautyEngine] Failed to read image {path}: {exc}")
+        return None
+
+
+def cv_write_image(path, img, quality=95):
+    """
+    Robust image writer on Windows supporting non-ASCII / Unicode paths.
+    Bypasses OpenCV C++ imwrite ANSI path limitations.
+    """
+    if img is None:
+        return False
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        ext = os.path.splitext(path)[1].lower()
+        if ext in (".jpg", ".jpeg"):
+            params = [int(cv2.IMWRITE_JPEG_QUALITY), int(quality), int(cv2.IMWRITE_JPEG_OPTIMIZE), 1]
+        elif ext == ".png":
+            params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+        else:
+            params = [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)]
+        success, enc = cv2.imencode(ext if ext else ".jpg", img, params)
+        if not success:
+            return False
+        with open(path, "wb") as f:
+            f.write(enc.tobytes())
+        return True
+    except Exception as exc:
+        print(f"[BeautyEngine] Failed to write image {path}: {exc}")
+        return False
+
+
 class BeautyEngine:
     def __init__(self, model_path=None):
         self.model_path = model_path or find_model_path()
@@ -293,7 +338,7 @@ class BeautyEngine:
         if not os.path.isfile(input_path):
             return {"success": False, "error": f"Input image not found: {input_path}"}
 
-        img = cv2.imread(input_path)
+        img = cv_read_image(input_path)
         if img is None:
             return {"success": False, "error": f"Failed to load image: {input_path}"}
 
@@ -326,13 +371,8 @@ class BeautyEngine:
         )
 
         # Save output image
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         quality = 85 if preview else 95
-        success = cv2.imwrite(
-            output_path,
-            retouched,
-            [int(cv2.IMWRITE_JPEG_QUALITY), quality, int(cv2.IMWRITE_JPEG_OPTIMIZE), 1]
-        )
+        success = cv_write_image(output_path, retouched, quality=quality)
         elapsed_ms = (time.time() - t0) * 1000.0
 
         if not success:

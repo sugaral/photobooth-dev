@@ -24,7 +24,7 @@ if not errorlevel 1 (
     )
 )
 
-rem 2. 自动定位 Python（优先使用项目虚拟环境）
+rem 2. 自动定位 Python（优先使用项目虚拟环境与系统环境）
 if exist "%~dp0.venv\Scripts\python.exe" (
     set "PYTHON_CMD=%~dp0.venv\Scripts\python.exe"
 ) else if exist "%~dp0venv\Scripts\python.exe" (
@@ -47,6 +47,17 @@ if not exist "%~dp0bin\rembg_service.py" (
     exit /b 1
 )
 
+rem 3. 检查并确保 PHP 依赖 vendor 存在
+if not exist "%~dp0vendor\autoload.php" (
+    echo [提示] 检测到 vendor 依赖缺失，正在自动安装...
+    "%PHP_CMD%" "%~dp0bin\composer" install --no-dev --optimize-autoloader
+    if not exist "%~dp0vendor\autoload.php" (
+        echo [错误] vendor 依赖安装失败，请检查 PHP 环境与网络连接。
+        pause
+        exit /b 1
+    )
+)
+
 if not exist "%~dp0var\log" mkdir "%~dp0var\log" >nul 2>&1
 
 echo [1/3] 清理残留孤儿进程与端口占用 (8000 / 8001)...
@@ -57,11 +68,8 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 " 2^>nul') do (
     if not "%%a"=="0" taskkill /f /pid %%a >nul 2>&1
 )
 
-echo [2/3] 启动 AI 抠图后台服务 (http://127.0.0.1:8001)...
-start "Photobooth AI Service" /min "%PYTHON_CMD%" "%~dp0bin\rembg_service.py"
-
-rem 开启 PHP 内置服务器的多 Worker 并发模式，避免静态资源并发请求卡死
-set PHP_CLI_SERVER_WORKERS=4
+echo [2/3] 启动 AI 抠图与美颜后台服务 (http://127.0.0.1:8001)...
+start "Photobooth AI Service" /min "%PYTHON_CMD%" -X utf8 "%~dp0bin\rembg_service.py"
 
 echo [3/3] 启动 Web 服务器并准备开启前端界面...
 echo.
