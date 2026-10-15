@@ -178,6 +178,20 @@ photobooth-dev/
 
 ## 📝 版本更新说明 (Changelog)
 
+### ⚡ 2026.10.15 Update：Windows 中文路径深度兼容与一键启停脚本健壮性升级
+- **Windows 中文路径全面兼容（Zero Path Barrier）**：
+  - 重构 Python 美颜核心引擎图像 I/O，使用内存二进制流解码（`imdecode` + `frombuffer` / `imencode`）彻底替代原生 `cv2.imread()` 与 `cv2.imwrite()`；
+  - 彻底攻克 Windows 平台下 OpenCV 底层 ANSI C `fopen` 无法解析包含中文字符的目录路径（如 `photobooth美颜版`）导致美颜预览与烘焙直接报错 500 的问题；
+  - API 与微服务通信全链路强化 `JSON_UNESCAPED_UNICODE` 与 `python -X utf8` 跨进程编码标准，彻底消除 Windows 环境乱码隐患。
+- **一键启停脚本规范与容错升级 (`start-photobooth.bat` & `stop-photobooth.bat`)**：
+  - 全面规范脚本换行符为 Windows 原生 CRLF（无 BOM 的 UTF-8），彻底根除 `cmd.exe` 解析 LF 脚本引起的 `for /f` 循环语法报错与无法关闭进程问题；
+  - `start-photobooth.bat` 新增 Composer `vendor/autoload.php` 缺失智能检测与自愈安装逻辑，提升初次部署与离线运行体验；
+  - 移除 Windows 下不支持的 `PHP_CLI_SERVER_WORKERS=4` 参数，消除平台启动 warning；
+  - `stop-photobooth.bat` 升级 8000 (Web) 与 8001 (AI) 双端口及孤儿进程安全精准释放。
+- **美颜实时预览与原图对比体验优化**：
+  - 前端抽屉打开时自动构建底片参照，保障首次拖动滑块或长按“按住对比原图”时对比基准完全一致；
+  - 优化预览生成与请求防抖机制，单帧实时预览处理耗时低至 70~150ms。
+
 ### 🌸 2026.10.14 Update：增加 AI 美颜版 (Beauty Retouching Edition)
 - **新增 AI 人像参数化实时美颜系统**：
   - 👁️ **自然大眼**：眼部局部平滑扩张，虹膜细节与高光无损保留；
