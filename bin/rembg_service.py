@@ -8,21 +8,35 @@ import threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 try:
-    from matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads
+    from matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode
 except ImportError:
-    from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads
+    from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode
 
 try:
     from beauty_core import BeautyEngine
 except ImportError:
     from bin.beauty_core import BeautyEngine
 
+try:
+    from faceswap_core import FaceSwapEngine
+except ImportError:
+    try:
+        from bin.faceswap_core import FaceSwapEngine
+    except ImportError:
+        FaceSwapEngine = None
+
 HOST = "127.0.0.1"
 PORT = 8001
-MANAGER = MattingEngineManager(default_engine=DEFAULT_ENGINE, prefer_cpu=True, threads=get_persisted_threads())
+MANAGER = MattingEngineManager(
+    default_engine=DEFAULT_ENGINE,
+    prefer_cpu=(get_persisted_gpu_mode() == "cpu"),
+    threads=get_persisted_threads(),
+)
 MANAGER_LOCK = threading.Lock()
 BEAUTY_ENGINE = None
 BEAUTY_LOCK = threading.Lock()
+FACESWAP_ENGINE = None
+FACESWAP_LOCK = threading.Lock()
 
 
 class RembgHandler(BaseHTTPRequestHandler):
@@ -41,34 +55,45 @@ class RembgHandler(BaseHTTPRequestHandler):
             self._json({
                 "status": "ok",
                 "default_engine": diagnostics.get("default_engine"),
+                "device_status": diagnostics.get("device_status"),
                 "threads": diagnostics.get("threads"),
                 "max_system_threads": diagnostics.get("max_system_threads"),
                 "engines": diagnostics.get("engines"),
             })
-        elif self.path in ("/threads", "/cpu"):
+        elif self.path in ("/device", "/threads", "/cpu"):
             with MANAGER_LOCK:
+                dev_status = MANAGER.get_device_status()
+                dev_status["max_threads"] = os.cpu_count() or 4
                 self._json({
                     "status": "ok",
-                    "threads": MANAGER.threads,
-                    "max_threads": os.cpu_count() or 4,
+                    "success": True,
+                    **dev_status,
                 })
         else:
             self._json({"error": "Not Found"}, 404)
 
     def do_POST(self):
-        if self.path in ("/threads", "/cpu"):
+        if self.path in ("/device", "/threads", "/cpu"):
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
-                threads = int(data.get("threads", 4))
-                threads = max(1, min(32, threads))
                 with MANAGER_LOCK:
-                    MANAGER.set_threads(threads)
+                    if "device" in data or "prefer_cpu" in data or "gpu_mode" in data:
+                        dev = str(data.get("device") or data.get("gpu_mode") or "").lower().strip()
+                        prefer_cpu = (dev == "cpu") if dev else bool(data.get("prefer_cpu", False))
+                        MANAGER.set_device(prefer_cpu=prefer_cpu)
+                    if "threads" in data:
+                        threads = int(data.get("threads", 4))
+                        threads = max(1, min(32, threads))
+                        MANAGER.set_threads(threads)
+                    status = MANAGER.get_device_status()
+                is_gpu = (status.get("device") == "gpu")
+                msg = "AI抠图已即时切换为 GPU 硬件加速" if is_gpu else f"AI抠图已即时切换为 CPU {status.get('threads')} 核心计算"
                 self._json({
                     "status": "ok",
                     "success": True,
-                    "threads": MANAGER.threads,
-                    "message": f"AI抠图已即时切换为 {MANAGER.threads} 核心并行计算",
+                    "message": msg,
+                    **status,
                 })
             except Exception as exc:
                 self._json({"success": False, "error": str(exc)}, 500)
@@ -92,6 +117,30 @@ class RembgHandler(BaseHTTPRequestHandler):
                         preview=bool(data.get("preview", False)),
                         preview_max=int(data.get("preview_max", 960)),
                     )
+                self._json(result, 200 if result.get("success") else 500)
+            except Exception as exc:
+                self._json({"success": False, "error": str(exc)}, 500)
+            return
+
+        if self.path == "/faceswap":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+                global FACESWAP_ENGINE
+                with FACESWAP_LOCK:
+                    if FACESWAP_ENGINE is None and FaceSwapEngine is not None:
+                        with MANAGER_LOCK:
+                            prefer_cpu = (MANAGER.get_device_status().get("device") == "cpu")
+                        FACESWAP_ENGINE = FaceSwapEngine(prefer_cpu=prefer_cpu)
+                    
+                    if FACESWAP_ENGINE is None:
+                        result = {"success": False, "error": "AI 换脸引擎组件未就绪"}
+                    else:
+                        result = FACESWAP_ENGINE.swap(
+                            source_path=data.get("source") or data.get("input"),
+                            target_path=data.get("target") or data.get("template"),
+                            output_path=data.get("output")
+                        )
                 self._json(result, 200 if result.get("success") else 500)
             except Exception as exc:
                 self._json({"success": False, "error": str(exc)}, 500)

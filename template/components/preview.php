@@ -42,10 +42,30 @@ $composed_style = '
 
 echo '<div class="preview">';
 echo '<div id="preview-container" style="aspect-ratio: ' . $comp . '">';
-echo '<div id="preview-wrapper" style="aspect-ratio:' . $comp . '">';
+echo '<div id="preview--video-container" style="position:relative;width:100%;height:100%;">';
 echo '<video id="preview--video" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" autoplay playsinline></video>';
 echo '<div id="preview--ipcam" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '"></div>';
 echo '<div id="preview--none">' . $languageService->translate('no_preview') . '</div>';
+
+// AI Face Calibration & Pose Alignment Guide (Stage 3.3)
+echo '
+<div id="aiPoseGuide" class="ai-pose-guide" style="display:none;" aria-hidden="true">
+    <div class="ai-pose-target">
+        <div class="ai-pose-oval">
+            <div class="ai-pose-scanline"></div>
+        </div>
+        <div class="ai-pose-eyes-line">
+            <span class="ai-pose-cross left"></span>
+            <span class="ai-pose-cross right"></span>
+        </div>
+        <div class="ai-pose-badge">
+            <i class="fa fa-crosshairs"></i> 请将正脸对准虚线框内 · 保持端正
+        </div>
+    </div>
+</div>
+';
+
+echo '</div>';
 echo '</div></div>';
 
 if ($previewShowPictureFrame) {

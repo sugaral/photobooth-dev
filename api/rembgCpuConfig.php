@@ -8,35 +8,46 @@ use Photobooth\Utility\PathUtility;
 header('Content-Type: application/json; charset=utf-8');
 
 $serviceBaseUrl = rtrim((string)($config['rembg']['service_url'] ?? 'http://127.0.0.1:8001'), '/');
-$threadsEndpoint = $serviceBaseUrl . '/threads';
+$deviceEndpoint = $serviceBaseUrl . '/device';
 
-// 1. GET: 获取当前配置与运行时 CPU 线程数
+// 1. GET: 获取当前配置与运行时计算设备与 CPU 线程数
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $configuredThreads = (int)($config['rembg']['cpu_threads'] ?? 4);
+    $configuredGpuMode = (string)($config['rembg']['gpu_mode'] ?? 'gpu');
+    $configuredThreads = (int)($config['rembg']['cpu_threads'] ?? 8);
+    $liveDevice = $configuredGpuMode;
     $liveThreads = $configuredThreads;
+    $isGpuActive = ($configuredGpuMode === 'gpu');
+    $gpuName = 'NVIDIA GeForce RTX 5060 Laptop GPU';
     $maxThreads = 24;
     $serviceOnline = false;
 
-    // 尝试探测 Python 服务运行时状态
+    // 探测 Python 服务运行时状态
     $ctx = stream_context_create([
         'http' => [
             'timeout' => 0.8,
             'ignore_errors' => true,
         ]
     ]);
-    $resp = @file_get_contents($threadsEndpoint, false, $ctx);
+    $resp = @file_get_contents($deviceEndpoint, false, $ctx);
     if ($resp !== false) {
         $json = json_decode($resp, true);
-        if (is_array($json) && isset($json['threads'])) {
-            $liveThreads = (int)$json['threads'];
+        if (is_array($json)) {
+            $liveDevice = $json['device'] ?? $liveDevice;
+            $liveThreads = (int)($json['threads'] ?? $liveThreads);
             $maxThreads = (int)($json['max_threads'] ?? $maxThreads);
+            $gpuName = $json['gpu_name'] ?? $gpuName;
+            $isGpuActive = !empty($json['is_gpu_active']);
             $serviceOnline = true;
         }
     }
 
     echo json_encode([
         'success' => true,
+        'gpu_mode' => $configuredGpuMode,
         'threads' => $configuredThreads,
+        'live_device' => $liveDevice,
+        'is_gpu_active' => $isGpuActive,
+        'gpu_name' => $gpuName,
         'live_threads' => $liveThreads,
         'max_threads' => $maxThreads,
         'service_online' => $serviceOnline,
@@ -44,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     exit;
 }
 
-// 2. POST: 更新核心数并即时生效
+// 2. POST: 更新计算设备(GPU/CPU)与核心数并即时生效
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $inputData = [];
     $rawInput = file_get_contents('php://input');
@@ -58,12 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inputData = $_POST;
     }
 
-    $threads = isset($inputData['threads']) ? (int)$inputData['threads'] : 4;
-    if ($threads < 1) {
-        $threads = 1;
+    $rawGpuMode = $inputData['gpu_mode'] ?? $inputData['device'] ?? null;
+    $gpuMode = null;
+    if ($rawGpuMode !== null) {
+        $gpuMode = strtolower(trim((string)$rawGpuMode)) === 'cpu' ? 'cpu' : 'gpu';
     }
-    if ($threads > 32) {
-        $threads = 32;
+
+    $threads = isset($inputData['threads']) ? (int)$inputData['threads'] : null;
+    if ($threads !== null) {
+        $threads = max(1, min(32, $threads));
     }
 
     // 2.1 写入持久化配置文件 config/my.config.inc.php
@@ -76,21 +90,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!isset($userConfig['rembg']) || !is_array($userConfig['rembg'])) {
                     $userConfig['rembg'] = [];
                 }
-                $userConfig['rembg']['cpu_threads'] = $threads;
+                if ($gpuMode !== null) {
+                    $userConfig['rembg']['gpu_mode'] = $gpuMode;
+                }
+                if ($threads !== null) {
+                    $userConfig['rembg']['cpu_threads'] = $threads;
+                }
                 $configService = ConfigurationService::getInstance();
                 $configService->update($userConfig);
                 $configUpdated = true;
             }
         }
     } catch (\Throwable $e) {
-        // 如果经由 ConfigurationService 校验更新出现异常，进行安全回退文件替换
         $configFile = PathUtility::getAbsolutePath('config/my.config.inc.php');
         if (file_exists($configFile)) {
             $content = file_get_contents($configFile);
-            if (preg_match("/(['\"]cpu_threads['\"]\s*=>\s*)\d+/", $content)) {
-                $content = preg_replace("/(['\"]cpu_threads['\"]\s*=>\s*)\d+/", "\${1}{$threads}", $content);
-            } else {
-                $content = preg_replace("/(['\"]rembg['\"]\s*=>\s*\[)/", "\${1}\n        'cpu_threads' => {$threads},", $content);
+            if ($gpuMode !== null) {
+                if (preg_match("/(['\"]gpu_mode['\"]\s*=>\s*)['\"][^'\"]*['\"]/", $content)) {
+                    $content = preg_replace("/(['\"]gpu_mode['\"]\s*=>\s*)['\"][^'\"]*['\"]/", "\${1}'{$gpuMode}'", $content);
+                } else {
+                    $content = preg_replace("/(['\"]rembg['\"]\s*=>\s*\[)/", "\${1}\n        'gpu_mode' => '{$gpuMode}',", $content);
+                }
+            }
+            if ($threads !== null) {
+                if (preg_match("/(['\"]cpu_threads['\"]\s*=>\s*)\d+/", $content)) {
+                    $content = preg_replace("/(['\"]cpu_threads['\"]\s*=>\s*)\d+/", "\${1}{$threads}", $content);
+                } else {
+                    $content = preg_replace("/(['\"]rembg['\"]\s*=>\s*\[)/", "\${1}\n        'cpu_threads' => {$threads},", $content);
+                }
             }
             @file_put_contents($configFile, $content);
             $configUpdated = true;
@@ -100,31 +127,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 2.2 即时热更新 Python AI 微服务（0延迟生效，无需重启进程）
     $serviceUpdated = false;
     $serviceMessage = '';
-    $postPayload = json_encode(['threads' => $threads]);
+    $postPayloadArr = [];
+    if ($gpuMode !== null) {
+        $postPayloadArr['device'] = $gpuMode;
+    }
+    if ($threads !== null) {
+        $postPayloadArr['threads'] = $threads;
+    }
+
+    $postPayload = json_encode($postPayloadArr);
     $ctx = stream_context_create([
         'http' => [
             'method' => 'POST',
             'header' => "Content-Type: application/json\r\nContent-Length: " . strlen($postPayload) . "\r\n",
             'content' => $postPayload,
-            'timeout' => 2.0,
+            'timeout' => 3.0,
             'ignore_errors' => true,
         ]
     ]);
-    $resp = @file_get_contents($threadsEndpoint, false, $ctx);
+    $resp = @file_get_contents($deviceEndpoint, false, $ctx);
     if ($resp !== false) {
         $json = json_decode($resp, true);
         if (is_array($json) && !empty($json['success'])) {
             $serviceUpdated = true;
-            $serviceMessage = $json['message'] ?? "AI 推理核心数已更新为 {$threads} 核";
+            $serviceMessage = $json['message'] ?? '';
+        }
+    }
+
+    if (!$serviceMessage) {
+        if ($gpuMode === 'gpu') {
+            $serviceMessage = 'AI抠图已即时切换为 GPU 硬件加速';
+        } elseif ($threads !== null) {
+            $serviceMessage = "AI抠图已即时切换为 CPU {$threads} 核心并行计算";
+        } else {
+            $serviceMessage = 'AI抠图配置已更新';
         }
     }
 
     echo json_encode([
         'success' => true,
+        'gpu_mode' => $gpuMode,
         'threads' => $threads,
         'config_updated' => $configUpdated,
         'service_updated' => $serviceUpdated,
-        'message' => $serviceMessage ?: "AI抠图已即时切换为 {$threads} 核心并行计算",
+        'message' => $serviceMessage,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

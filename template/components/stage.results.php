@@ -60,13 +60,31 @@ echo '
         <div class="stage-matting-desc">正在精确分离人像与发丝轮廓，请稍候</div>
         <div class="stage-matting-engine-pill" id="stageMattingEnginePill">
             <i class="fa fa-microchip"></i>
-            <span id="stageMattingEngineHint">BiRefNet (半身照/发丝优化) 模型推理中...</span>
+            <span id="stageMattingEngineHint">AI 人像发丝级精细抠图进行中...</span>
         </div>
     </div>
 </div>
 ';
 
 echo '<div class="stage-inner">';
+
+// AI FaceSwap Floating Comparison & Control Bar
+echo '
+<div class="ai-result-control-bar" id="aiResultControlBar" style="display:none;">
+    <div class="ai-result-pill">
+        <i class="fa fa-wand-magic-sparkles"></i>
+        <span id="aiResultTemplateName">AI 魔法变身照已生成</span>
+    </div>
+    <button type="button" class="ai-compare-btn rotaryfocus" id="btnAiCompareSnap" title="按住或点击查看拍摄原图">
+        <i class="fa fa-eye"></i>
+        <span>查看原拍对比</span>
+    </button>
+    <button type="button" class="ai-switch-tpl-btn rotaryfocus" id="btnAiChangeTemplate" title="更换变身模板">
+        <i class="fa fa-palette"></i>
+        <span>更换模板</span>
+    </button>
+</div>
+';
 
 // Left Sidebar for Results Action Buttons
 echo '<aside class="result-sidebar buttonbar buttonbar--sidebar" id="resultSidebar">';
@@ -138,14 +156,6 @@ echo '
         </button>
     </div>
     <div class="rembg-drawer-toolbar">
-        <div class="rembg-engine-switcher" role="group" aria-label="AI matting engine">
-            <button type="button" class="rembg-engine-btn active" data-engine="birefnet" title="BiRefNet-Portrait：专为人像发丝优化（最适合半身照、自拍照、大头贴）">
-                <i class="fa fa-user"></i> BiRefNet (半身照/发丝)
-            </button>
-            <button type="button" class="rembg-engine-btn" data-engine="rmbg2" title="RMBG-2.0：商业级高清稳定（最适合全身照、站姿、多人合影、复杂服装）">
-                <i class="fa fa-users"></i> RMBG-2.0 (全身照/合影)
-            </button>
-        </div>
         <label class="rembg-upload-btn" id="lblUploadTemplate" for="rembgTemplateUpload">
             <i class="fa fa-cloud-arrow-up"></i>
             <span>上传自定义背景</span>

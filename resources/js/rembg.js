@@ -15,13 +15,8 @@
             rembgBtn.addClass('is-matting-loading');
             sidebarButtons.not('.rembgbtn, [data-command="rembgbtn"]').prop('disabled', true);
 
-            const curEngine = engineName || selectedEngine || 'birefnet';
             if (engineHint.length) {
-                if (curEngine === 'rmbg2') {
-                    engineHint.text('RMBG-2.0 (全身照/合影优化) 模型推理中...');
-                } else {
-                    engineHint.text('BiRefNet (半身照/发丝优化) 模型推理中...');
-                }
+                engineHint.text('AI 人像发丝级精细抠图进行中...');
             }
             loader.addClass('is-active').show();
         } else {

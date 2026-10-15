@@ -27,7 +27,25 @@ def get_persisted_threads():
                 return max(1, min(32, val))
     except Exception:
         pass
-    return 4
+    return 8
+
+
+def get_persisted_gpu_mode():
+    try:
+        cfg_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "my.config.inc.php")
+        if os.path.exists(cfg_path):
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            import re
+            m = re.search(r"['\"]gpu_mode['\"]\s*=>\s*['\"]([^'\"]+)['\"]", content)
+            if m:
+                val = m.group(1).lower().strip()
+                if val in ("gpu", "cpu"):
+                    return val
+    except Exception:
+        pass
+    return "gpu"
+
 
 os.environ["OMP_NUM_THREADS"] = str(get_persisted_threads())
 
@@ -58,7 +76,7 @@ ENGINE_ALIASES = {
 }
 
 
-def get_best_providers(prefer_cpu=True):
+def get_best_providers(prefer_cpu=True, gpu_device_id=0):
     """Return optimal execution providers for ONNX Runtime."""
     if prefer_cpu:
         return ["CPUExecutionProvider"]
@@ -67,11 +85,11 @@ def get_best_providers(prefer_cpu=True):
         available = ort.get_available_providers()
         providers = []
         if "CUDAExecutionProvider" in available:
-            providers.append("CUDAExecutionProvider")
+            providers.append(("CUDAExecutionProvider", {"device_id": gpu_device_id}))
         if "DmlExecutionProvider" in available:
-            providers.append(("DmlExecutionProvider", {"device_id": 0}))
+            providers.append(("DmlExecutionProvider", {"device_id": gpu_device_id}))
         providers.append("CPUExecutionProvider")
-        return providers
+        return providers if providers else ["CPUExecutionProvider"]
     except Exception:
         return ["CPUExecutionProvider"]
 
@@ -129,7 +147,7 @@ class BiRefNetPortraitEngine:
     display_name = "BiRefNet-Portrait"
     suitable_for = "适合半身照 / 自拍照 / 大头贴 / 精细发丝"
 
-    def __init__(self, model_path=BIREFNET_MODEL_PATH, prefer_cpu=True, threads=None):
+    def __init__(self, model_path=BIREFNET_MODEL_PATH, prefer_cpu=False, threads=None):
         self.model_path = model_path
         self.prefer_cpu = prefer_cpu
         self.threads = max(1, min(32, int(threads or get_persisted_threads())))
@@ -144,12 +162,35 @@ class BiRefNetPortraitEngine:
             raise FileNotFoundError(f"BiRefNet 模型文件不存在: {self.model_path}")
         import onnxruntime as ort
         opts = ort.SessionOptions()
-        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
-        opts.inter_op_num_threads = 1
-        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        self.providers = get_best_providers(self.prefer_cpu)
-        self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        if not self.prefer_cpu:
+            # GPU 加速 (DirectML)：禁用全局图融合以规避驱动显存突增 (8007000E/DXGI_ERROR_DEVICE_HUNG)
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            self.providers = get_best_providers(prefer_cpu=False)
+            try:
+                self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+                active = self.session.get_providers()
+                if not any("Dml" in p or "CUDA" in p for p in active):
+                    print("[BiRefNet] 未检测到可用的 GPU 加速提供者，切换至 CPU 模式...")
+                    self.prefer_cpu = True
+            except Exception as e:
+                print(f"[BiRefNet] GPU 启动异常 ({e})，正在自动安全回退至 CPU 多核模式...")
+                self.prefer_cpu = True
+                opts = ort.SessionOptions()
+                opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
+                opts.inter_op_num_threads = 1
+                opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+                self.providers = ["CPUExecutionProvider"]
+                self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        else:
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
+            opts.inter_op_num_threads = 1
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+            self.providers = ["CPUExecutionProvider"]
+            self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.error = None
@@ -158,8 +199,14 @@ class BiRefNetPortraitEngine:
         threads = max(1, min(32, int(threads)))
         if self.threads != threads:
             self.threads = threads
-            if self.session is not None:
-                self.initialize()
+            if self.session is not None and self.prefer_cpu:
+                self.session = None
+
+    def set_device(self, prefer_cpu=False):
+        prefer_cpu = bool(prefer_cpu)
+        if self.prefer_cpu != prefer_cpu:
+            self.prefer_cpu = prefer_cpu
+            self.session = None
 
     def predict(self, image):
         if self.session is None:
@@ -173,7 +220,16 @@ class BiRefNetPortraitEngine:
         std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
         tensor = np.transpose((arr - mean) / std, (2, 0, 1))[np.newaxis, ...]
 
-        ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
+        try:
+            ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
+        except Exception as exc:
+            if not self.prefer_cpu:
+                print(f"[BiRefNet] GPU 推理异常 ({exc})，即时降级至 CPU 纯多核重试...")
+                self.set_device(prefer_cpu=True)
+                ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
+            else:
+                raise
+
         out = ort_outs[0]
         if len(out.shape) == 4:
             out = out[0, 0, :, :]
@@ -194,6 +250,7 @@ class BiRefNetPortraitEngine:
             "name": self.display_name,
             "suitable_for": self.suitable_for,
             "model_path": self.model_path,
+            "prefer_cpu": self.prefer_cpu,
             "providers": self.providers,
             "threads": self.threads,
             "error": self.error,
@@ -239,8 +296,14 @@ class RMBG2Engine:
         threads = max(1, min(32, int(threads)))
         if self.threads != threads:
             self.threads = threads
-            if self.session is not None:
-                self.initialize()
+            if self.session is not None and self.prefer_cpu:
+                self.session = None
+
+    def set_device(self, prefer_cpu=False):
+        prefer_cpu = bool(prefer_cpu)
+        if self.prefer_cpu != prefer_cpu:
+            self.prefer_cpu = prefer_cpu
+            self.session = None
 
     def predict(self, image):
         if self.session is None:
@@ -275,6 +338,7 @@ class RMBG2Engine:
             "name": self.display_name,
             "suitable_for": self.suitable_for,
             "model_path": self.model_path,
+            "prefer_cpu": self.prefer_cpu,
             "providers": self.providers,
             "threads": self.threads,
             "error": self.error,
@@ -284,8 +348,11 @@ class RMBG2Engine:
 class MattingEngineManager:
     """Manages SOTA portrait matting engines with lazy initialization and graceful fallback."""
 
-    def __init__(self, default_engine=DEFAULT_ENGINE, prefer_cpu=True, threads=None):
-        self.prefer_cpu = prefer_cpu
+    def __init__(self, default_engine=DEFAULT_ENGINE, prefer_cpu=None, threads=None):
+        if prefer_cpu is None:
+            self.prefer_cpu = (get_persisted_gpu_mode() == "cpu")
+        else:
+            self.prefer_cpu = bool(prefer_cpu)
         self.threads = max(1, min(32, int(threads or get_persisted_threads())))
         os.environ["OMP_NUM_THREADS"] = str(self.threads)
         self.default_engine = ENGINE_ALIASES.get(default_engine, DEFAULT_ENGINE)
@@ -301,6 +368,21 @@ class MattingEngineManager:
         for engine in self.engines.values():
             if hasattr(engine, "set_threads"):
                 engine.set_threads(threads)
+
+    def set_device(self, prefer_cpu=False):
+        self.prefer_cpu = bool(prefer_cpu)
+        for engine in self.engines.values():
+            if hasattr(engine, "set_device"):
+                engine.set_device(self.prefer_cpu)
+
+    def get_device_status(self):
+        return {
+            "device": "gpu" if (not self.prefer_cpu) else "cpu",
+            "is_gpu_active": not self.prefer_cpu,
+            "prefer_cpu": self.prefer_cpu,
+            "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+            "threads": self.threads,
+        }
 
     def resolve_engine_name(self, requested):
         req = str(requested or "").lower().strip()
@@ -348,6 +430,7 @@ class MattingEngineManager:
     def diagnostics(self):
         return {
             "default_engine": self.default_engine,
+            "device_status": self.get_device_status(),
             "threads": self.threads,
             "max_system_threads": os.cpu_count() or 4,
             "engines": {k: eng.info() for k, eng in self.engines.items()},

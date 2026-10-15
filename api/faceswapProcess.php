@@ -1,0 +1,178 @@
+<?php
+
+require_once __DIR__ . '/../lib/boot.php';
+
+use Photobooth\Enum\FolderEnum;
+use Photobooth\Image;
+use Photobooth\Utility\PathUtility;
+
+header('Content-Type: application/json; charset=utf-8');
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['error' => 'Method Not Allowed']);
+    exit;
+}
+
+$rawFile = isset($_POST['file']) ? trim($_POST['file']) : '';
+$templateRel = isset($_POST['template']) ? trim($_POST['template']) : '';
+
+$imagesDir = realpath(FolderEnum::IMAGES->absolute()) ?: FolderEnum::IMAGES->absolute();
+$tmpDir = realpath(FolderEnum::TEMP->absolute()) ?: FolderEnum::TEMP->absolute();
+$thumbsDir = realpath(FolderEnum::THUMBS->absolute()) ?: FolderEnum::THUMBS->absolute();
+
+if (!is_dir($tmpDir)) {
+    @mkdir($tmpDir, 0777, true);
+}
+if (!is_dir($thumbsDir)) {
+    @mkdir($thumbsDir, 0777, true);
+}
+
+// 1. 解析用户抓拍照片
+if (empty($rawFile) || $rawFile === 'latest') {
+    $candidates = glob($imagesDir . DIRECTORY_SEPARATOR . '*.jpg');
+    if (empty($candidates)) {
+        $candidates = glob($tmpDir . DIRECTORY_SEPARATOR . '*.jpg');
+    }
+    if (!empty($candidates)) {
+        usort($candidates, function($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+        $rawFile = basename($candidates[0]);
+    }
+}
+
+if (empty($rawFile)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => '未指定用户照片且近期无拍摄记录']);
+    exit;
+}
+
+$filename = basename($rawFile);
+if (strpos($filename, '?') !== false) {
+    $filename = explode('?', $filename)[0];
+}
+
+$sourceInput = $imagesDir . DIRECTORY_SEPARATOR . $filename;
+if (!file_exists($sourceInput)) {
+    $sourceInput = $tmpDir . DIRECTORY_SEPARATOR . $filename;
+}
+if (!file_exists($sourceInput)) {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'error' => '源照片文件不存在: ' . $filename]);
+    exit;
+}
+
+// 2. 解析变身模板图片
+if (empty($templateRel)) {
+    $templateRel = 'resources/img/templates_ai/hanfu_female_01.jpg';
+}
+
+$templatePath = realpath(__DIR__ . '/../' . ltrim($templateRel, '/\\'));
+if (!$templatePath || !file_exists($templatePath)) {
+    // 尝试备用路径
+    $alt = realpath(__DIR__ . '/../resources/img/templates_ai/' . basename($templateRel));
+    if ($alt && file_exists($alt)) {
+        $templatePath = $alt;
+    }
+}
+
+if (!$templatePath || !file_exists($templatePath)) {
+    http_response_code(404);
+    echo json_encode(['success' => false, 'error' => '指定的变身模板文件不存在: ' . $templateRel]);
+    exit;
+}
+
+// 3. 准备输出路径
+$pathParts = pathinfo($filename);
+$ext = isset($pathParts['extension']) ? $pathParts['extension'] : 'jpg';
+$baseName = $pathParts['filename'];
+$outputFilename = $baseName . '_swap.' . $ext;
+$outputPath = $imagesDir . DIRECTORY_SEPARATOR . $outputFilename;
+$outputThumb = $thumbsDir . DIRECTORY_SEPARATOR . $outputFilename;
+
+// 4. 调用本地 Python AI 换脸微服务 (端口 8001)
+$serviceUrl = 'http://127.0.0.1:8001/faceswap';
+$postData = json_encode([
+    'source' => $sourceInput,
+    'target' => $templatePath,
+    'output' => $outputPath,
+], JSON_UNESCAPED_UNICODE);
+
+$resultJson = null;
+$returnCode = -1;
+
+if (function_exists('curl_init')) {
+    $ch = curl_init($serviceUrl);
+    if ($ch) {
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+        curl_setopt($ch, CURLOPT_TIMEOUT_MS, 30000);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 2000);
+        curl_setopt($ch, CURLOPT_NOSIGNAL, 1);
+        $response = curl_exec($ch);
+        $curlErr = curl_errno($ch);
+        curl_close($ch);
+        if (!$curlErr && $response) {
+            $parsed = json_decode($response, true);
+            if ($parsed && !empty($parsed['success'])) {
+                $resultJson = $parsed;
+                $returnCode = 0;
+            } elseif ($parsed && isset($parsed['error'])) {
+                $resultJson = $parsed;
+            }
+        }
+    }
+}
+
+// 5. 降级兜底 CLI 运行
+if ($returnCode !== 0 && (!isset($resultJson['error']) || strpos($resultJson['error'], '人脸') === false)) {
+    $script = realpath(__DIR__ . '/../bin/faceswap_core.py');
+    if ($script) {
+        $cmd = sprintf(
+            'python -X utf8 -c "import sys, json; from bin.faceswap_core import FaceSwapEngine; e=FaceSwapEngine(); r=e.swap(sys.argv[1], sys.argv[2], sys.argv[3]); print(json.dumps(r, ensure_ascii=False))" %s %s %s',
+            escapeshellarg($sourceInput),
+            escapeshellarg($templatePath),
+            escapeshellarg($outputPath)
+        );
+        exec($cmd, $cliOutput, $cliCode);
+        if ($cliCode === 0 && !empty($cliOutput)) {
+            $cliResult = json_decode(implode("\n", $cliOutput), true);
+            if ($cliResult && !empty($cliResult['success'])) {
+                $resultJson = $cliResult;
+                $returnCode = 0;
+            }
+        }
+    }
+}
+
+if ($returnCode !== 0 || !file_exists($outputPath)) {
+    http_response_code(500);
+    $errorMsg = isset($resultJson['error']) ? $resultJson['error'] : 'AI 换脸融合处理失败，请重试';
+    echo json_encode([
+        'success' => false,
+        'error' => $errorMsg,
+        'details' => $resultJson,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// 6. 生成换脸图的缩略图 (用于相册与四宫格显示)
+try {
+    if (class_exists(Image::class)) {
+        Image::createThumbnail($outputPath, $outputThumb);
+    }
+} catch (\Throwable $t) {
+    // 容错处理
+}
+
+echo json_encode([
+    'success' => true,
+    'file' => $outputFilename,
+    'image' => PathUtility::getPublicPath('data/images/' . $outputFilename),
+    'thumb' => PathUtility::getPublicPath('data/thumbs/' . $outputFilename),
+    'duration' => $resultJson['duration'] ?? 0,
+    'message' => $resultJson['message'] ?? 'AI 换脸融合成功！'
+], JSON_UNESCAPED_UNICODE);

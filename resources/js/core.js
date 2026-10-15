@@ -150,6 +150,14 @@ const photoBooth = (function () {
         } else {
             $('#beautyModal').removeClass('active sidenav--open').hide();
         }
+
+        window.photoboothMode = 'classic';
+        window.burstModeActive = false;
+        $('#aiTemplateModal').hide();
+        $('#aiPoseGuide').hide();
+        $('#aiShuttleOverlay').hide();
+        $('#aiResultControlBar').hide();
+        $('#burstWorkbenchModal').hide();
     };
 
     api.init = function () {
@@ -312,12 +320,17 @@ const photoBooth = (function () {
             refreshCameraList();
         });
 
-        // 4. CPU 并行核心数设置 (即时生效)
+        // 4. AI 抠图计算设备 (GPU / CPU) 与核心数设置 (即时生效)
+        const btnDeviceGpu = $('#btnDeviceGpu');
+        const btnDeviceCpu = $('#btnDeviceCpu');
+        const gpuInfoBox = $('#settingsGpuInfoBox');
+        const cpuBox = $('#settingsCpuBox');
+        const gpuNameEl = $('#settingsGpuName');
         const selectCpu = $('#settingCpuThreadsSelect');
         const cpuHint = $('#settingCpuThreadsHint');
 
-        function loadCpuConfig() {
-            if (!selectCpu.length) return;
+        function loadDeviceConfig() {
+            if (!btnDeviceGpu.length && !selectCpu.length) return;
             $.ajax({
                 url: 'api/rembgCpuConfig.php',
                 type: 'GET',
@@ -325,22 +338,85 @@ const photoBooth = (function () {
                 cache: false,
                 success: function (res) {
                     if (res && res.success) {
-                        const threads = res.live_threads || res.threads || 4;
+                        const isGpu = (res.gpu_mode === 'gpu');
+                        if (isGpu) {
+                            btnDeviceGpu.addClass('active');
+                            btnDeviceCpu.removeClass('active');
+                            gpuInfoBox.show();
+                            cpuBox.hide();
+                        } else {
+                            btnDeviceCpu.addClass('active');
+                            btnDeviceGpu.removeClass('active');
+                            gpuInfoBox.hide();
+                            cpuBox.show();
+                        }
+                        if (res.gpu_name) {
+                            gpuNameEl.text('已绑定独立显卡：' + res.gpu_name);
+                        }
+                        const threads = res.live_threads || res.threads || 8;
                         selectCpu.val(String(threads));
-                        cpuHint.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 当前运行状态：' + threads + ' 核心并行计算 (即时生效)');
+                        cpuHint.html('<i class="fa fa-info-circle"></i> 纯 CPU 多核推理模式 · ' + threads + ' 核心并行计算');
                     }
                 },
                 error: function () {
-                    const fallbackThreads = (config.rembg && config.rembg.cpu_threads) ? config.rembg.cpu_threads : 4;
+                    const fallbackThreads = (config.rembg && config.rembg.cpu_threads) ? config.rembg.cpu_threads : 8;
                     selectCpu.val(String(fallbackThreads));
                 }
             });
         }
 
+        if (btnDeviceGpu.length) {
+            btnDeviceGpu.on('click', function () {
+                if ($(this).hasClass('active')) return;
+                btnDeviceGpu.addClass('active');
+                btnDeviceCpu.removeClass('active');
+                gpuInfoBox.stop(true, true).slideDown(150);
+                cpuBox.stop(true, true).slideUp(150);
+
+                $.ajax({
+                    url: 'api/rembgCpuConfig.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ gpu_mode: 'gpu' }),
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res && res.success) {
+                            if (config.rembg) config.rembg.gpu_mode = 'gpu';
+                        }
+                    }
+                });
+            });
+
+            btnDeviceCpu.on('click', function () {
+                if ($(this).hasClass('active')) return;
+                btnDeviceCpu.addClass('active');
+                btnDeviceGpu.removeClass('active');
+                gpuInfoBox.stop(true, true).slideUp(150);
+                cpuBox.stop(true, true).slideDown(150);
+
+                const currentThreads = parseInt(selectCpu.val(), 10) || 8;
+                $.ajax({
+                    url: 'api/rembgCpuConfig.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ gpu_mode: 'cpu', threads: currentThreads }),
+                    dataType: 'json',
+                    success: function (res) {
+                        if (res && res.success) {
+                            if (config.rembg) {
+                                config.rembg.gpu_mode = 'cpu';
+                                config.rembg.cpu_threads = currentThreads;
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
         if (selectCpu.length) {
-            loadCpuConfig();
+            loadDeviceConfig();
             selectCpu.on('change', function () {
-                const newThreads = parseInt($(this).val(), 10) || 4;
+                const newThreads = parseInt($(this).val(), 10) || 8;
                 cpuHint.html('<i class="fa fa-spinner fa-spin"></i> 正在即时应用核心配置...');
                 selectCpu.prop('disabled', true);
 
@@ -348,7 +424,7 @@ const photoBooth = (function () {
                     url: 'api/rembgCpuConfig.php',
                     type: 'POST',
                     contentType: 'application/json',
-                    data: JSON.stringify({ threads: newThreads }),
+                    data: JSON.stringify({ gpu_mode: 'cpu', threads: newThreads }),
                     dataType: 'json',
                     success: function (res) {
                         selectCpu.prop('disabled', false);
@@ -380,7 +456,7 @@ const photoBooth = (function () {
                 syncMiniVideo();
             }
             refreshCameraList();
-            loadCpuConfig();
+            loadDeviceConfig();
         }
 
         function closeModal() {
@@ -793,6 +869,11 @@ const photoBooth = (function () {
                 maxGetMediaRetry = Math.max(countdownTime - parseInt(config.preview.stop_time, 10), 0);
             }
             photoboothPreview.startVideo(CameraDisplayMode.COUNTDOWN, retry, maxGetMediaRetry);
+            if (window.photoboothMode === 'ai_swap') {
+                $('#aiPoseGuide').fadeIn(200);
+            } else {
+                $('#aiPoseGuide').hide();
+            }
 
             if (
                 config.preview.mode !== PreviewMode.NONE.valueOf() &&
@@ -896,6 +977,7 @@ const photoBooth = (function () {
 
     api.callTakePicApi = async (data, retry = 0) => {
         startTime = new Date().getTime();
+        $('#aiPoseGuide').hide();
         photoboothTools.console.logDev('Capture image.');
         photoboothTools
             .ajaxWithCsrf({
@@ -1085,6 +1167,105 @@ const photoBooth = (function () {
         startPage.removeClass('stage--active');
         resultPage.removeClass('stage--active');
         setFiltersEnabled(false);
+
+        // Stage 4: Burst Shooting Pipeline
+        if (window.burstModeActive) {
+            setFiltersEnabled(true);
+            if (window.burstRetakeIndex >= 0) {
+                // Single Retake Mode
+                window.burstPhotos[window.burstRetakeIndex] = result.file;
+                window.burstRetakeIndex = -1;
+                loader.removeClass('stage--active');
+                api.renderBurstWorkbench();
+                return;
+            }
+
+            window.burstPhotos.push(result.file);
+            window.burstCurrentShot++;
+
+            if (window.burstCurrentShot < window.burstTotalShots) {
+                loaderMessage.html(
+                    '<h2 style="font-size:2rem;color:#F472B6;margin-bottom:0.5rem;"><i class="fa fa-camera-retro"></i> 第 ' + window.burstCurrentShot + ' 张已捕捉！</h2>' +
+                    '<p style="font-size:1.2rem;color:#FFF;">请变换 Pose，第 ' + (window.burstCurrentShot + 1) + ' 张即将抓拍...</p>'
+                );
+                setTimeout(() => {
+                    api.startBurstShot(window.burstCurrentShot);
+                }, 2200);
+            } else {
+                loader.removeClass('stage--active');
+                api.renderBurstWorkbench();
+            }
+            return;
+        }
+
+        // Stage 3.4: Dual Mode AI FaceSwap Pipeline
+        if (window.photoboothMode === 'ai_swap') {
+            $('#aiShuttleOverlay').show();
+            const shuttleSteps = [
+                '✨ 正在定位面部 5 维几何关键点...',
+                '🧬 正在提取 ArcFace 512维身份特征向量...',
+                '⚡ 正在调用 Inswapper 隐空间重塑华服...',
+                '🎨 正在进行光影与肤色逆仿射自适应贴合...',
+                '🌟 AI 魔法变身即将完成，惊艳亮相中...'
+            ];
+            let stepIdx = 0;
+            const tickerTimer = setInterval(() => {
+                stepIdx = (stepIdx + 1) % shuttleSteps.length;
+                $('#aiShuttleTicker').html('<span class="ai-ticker-step active">' + shuttleSteps[stepIdx] + '</span>');
+            }, 600);
+
+            const tplPath = (window.selectedAiTemplate && window.selectedAiTemplate.path) 
+                ? window.selectedAiTemplate.path 
+                : ('resources/img/templates_ai/' + (window.selectedAiTemplate ? window.selectedAiTemplate.id : 'hanfu_female_01') + '.jpg');
+
+            photoboothTools
+                .ajaxWithCsrf({
+                    method: 'POST',
+                    url: environment.publicFolders.api + '/faceswapProcess.php',
+                    data: {
+                        file: result.file,
+                        template: tplPath
+                    }
+                })
+                .done((swapData) => {
+                    clearInterval(tickerTimer);
+                    $('#aiShuttleOverlay').hide();
+                    setFiltersEnabled(true);
+                    if (swapData && swapData.success) {
+                        window.lastAiSourceFile = result.file;
+                        window.lastAiSwapFile = swapData.file;
+                        photoboothTools.console.log('AI Face Swap Success:', swapData);
+                        api.renderPic(swapData.file, swapData.images);
+                        $('#aiResultControlBar').show();
+                        if (window.selectedAiTemplate && window.selectedAiTemplate.title) {
+                            $('#aiResultTemplateName').text('变身完成：' + window.selectedAiTemplate.title);
+                        }
+                    } else {
+                        const errMsg = (swapData && swapData.error) ? swapData.error : 'AI 变身换脸处理失败，请重试';
+                        photoboothTools.modal.open('error');
+                        photoboothTools.modal.empty();
+                        photoboothTools.modal.append($('<h3 style="margin-bottom:0.8rem;color:#EF4444;"><i class="fa fa-triangle-exclamation"></i> 变身拍照提示</h3>'));
+                        photoboothTools.modal.append($('<p style="font-size:1.1rem;margin-bottom:1.5rem;">').text(errMsg));
+                        const retryBtn = $('<button class="button" style="background:#8B5CF6;color:#fff;border-radius:9999px;padding:0.75rem 2rem;font-weight:800;box-shadow:3px 3px 0 #1E293B;">')
+                            .text('📸 重新拍摄')
+                            .on('click', () => {
+                                photoboothTools.modal.close();
+                                api.thrill(PhotoStyle.PHOTO);
+                            });
+                        photoboothTools.modal.append(retryBtn);
+                    }
+                })
+                .fail((jqXHR, textStatus) => {
+                    clearInterval(tickerTimer);
+                    $('#aiShuttleOverlay').hide();
+                    setFiltersEnabled(true);
+                    api.errorPic({
+                        error: 'AI 换脸网络请求失败: ' + textStatus
+                    });
+                });
+            return;
+        }
+
         loaderMessage.html(
             '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busy')
         );
@@ -2181,6 +2362,475 @@ const photoBooth = (function () {
         if (newWidth !== 0 && newHeight !== 0) {
             previewFramePicture.css({ width: newWidth, height: newHeight });
         }
+    });
+
+    // ==========================================
+    // Commercial Dual-Mode State Machine & AI Portal
+    // ==========================================
+    window.photoboothMode = 'classic'; // 'classic' | 'ai_swap'
+    window.selectedAiTemplate = {
+        id: 'hanfu_female_01',
+        title: '盛唐绮梦 · 汉服仙子',
+        category: 'hanfu'
+    };
+
+    api.setPhotoboothMode = function (mode) {
+        window.photoboothMode = mode;
+        photoboothTools.console.log('Photobooth mode switched to:', mode);
+    };
+
+    // Mode Card Classic Click (Card body click -> trigger photo)
+    $(document).on('click', '#cardModeClassic', function (e) {
+        if ($(e.target).closest('.takePic, .uploadBtn').length > 0) {
+            return;
+        }
+        api.setPhotoboothMode('classic');
+        $('#btnClassicStart').trigger('click');
+    });
+
+    $(document).on('click', '#btnClassicStart, #btnClassicUpload', function () {
+        api.setPhotoboothMode('classic');
+    });
+
+    // Mode Card AI Click / Enter AI Mode
+    $(document).on('click', '#cardModeAi, #btnEnterAiMode', function (e) {
+        e.preventDefault();
+        api.setPhotoboothMode('ai_swap');
+        $('#aiTemplateModal').fadeIn(200);
+    });
+
+    // Close AI Template Modal
+    $(document).on('click', '#btnAiTemplateClose, #btnAiTemplateBack, #aiTemplateBackdrop', function (e) {
+        e.preventDefault();
+        $('#aiTemplateModal').fadeOut(150);
+        api.setPhotoboothMode('classic');
+    });
+
+    // Category Tabs in AI Template Modal
+    $(document).on('click', '.ai-cat-tab', function (e) {
+        e.preventDefault();
+        $('.ai-cat-tab').removeClass('active');
+        $(this).addClass('active');
+
+        const cat = $(this).data('category');
+        if (cat === 'all') {
+            $('.ai-template-card').show();
+        } else {
+            $('.ai-template-card').each(function () {
+                if ($(this).data('category') === cat) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    });
+
+    // Select Template Card
+    $(document).on('click', '.ai-template-card', function (e) {
+        e.preventDefault();
+        $('.ai-template-card').removeClass('active');
+        $(this).addClass('active');
+
+        const tplId = $(this).data('id');
+        const tplTitle = $(this).data('title');
+        const tplCategory = $(this).data('category');
+        const tplImage = $(this).data('image') || $(this).find('.ai-tpl-thumb').attr('src');
+
+        window.selectedAiTemplate = {
+            id: tplId,
+            title: tplTitle,
+            category: tplCategory,
+            image: tplImage
+        };
+
+        $('#aiCurrentTemplateName').text(tplTitle);
+        if (tplImage) {
+            $('#aiCurrentTemplateThumb').attr('src', tplImage).show();
+        }
+    });
+
+    // Confirm Template & Proceed to Capture or Instant Re-swap
+    $(document).on('click', '#btnAiTemplateConfirm', function (e) {
+        e.preventDefault();
+        $('#aiTemplateModal').fadeOut(150, function () {
+            api.setPhotoboothMode('ai_swap');
+            if (resultPage.hasClass('stage--active') && window.lastAiSourceFile) {
+                // If on result page with existing capture, re-swap instantly without retaking!
+                api.processPic({ file: window.lastAiSourceFile });
+            } else {
+                if (typeof window.rembgReset === 'function') {
+                    window.rembgReset();
+                }
+                api.thrill(PhotoStyle.PHOTO);
+            }
+        });
+    });
+
+    // Comparison with original snap (Hold/Click to compare)
+    $(document).on('mousedown touchstart', '#btnAiCompareSnap', function (e) {
+        e.preventDefault();
+        if (window.lastAiSourceFile) {
+            const srcUrl = environment.publicFolders.images + '/' + window.lastAiSourceFile;
+            resultPage.css('--stage-background-image', `url("${srcUrl}")`);
+            $(this).addClass('active').find('span').text('松开恢复变身');
+        }
+    });
+
+    $(document).on('mouseup mouseleave touchend', '#btnAiCompareSnap', function (e) {
+        e.preventDefault();
+        if (window.lastAiSwapFile) {
+            const swapUrl = environment.publicFolders.images + '/' + window.lastAiSwapFile;
+            resultPage.css('--stage-background-image', `url("${swapUrl}")`);
+            $(this).removeClass('active').find('span').text('查看原拍对比');
+        }
+    });
+
+    // Change template from results page
+    $(document).on('click', '#btnAiChangeTemplate', function (e) {
+        e.preventDefault();
+        $('#aiTemplateModal').fadeIn(200);
+    });
+
+    // Upload Custom AI Template
+    $(document).on('click', '#btnUploadAiTemplate', function (e) {
+        e.preventDefault();
+        $('#aiTemplateUploadInput').trigger('click');
+    });
+
+    $(document).on('change', '#aiTemplateUploadInput', function () {
+        if (!this.files || !this.files[0]) {
+            return;
+        }
+        const file = this.files[0];
+        const fileInput = this;
+
+        const formData = new FormData();
+        formData.append('template', file);
+
+        if (window.photoboothTools && window.photoboothTools.overlay) {
+            photoboothTools.overlay.showWaiting('正在上传自定义换脸模板，请稍候...');
+        }
+
+        $.ajax({
+            url: 'api/uploadAiTemplate.php',
+            type: 'POST',
+            data: formData,
+            contentType: false,
+            processData: false,
+            dataType: 'json'
+        }).done(function (data) {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+            if (data.success) {
+                const newCardHtml = `
+                    <div class="ai-template-card active" data-id="${data.id}" data-category="custom" data-title="${data.title}" data-image="${data.image}">
+                        <div class="ai-tpl-badge" style="background:#FDE047; color:#854D0E;">⭐ 自定义</div>
+                        <div class="ai-tpl-thumb-wrap">
+                            <img class="ai-tpl-thumb" src="${data.image}" alt="${data.title}">
+                        </div>
+                        <div class="ai-tpl-info">
+                            <div class="ai-tpl-name">${data.title}</div>
+                            <div class="ai-tpl-tags"><span>用户上传</span><span>个性定制</span></div>
+                        </div>
+                        <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
+                    </div>
+                `;
+                $('.ai-template-card').removeClass('active');
+                $('#aiTemplateGrid').prepend(newCardHtml);
+
+                // Switch to custom tab or show it
+                $('.ai-cat-tab').removeClass('active');
+                $('.ai-cat-tab[data-category="custom"]').addClass('active');
+                $('.ai-template-card').each(function () {
+                    if ($(this).data('category') === 'custom') {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+
+                // Activate selected
+                window.selectedAiTemplate = {
+                    id: data.id,
+                    title: data.title,
+                    category: 'custom',
+                    image: data.image
+                };
+                $('#aiCurrentTemplateName').text(data.title);
+                $('#aiCurrentTemplateThumb').attr('src', data.image).show();
+
+                if (window.photoboothTools && window.photoboothTools.overlay) {
+                    photoboothTools.overlay.showSuccess('自定义模板导入成功！已自动为您选中。', 2000);
+                }
+            } else {
+                alert('模板上传失败: ' + (data.error || '未知错误'));
+            }
+        }).fail(function (xhr, status, error) {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+            alert('模板上传网络请求失败: ' + error);
+        }).always(function () {
+            fileInput.value = '';
+        });
+    });
+
+    // ========================================================
+    // Stage 4: Burst Mode & Selection Workbench Controller
+    // ========================================================
+    window.burstModeActive = false;
+    window.burstPhotos = [];
+    window.burstTotalShots = 6;
+    window.burstCurrentShot = 0;
+    window.burstRetakeIndex = -1;
+    window.burstSelectedIndices = [0, 1, 2, 3];
+    window.burstLayout = '1x4_strip';
+    window.burstTheme = 'white';
+
+    api.startBurstShot = function (shotIndex) {
+        loaderMessage.html(
+            '<div style="text-align:center;">' +
+            '<h2 style="font-size:2.2rem;color:#FBBF24;margin-bottom:0.5rem;"><i class="fa fa-film"></i> 连拍进行中</h2>' +
+            '<p style="font-size:1.3rem;color:#FFF;">正在抓拍第 <strong style="color:#F472B6;font-size:1.8rem;">' + (shotIndex + 1) + '</strong> / ' + window.burstTotalShots + ' 张</p>' +
+            '</div>'
+        );
+        api.thrill(PhotoStyle.PHOTO);
+    };
+
+    api.renderBurstWorkbench = function () {
+        loader.removeClass('stage--active');
+        startPage.removeClass('stage--active');
+        resultPage.removeClass('stage--active');
+
+        const grid = $('#burstWorkbenchGrid');
+        grid.empty();
+
+        window.burstPhotos.forEach((file, idx) => {
+            const isSelected = window.burstSelectedIndices.includes(idx);
+            const orderIndex = window.burstSelectedIndices.indexOf(idx);
+            const badgeText = isSelected ? (orderIndex + 1) : '+';
+            const selectedClass = isSelected ? 'selected' : '';
+            const imgUrl = environment.publicFolders.images + '/' + file + '?v=' + Date.now();
+
+            const card = $(`
+                <div class="burst-item-card ${selectedClass}" data-index="${idx}">
+                    <div class="burst-item-thumb-wrap">
+                        <img class="burst-item-thumb" src="${imgUrl}" alt="Shot ${idx + 1}" />
+                        <div class="burst-order-badge">${badgeText}</div>
+                    </div>
+                    <div class="burst-item-toolbar">
+                        <span class="burst-item-label">第 ${idx + 1} 张</span>
+                        <button type="button" class="btn-retake-shot" data-index="${idx}" title="重新拍摄此张">
+                            <i class="fa fa-camera-rotate"></i> 仅重拍
+                        </button>
+                    </div>
+                </div>
+            `);
+            grid.append(card);
+        });
+
+        $('#burstSelectedCount').text(`已选 ${window.burstSelectedIndices.length} / 4 张`);
+        $('#burstWorkbenchModal').fadeIn(200);
+    };
+
+    // Trigger Burst Shoot from Card A
+    $(document).on('click', '#btnClassicBurst', function (e) {
+        e.preventDefault();
+        api.setPhotoboothMode('classic');
+        window.burstModeActive = true;
+        window.burstPhotos = [];
+        window.burstCurrentShot = 0;
+        window.burstRetakeIndex = -1;
+        window.burstSelectedIndices = [0, 1, 2, 3];
+        $('#burstWorkbenchModal').hide();
+        api.startBurstShot(0);
+    });
+
+    // Select / Deselect Card in Burst Workbench
+    $(document).on('click', '.burst-item-card', function (e) {
+        if ($(e.target).closest('.btn-retake-shot').length > 0) return;
+        const idx = parseInt($(this).data('index'), 10);
+        const pos = window.burstSelectedIndices.indexOf(idx);
+
+        if (pos >= 0) {
+            // Already selected, allow deselect if > 1
+            if (window.burstSelectedIndices.length > 1) {
+                window.burstSelectedIndices.splice(pos, 1);
+            }
+        } else {
+            // Not selected, add to selection up to 4
+            if (window.burstSelectedIndices.length < 4) {
+                window.burstSelectedIndices.push(idx);
+            } else {
+                // If 4 already selected, replace the last one
+                window.burstSelectedIndices[3] = idx;
+            }
+        }
+        api.renderBurstWorkbench();
+    });
+
+    // Single Retake (局部单张重拍 - Stage 4.2)
+    $(document).on('click', '.btn-retake-shot', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const retakeIdx = parseInt($(this).data('index'), 10);
+        window.burstRetakeIndex = retakeIdx;
+
+        $('#burstWorkbenchModal').fadeOut(150, function () {
+            loaderMessage.html(
+                '<div style="text-align:center;">' +
+                '<h2 style="font-size:2.2rem;color:#F59E0B;margin-bottom:0.5rem;"><i class="fa fa-camera-rotate"></i> 局部重拍模式</h2>' +
+                '<p style="font-size:1.3rem;color:#FFF;">正在重拍第 <strong style="color:#F472B6;">' + (retakeIdx + 1) + '</strong> 张，请准备！</p>' +
+                '</div>'
+            );
+            api.thrill(PhotoStyle.PHOTO);
+        });
+    });
+
+    // Layout Selector
+    $(document).on('click', '.burst-layout-btn', function (e) {
+        e.preventDefault();
+        $('.burst-layout-btn').removeClass('active');
+        $(this).addClass('active');
+        window.burstLayout = $(this).data('layout');
+    });
+
+    // Theme Selector
+    $(document).on('click', '.burst-theme-pill', function (e) {
+        e.preventDefault();
+        $('.burst-theme-pill').removeClass('active');
+        $(this).addClass('active');
+        window.burstTheme = $(this).data('theme');
+    });
+
+    // Restart Whole Burst Group
+    $(document).on('click', '#btnBurstRestart', function (e) {
+        e.preventDefault();
+        if (confirm('确定作废整组照片并重新连拍 6 张吗？')) {
+            $('#burstWorkbenchModal').fadeOut(150, function () {
+                $('#btnClassicBurst').trigger('click');
+            });
+        }
+    });
+
+    // Close Workbench Modal
+    $(document).on('click', '#btnBurstClose, #burstWorkbenchBackdrop', function (e) {
+        e.preventDefault();
+        $('#burstWorkbenchModal').fadeOut(150);
+        window.burstModeActive = false;
+        startPage.addClass('stage--active');
+    });
+
+    // Generate 300DPI Collage Print (Stage 4.3)
+    $(document).on('click', '#btnGenerateCollage', function (e) {
+        e.preventDefault();
+        if (window.burstSelectedIndices.length < 4) {
+            alert('请先选择 4 张照片用于四格相纸排版！');
+            return;
+        }
+
+        const chosenFiles = window.burstSelectedIndices.map(i => window.burstPhotos[i]);
+        if (window.photoboothTools && window.photoboothTools.overlay) {
+            photoboothTools.overlay.showWaiting('正在极速生成 300DPI 人生四格相纸，请稍候...');
+        }
+
+        $.ajax({
+            url: environment.publicFolders.api + '/createCollageGrid.php',
+            type: 'POST',
+            data: {
+                images: chosenFiles,
+                layout: window.burstLayout || '1x4_strip',
+                theme: window.burstTheme || 'white',
+                title: 'PHOTOBOOTH MEMORY · 自拍纪念'
+            },
+            dataType: 'json'
+        }).done(function (data) {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+            if (data && data.success) {
+                $('#burstWorkbenchModal').fadeOut(150);
+                window.burstModeActive = false;
+                api.renderPic(data.file, data.images);
+            } else {
+                alert('拼版相纸生成失败: ' + (data.error || '未知错误'));
+            }
+        }).fail(function (xhr, status, error) {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+            alert('拼版相纸生成请求失败: ' + error);
+        });
+    });
+
+    // ========================================================
+    // Stage 5.3: Commercial Pay Gate & QR Code Unlock Controller
+    // ========================================================
+    window.payGateActiveOrderId = null;
+    window.payGateTimer = null;
+    window.payGateSuccessCallback = null;
+
+    api.openPaymentGate = function (mode, callback) {
+        window.payGateSuccessCallback = callback;
+        $.ajax({
+            url: 'api/paymentGate.php',
+            type: 'POST',
+            data: { action: 'create', mode: mode },
+            dataType: 'json'
+        }).done(function (data) {
+            if (data && data.success) {
+                window.payGateActiveOrderId = data.order_id;
+                $('#payGateAmount').text(data.amount);
+                $('#payGateModeTitle').text(data.mode_name);
+                $('#payQrWx').attr('src', data.qr_wechat);
+                $('#payQrAli').attr('src', data.qr_alipay);
+
+                let timeLeft = 120;
+                $('#payTimerVal').text(timeLeft);
+                clearInterval(window.payGateTimer);
+                window.payGateTimer = setInterval(function () {
+                    timeLeft--;
+                    $('#payTimerVal').text(timeLeft);
+                    if (timeLeft <= 0) {
+                        clearInterval(window.payGateTimer);
+                        $('#payGateModal').fadeOut(150);
+                    }
+                }, 1000);
+
+                $('#payGateModal').fadeIn(200);
+            }
+        });
+    };
+
+    $(document).on('click', '#btnPayMockSuccess', function (e) {
+        e.preventDefault();
+        if (!window.payGateActiveOrderId) return;
+        $.ajax({
+            url: 'api/paymentGate.php?action=mock_pay',
+            type: 'POST',
+            data: { order_id: window.payGateActiveOrderId },
+            dataType: 'json'
+        }).done(function (res) {
+            if (res && res.success) {
+                clearInterval(window.payGateTimer);
+                $('#payGateModal').fadeOut(150, function () {
+                    if (window.photoboothTools && window.photoboothTools.overlay) {
+                        photoboothTools.overlay.showSuccess('支付成功！已开闸，开始拍照...', 1500);
+                    }
+                    if (typeof window.payGateSuccessCallback === 'function') {
+                        window.payGateSuccessCallback();
+                    }
+                });
+            }
+        });
+    });
+
+    $(document).on('click', '#btnPayGateClose, #payGateBackdrop', function (e) {
+        e.preventDefault();
+        clearInterval(window.payGateTimer);
+        $('#payGateModal').fadeOut(150);
     });
 
     return api;

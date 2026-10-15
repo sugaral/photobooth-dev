@@ -24,7 +24,7 @@ return [
     'rembg' => [
         'enabled' => true,
         'alpha_matting' => false,
-        'gpu_mode' => 'cpu',
+        'gpu_mode' => 'gpu',
         'cpu_threads' => 8,
     ],
     'picture' => [

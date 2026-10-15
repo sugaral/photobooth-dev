@@ -63,7 +63,7 @@ final class RembgConfiguration
                     ->defaultValue('birefnet')
                     ->end()
                 ->enumNode('gpu_mode')
-                    ->values(['auto', 'cuda', 'directml', 'cpu'])
+                    ->values(['auto', 'cuda', 'directml', 'cpu', 'gpu'])
                     ->defaultValue('auto')
                     ->end()
                 ->integerNode('cpu_threads')
