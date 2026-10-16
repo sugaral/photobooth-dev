@@ -129,10 +129,12 @@ if (function_exists('curl_init')) {
 
 // 5. 降级兜底 CLI 运行
 if ($returnCode !== 0 && (!isset($resultJson['error']) || strpos($resultJson['error'], '人脸') === false)) {
+    $projectRoot = dirname(__DIR__);
     $script = realpath(__DIR__ . '/../bin/faceswap_core.py');
     if ($script) {
         $cmd = sprintf(
-            'python -X utf8 -c "import sys, json; from bin.faceswap_core import FaceSwapEngine; e=FaceSwapEngine(); r=e.swap(sys.argv[1], sys.argv[2], sys.argv[3]); print(json.dumps(r, ensure_ascii=False))" %s %s %s',
+            'python -X utf8 -c "import sys, json; sys.path.insert(0, %s); from bin.faceswap_core import FaceSwapEngine; e=FaceSwapEngine(); r=e.swap(sys.argv[1], sys.argv[2], sys.argv[3]); print(json.dumps(r, ensure_ascii=False))" %s %s %s',
+            var_export($projectRoot, true),
             escapeshellarg($sourceInput),
             escapeshellarg($templatePath),
             escapeshellarg($outputPath)
@@ -143,6 +145,8 @@ if ($returnCode !== 0 && (!isset($resultJson['error']) || strpos($resultJson['er
             if ($cliResult && !empty($cliResult['success'])) {
                 $resultJson = $cliResult;
                 $returnCode = 0;
+            } elseif ($cliResult && isset($cliResult['error'])) {
+                $resultJson = $cliResult;
             }
         }
     }
@@ -171,6 +175,7 @@ try {
 echo json_encode([
     'success' => true,
     'file' => $outputFilename,
+    'images' => [$outputFilename],
     'image' => PathUtility::getPublicPath('data/images/' . $outputFilename),
     'thumb' => PathUtility::getPublicPath('data/thumbs/' . $outputFilename),
     'duration' => $resultJson['duration'] ?? 0,

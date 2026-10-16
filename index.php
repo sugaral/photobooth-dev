@@ -77,6 +77,7 @@ $stageStart = PathUtility::getAbsolutePath('template/components/stage.start.php'
 
 include file_exists($privateStageStart) ? $privateStageStart : $stageStart;
 if (!$config['ui']['selfie_mode']) {
+    include PathUtility::getAbsolutePath('template/components/stage.studio.php');
     include PathUtility::getAbsolutePath('template/components/stage.loader.php');
     include PathUtility::getAbsolutePath('template/components/stage.results.php');
 }

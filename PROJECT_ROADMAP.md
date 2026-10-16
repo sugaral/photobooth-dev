@@ -77,3 +77,22 @@
 - [x] **5.3 商业支付开闸与二维码吸粉取图**：
   - [x] 新建商用扫码开闸端点 `api/paymentGate.php` 与开闸交互弹窗 `#payGateModal`，支持微信与支付宝收款开闸
   - [x] 打印相纸底部与结果相册集成专属动态取件二维码，顾客扫码即可将 300DPI 电子原图与人生四格保存至手机相册
+
+---
+
+## 阶段六：独立交互工作台重构与拍照异常深度根治 (✅ 已完成)
+
+- [x] **6.1 摄影工作室独立全屏交互页面 (`stage--studio`)**：
+  - [x] 彻底摒弃弹窗模式，主界面点击「📸 经典美颜大头贴」或「🎭 AI 魔法变身照」后直接无缝切换至全屏摄影独立页面 `stage.studio.php`
+  - [x] **左侧整页摄像头取景 (62vw Viewport)**：实时呈现摄像头高清画面，包含专业取景框四角微标、`● LIVE 实时取景` 状态药丸、镜像翻转与 `‹ 返回首页` 按钮；AI 相机模式下自动激活五官/双眼对齐引导虚线
+  - [x] **右侧个性化工作台 (38vw Workbench)**：包含双标签页：
+    - [x] **标签页 1：[ 🎨 滤镜与美颜 ]**：磨皮、美白、大眼、瘦脸四维实时滑块调节与一键重置；精选高质感滤镜卡片流，点击即时在左侧摄像头画面上呈现所见即所得实时滤镜特效
+    - [x] **标签页 2：[ 🎭 挑选模板 ]**：AI 模式展示 6 大精美写真模板（盛唐汉服、量子机甲、赛博黑客、港风胶片、精英商务）+ 自定义上传模板；经典模式展示纯色与艺术背景模板 + 自定义上传背景 + 单张/四格连拍版式切换
+  - [x] **底部固定操作栏**：呈现当前已选模板缩略图标签与大号醒目 **“📸 完成 · 开始拍照”** 按钮
+- [x] **6.2 拍照后报错与异常深度根治**：
+  - [x] **路径寻址漏洞**：全量修复 `api/*.php` 中所有 27 个文件的 `require_once '../lib/boot.php'` 为 `require_once __DIR__ . '/../lib/boot.php'`，消除 CWD 偏移造成的 HTTP 500 致命错误
+  - [x] **Canvas 抓帧防空与 GD 容错**：在 `resources/js/core.js` 的 `stopPreviewAndCaptureFromVideo` 与 `src/PhotoboothCapture.php` 的 `captureCanvas` 中强化零尺寸防御与回退机制，彻底避免 `Failed to create image resource from tmp image` 异常
+  - [x] **前端 `undefined.forEach` 崩溃防护**：在 `api.renderPic` 中对 `files` 统一默认化保护（`files = Array.isArray(files) ? files : ...`），并在 `faceswapProcess.php` 返回中显式提供 `images` 数组，杜绝 TypeError
+  - [x] **AI 换脸 CLI 降级 sys.path 修复**：在 `faceswapProcess.php` CLI 备用调用中注入项目根目录路径，彻底解决微服务端口未响应时 `ModuleNotFoundError: No module named 'bin'` 故障
+- [x] **6.3 双端同步与生产交付**：
+  - [x] 核心代码、模版例图与样式 100% 同步至 `c:\Users\WS\Desktop\photobooth-dev` 与 `c:\Users\WS\Desktop\photobooth美颜版`

@@ -73,20 +73,28 @@ class PhotoboothCapture
                 $this->captureDemo();
                 return;
             }
-            list($type, $data) = explode(';', $data);
-            list(, $data) = explode(',', $data);
-            $data = base64_decode($data);
+            $parts = explode(',', $data, 2);
+            $rawBytes = isset($parts[1]) ? base64_decode($parts[1]) : '';
+            if (empty($rawBytes) || strlen($rawBytes) < 100) {
+                $this->logger->warning('Canvas data too small or empty, falling back to demo image');
+                $this->captureDemo();
+                return;
+            }
 
-            file_put_contents($this->tmpFile, $data);
+            file_put_contents($this->tmpFile, $rawBytes);
+
+            $imageHandler = new Image();
+            $im = $imageHandler->createFromImage($this->tmpFile);
+            if (!$im instanceof \GdImage) {
+                $this->logger->warning('Failed to create GD image from canvas data, falling back to demo image');
+                $this->captureDemo();
+                return;
+            }
+
+            $imageHandler->debugLevel = $this->debugLevel;
+            $imageHandler->jpegQuality = 100;
 
             if ($this->flipImage != 'off') {
-                $imageHandler = new Image();
-                $im = $imageHandler->createFromImage($this->tmpFile);
-                if (!$im instanceof \GdImage) {
-                    throw new \Exception('Failed to create image resource from tmp image.');
-                }
-                $imageHandler->debugLevel = $this->debugLevel;
-                $imageHandler->jpegQuality = 100;
                 switch ($this->flipImage) {
                     case 'flip-horizontal':
                         imageflip($im, IMG_FLIP_HORIZONTAL);
@@ -100,13 +108,17 @@ class PhotoboothCapture
                     default:
                         break;
                 }
-                $imageHandler->saveJpeg($im, $this->tmpFile);
-                unset($im);
             }
+            $imageHandler->saveJpeg($im, $this->tmpFile);
+            unset($im);
         } catch (\Exception $e) {
             $this->logger->error($e->getMessage());
-            echo json_encode(['error' => $e->getMessage()]);
-            die();
+            try {
+                $this->captureDemo();
+            } catch (\Throwable $t) {
+                echo json_encode(['error' => $e->getMessage()]);
+                die();
+            }
         }
     }
 

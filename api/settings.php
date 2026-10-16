@@ -1,8 +1,8 @@
-<?php
+﻿<?php
 
 use Photobooth\Environment;
 
-require_once '../lib/boot.php';
+require_once __DIR__ . '/../lib/boot.php';
 
 use Photobooth\Utility\PathUtility;
 

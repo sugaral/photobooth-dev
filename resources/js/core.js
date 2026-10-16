@@ -41,6 +41,7 @@ const photoBooth = (function () {
         loaderMessage = loader.find('.stage-message'),
         loaderImage = loader.find('.stage-image'),
         resultPage = $('.stage[data-stage="result"]'),
+        studioPage = $('.stage[data-stage="studio"]'),
         screensaverOverlay = $('#screensaver-overlay'),
         screensaverVideo = $('#screensaver-video'),
         screensaverImage = $('#screensaver-image'),
@@ -125,6 +126,8 @@ const photoBooth = (function () {
         loaderMessage.removeClass('stage-message--error');
         resultPage.removeAttr('style data-img');
         resultPage.removeClass('stage--active');
+        studioPage.removeClass('stage--active');
+        $('body').removeClass('mode--studio');
         gallery.removeClass('gallery--open');
         gallery.find('.gallery__inner').hide();
         previewVideo.hide();
@@ -539,10 +542,18 @@ const photoBooth = (function () {
 
     api.stopPreviewAndCaptureFromVideo = () => {
         if (config.preview.camTakesPic) {
-            if (photoboothPreview.stream) {
-                videoSensor.get(0).width = previewVideo.get(0).videoWidth;
-                videoSensor.get(0).height = previewVideo.get(0).videoHeight;
-                videoSensor.get(0).getContext('2d').drawImage(previewVideo.get(0), 0, 0);
+            const vid = previewVideo.get(0);
+            const canvas = videoSensor.get(0);
+            if (vid && vid.videoWidth > 0 && vid.videoHeight > 0) {
+                canvas.width = vid.videoWidth;
+                canvas.height = vid.videoHeight;
+                canvas.getContext('2d').drawImage(vid, 0, 0);
+            } else if (canvas && (canvas.width <= 0 || canvas.height <= 0)) {
+                canvas.width = 1280;
+                canvas.height = 720;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, 0, 1280, 720);
             }
         }
         if (!config.commands.preview_kill || config.preview.camTakesPic) {
@@ -944,10 +955,17 @@ const photoBooth = (function () {
 
             api.stopPreviewAndCaptureFromVideo();
 
+            let canvasData = '';
+            try {
+                canvasData = videoSensor.get(0).toDataURL('image/jpeg', 0.95);
+            } catch (canvasErr) {
+                photoboothTools.console.log('Failed to export canvas dataURL:', canvasErr);
+            }
+
             const data = {
                 filter: imgFilter,
                 style: api.photoStyle,
-                canvasimg: videoSensor.get(0).toDataURL('image/jpeg')
+                canvasimg: canvasData
             };
 
             if (api.photoStyle === PhotoStyle.CHROMA) {
@@ -1554,6 +1572,9 @@ const photoBooth = (function () {
 
     api.renderPic = function (filename, files) {
         api.filename = filename;
+        files = Array.isArray(files) ? files : (files ? [files] : [filename]);
+        studioPage.removeClass('stage--active');
+        $('body').removeClass('mode--studio');
 
         if (config.print.auto && config.filters.enabled === false) {
             setTimeout(function () {
@@ -2379,92 +2400,398 @@ const photoBooth = (function () {
         photoboothTools.console.log('Photobooth mode switched to:', mode);
     };
 
-    // Mode Card Classic Click (Card body click -> trigger photo)
+    // ==========================================
+    // Studio Independent Stage Architecture (独立全屏摄影工作台)
+    // ==========================================
+    window.studioClassicLayout = 'single'; // 'single' | 'burst'
+
+    api.enterStudio = function (mode) {
+        mode = mode || 'ai_swap';
+        api.setPhotoboothMode(mode);
+
+        startPage.removeClass('stage--active');
+        loader.removeClass('stage--active');
+        resultPage.removeClass('stage--active');
+        studioPage.addClass('stage--active');
+        $('body').addClass('mode--studio');
+
+        // Start live camera in left viewport
+        photoboothPreview.startVideo(CameraDisplayMode.BACKGROUND);
+
+        if (mode === 'ai_swap') {
+            $('#studioModePill').removeClass('classic');
+            $('#studioModePillText').text('AI 魔法变身照');
+            $('#workbenchIcon').removeClass('classic').html('<i class="fa fa-wand-magic-sparkles"></i>');
+            $('#workbenchTitle').text('AI 魔法变身工作室');
+            $('#workbenchSubtitle').text('实时微调美颜滤镜 · 精挑模板一秒穿越');
+            $('#tabTemplatesLabel').text('挑选模板');
+
+            $('#studioAiTplContainer').show();
+            $('#studioClassicTplContainer').hide();
+            $('#aiPoseGuide').show();
+
+            // Default AI template
+            if (!window.selectedAiTemplate) {
+                const firstCard = $('#studioAiTplGrid .wb-tpl-card.active').first();
+                if (firstCard.length) {
+                    window.selectedAiTemplate = {
+                        id: firstCard.data('id'),
+                        title: firstCard.data('title'),
+                        image: firstCard.data('image'),
+                        path: firstCard.data('image')
+                    };
+                } else {
+                    window.selectedAiTemplate = {
+                        id: 'hanfu_female_01',
+                        title: '盛唐绮梦 · 汉服仙子',
+                        image: 'resources/img/templates_ai/hanfu_female_01.jpg',
+                        path: 'resources/img/templates_ai/hanfu_female_01.jpg'
+                    };
+                }
+            }
+            if (window.selectedAiTemplate) {
+                $('#studioCurrentTplName').text(window.selectedAiTemplate.title || '盛唐绮梦 · 汉服仙子');
+                if (window.selectedAiTemplate.image) {
+                    $('#studioCurrentTplThumb').attr('src', window.selectedAiTemplate.image).show();
+                }
+            }
+        } else {
+            $('#studioModePill').addClass('classic');
+            $('#studioModePillText').text('经典美颜大头贴');
+            $('#workbenchIcon').addClass('classic').html('<i class="fa fa-camera-retro"></i>');
+            $('#workbenchTitle').text('经典美颜大头贴工作室');
+            $('#workbenchSubtitle').text('自然微调美颜 · 发丝级抠图换背景');
+            $('#tabTemplatesLabel').text('背景模板');
+
+            $('#studioAiTplContainer').hide();
+            $('#studioClassicTplContainer').show();
+            $('#aiPoseGuide').hide();
+
+            const firstBg = $('#studioClassicTplGrid .wb-classic-card.active').first();
+            if (firstBg.length) {
+                window.selectedClassicTemplate = {
+                    id: firstBg.data('id'),
+                    title: firstBg.data('title'),
+                    image: firstBg.data('image')
+                };
+                $('#studioCurrentTplName').text(firstBg.data('title'));
+                $('#studioCurrentTplThumb').attr('src', firstBg.data('image')).show();
+            }
+        }
+
+        // Apply selected filter to live preview
+        const curFilter = imgFilter || 'plain';
+        const filterVal = (typeof curFilter === 'object' && curFilter !== null && curFilter.value) ? curFilter.value : curFilter;
+        $('#preview--video').removeClass(function (index, className) {
+            return (className.match(/(^|\s)filter-preview-\S+/g) || []).join(' ');
+        }).addClass('filter-preview-' + filterVal);
+    };
+
+    api.exitStudio = function () {
+        studioPage.removeClass('stage--active');
+        $('body').removeClass('mode--studio');
+        startPage.addClass('stage--active');
+        $('#aiPoseGuide').hide();
+        if (!usesBackgroundPreview) {
+            photoboothPreview.stopPreview();
+        }
+    };
+
+    // Mode Card Classic Click -> Enter Studio (Classic Mode)
     $(document).on('click', '#cardModeClassic', function (e) {
-        if ($(e.target).closest('.takePic, .uploadBtn').length > 0) {
+        if ($(e.target).closest('#btnClassicBurst').length > 0) {
             return;
         }
-        api.setPhotoboothMode('classic');
-        $('#btnClassicStart').trigger('click');
+        e.preventDefault();
+        window.studioClassicLayout = 'single';
+        api.enterStudio('classic');
     });
 
-    $(document).on('click', '#btnClassicStart, #btnClassicUpload', function () {
-        api.setPhotoboothMode('classic');
+    $(document).on('click', '#btnClassicStart', function (e) {
+        e.preventDefault();
+        window.studioClassicLayout = 'single';
+        api.enterStudio('classic');
     });
 
-    // Mode Card AI Click / Enter AI Mode
+    $(document).on('click', '#btnClassicBurst', function (e) {
+        e.preventDefault();
+        window.studioClassicLayout = 'burst';
+        api.enterStudio('classic');
+        $('#btnStudioModeBurst').trigger('click');
+    });
+
+    // Mode Card AI Click -> Enter Studio (AI Mode)
     $(document).on('click', '#cardModeAi, #btnEnterAiMode', function (e) {
         e.preventDefault();
-        api.setPhotoboothMode('ai_swap');
-        $('#aiTemplateModal').fadeIn(200);
+        api.enterStudio('ai_swap');
     });
 
-    // Close AI Template Modal
-    $(document).on('click', '#btnAiTemplateClose, #btnAiTemplateBack, #aiTemplateBackdrop', function (e) {
+    // Studio Back Button -> Return Home
+    $(document).on('click', '#btnStudioBack', function (e) {
         e.preventDefault();
-        $('#aiTemplateModal').fadeOut(150);
-        api.setPhotoboothMode('classic');
+        api.exitStudio();
     });
 
-    // Category Tabs in AI Template Modal
-    $(document).on('click', '.ai-cat-tab', function (e) {
+    // Studio Mirror Flip Button
+    $(document).on('click', '#btnStudioFlip', function (e) {
         e.preventDefault();
-        $('.ai-cat-tab').removeClass('active');
+        const vid = $('#preview--video');
+        const isFlipped = vid.hasClass('flip-horizontal');
+        photoboothPreview.setFlip(!isFlipped);
+    });
+
+    // Studio Tabs (Filters & Beauty VS Templates)
+    $(document).on('click', '.wb-tab-btn', function (e) {
+        e.preventDefault();
+        const tab = $(this).data('tab');
+        $('.wb-tab-btn').removeClass('active');
         $(this).addClass('active');
 
-        const cat = $(this).data('category');
+        $('.wb-tab-pane').removeClass('active');
+        if (tab === 'filters') {
+            $('#paneFilters').addClass('active');
+        } else if (tab === 'templates') {
+            $('#paneTemplates').addClass('active');
+        }
+    });
+
+    // Studio Beauty Sliders Live Input
+    $(document).on('input', '#studioSmoothSlider', function () {
+        const val = $(this).val();
+        $('#valStudioSmooth').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_smooth = parseInt(val, 10);
+    });
+
+    $(document).on('input', '#studioWhiteSlider', function () {
+        const val = $(this).val();
+        $('#valStudioWhite').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_white = parseInt(val, 10);
+    });
+
+    $(document).on('input', '#studioEyeSlider', function () {
+        const val = $(this).val();
+        $('#valStudioEye').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_eye = parseInt(val, 10);
+    });
+
+    $(document).on('input', '#studioSlimSlider', function () {
+        const val = $(this).val();
+        $('#valStudioSlim').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_slim = parseInt(val, 10);
+    });
+
+    $(document).on('click', '#btnResetStudioBeauty', function (e) {
+        e.preventDefault();
+        $('#studioSmoothSlider').val(20).trigger('input');
+        $('#studioWhiteSlider').val(15).trigger('input');
+        $('#studioEyeSlider').val(15).trigger('input');
+        $('#studioSlimSlider').val(15).trigger('input');
+    });
+
+    // Studio Filter Item Click -> Real-Time WYSIWYG Camera Preview
+    $(document).on('click', '.wb-filter-item', function (e) {
+        e.preventDefault();
+        $('.wb-filter-item').removeClass('active');
+        $(this).addClass('active');
+
+        const filter = $(this).data('filter') || 'plain';
+        imgFilter = filter;
+
+        // Apply live CSS filter directly on preview video
+        const vid = $('#preview--video');
+        vid.removeClass(function (index, className) {
+            return (className.match(/(^|\s)filter-preview-\S+/g) || []).join(' ');
+        });
+        vid.addClass('filter-preview-' + filter);
+    });
+
+    // Studio AI Template Category Filter
+    $(document).on('click', '#studioAiCatPills .wb-pill', function (e) {
+        e.preventDefault();
+        $('#studioAiCatPills .wb-pill').removeClass('active');
+        $(this).addClass('active');
+
+        const cat = $(this).data('cat');
         if (cat === 'all') {
-            $('.ai-template-card').show();
+            $('#studioAiTplGrid .wb-tpl-card').show();
         } else {
-            $('.ai-template-card').each(function () {
-                if ($(this).data('category') === cat) {
-                    $(this).show();
-                } else {
-                    $(this).hide();
-                }
+            $('#studioAiTplGrid .wb-tpl-card').each(function () {
+                $(this).toggle($(this).data('cat') === cat);
             });
         }
     });
 
-    // Select Template Card
-    $(document).on('click', '.ai-template-card', function (e) {
+    // Studio AI Template Card Selection
+    $(document).on('click', '#studioAiTplGrid .wb-tpl-card', function (e) {
         e.preventDefault();
-        $('.ai-template-card').removeClass('active');
+        $('#studioAiTplGrid .wb-tpl-card').removeClass('active');
         $(this).addClass('active');
 
         const tplId = $(this).data('id');
         const tplTitle = $(this).data('title');
-        const tplCategory = $(this).data('category');
-        const tplImage = $(this).data('image') || $(this).find('.ai-tpl-thumb').attr('src');
+        const tplImage = $(this).data('image') || $(this).find('.wb-tpl-img').attr('src');
 
         window.selectedAiTemplate = {
             id: tplId,
             title: tplTitle,
-            category: tplCategory,
-            image: tplImage
+            image: tplImage,
+            path: tplImage
         };
 
-        $('#aiCurrentTemplateName').text(tplTitle);
+        $('#studioCurrentTplName').text(tplTitle);
         if (tplImage) {
-            $('#aiCurrentTemplateThumb').attr('src', tplImage).show();
+            $('#studioCurrentTplThumb').attr('src', tplImage).show();
         }
     });
 
-    // Confirm Template & Proceed to Capture or Instant Re-swap
-    $(document).on('click', '#btnAiTemplateConfirm', function (e) {
+    // Studio Upload Custom AI Template
+    $(document).on('click', '#btnStudioUploadAiTemplate', function (e) {
         e.preventDefault();
-        $('#aiTemplateModal').fadeOut(150, function () {
-            api.setPhotoboothMode('ai_swap');
-            if (resultPage.hasClass('stage--active') && window.lastAiSourceFile) {
-                // If on result page with existing capture, re-swap instantly without retaking!
-                api.processPic({ file: window.lastAiSourceFile });
+        $('#studioAiTemplateUploadInput').trigger('click');
+    });
+
+    $(document).on('change', '#studioAiTemplateUploadInput', function () {
+        if (!this.files || !this.files[0]) {
+            return;
+        }
+        const file = this.files[0];
+        const formData = new FormData();
+        formData.append('template', file);
+
+        photoboothTools.ajaxWithCsrf({
+            url: environment.publicFolders.api + '/uploadAiTemplate.php',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        }).done((res) => {
+            if (res && res.success) {
+                const newCard = $(`
+                    <div class="wb-tpl-card active" data-id="${res.id}" data-cat="custom" data-title="${res.title}" data-image="${res.path}" role="button" tabindex="0">
+                        <div class="wb-tpl-thumb-box">
+                            <img src="${res.path}" alt="${res.title}" class="wb-tpl-img">
+                            <span class="wb-tpl-chip" style="background:#8B5CF6;color:#fff;">自定义</span>
+                            <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
+                        </div>
+                        <div class="wb-tpl-meta">
+                            <div class="wb-tpl-title">${res.title}</div>
+                            <div class="wb-tpl-tags"><span class="tag-sex">自定义</span><span class="tag-feat">最新</span></div>
+                        </div>
+                    </div>
+                `);
+                $('#studioAiTplGrid .wb-tpl-card').removeClass('active');
+                $('#studioAiTplGrid').prepend(newCard);
+                window.selectedAiTemplate = {
+                    id: res.id,
+                    title: res.title,
+                    image: res.path,
+                    path: res.path
+                };
+                $('#studioCurrentTplName').text(res.title);
+                $('#studioCurrentTplThumb').attr('src', res.path).show();
+                $('[data-cat="all"]').trigger('click');
             } else {
-                if (typeof window.rembgReset === 'function') {
-                    window.rembgReset();
-                }
-                api.thrill(PhotoStyle.PHOTO);
+                alert(res.error || '上传模板失败，请检查图片格式');
+            }
+        }).fail(() => {
+            alert('网络异常，上传模板失败');
+        });
+    });
+
+    // Classic Studio Layout Mode Chips
+    $(document).on('click', '#btnStudioModeSingle', function (e) {
+        e.preventDefault();
+        $('.wb-layout-chip').removeClass('active');
+        $(this).addClass('active');
+        window.studioClassicLayout = 'single';
+    });
+
+    $(document).on('click', '#btnStudioModeBurst', function (e) {
+        e.preventDefault();
+        $('.wb-layout-chip').removeClass('active');
+        $(this).addClass('active');
+        window.studioClassicLayout = 'burst';
+    });
+
+    // Classic Background Template Selection
+    $(document).on('click', '#studioClassicTplGrid .wb-classic-card', function (e) {
+        e.preventDefault();
+        $('#studioClassicTplGrid .wb-classic-card').removeClass('active');
+        $(this).addClass('active');
+
+        const title = $(this).data('title');
+        const img = $(this).data('image');
+        window.selectedClassicTemplate = {
+            id: $(this).data('id'),
+            title: title,
+            image: img
+        };
+        $('#studioCurrentTplName').text(title);
+        $('#studioCurrentTplThumb').attr('src', img).show();
+    });
+
+    // Classic Background Upload
+    $(document).on('click', '#btnStudioUploadBgTemplate', function (e) {
+        e.preventDefault();
+        $('#studioBgTemplateUploadInput').trigger('click');
+    });
+
+    $(document).on('change', '#studioBgTemplateUploadInput', function () {
+        if (!this.files || !this.files[0]) return;
+        const file = this.files[0];
+        const formData = new FormData();
+        formData.append('template', file);
+
+        photoboothTools.ajaxWithCsrf({
+            url: environment.publicFolders.api + '/uploadTemplate.php',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        }).done((res) => {
+            if (res && res.success) {
+                const newCard = $(`
+                    <div class="wb-classic-card active" data-id="${res.id}" data-title="${res.title}" data-image="${res.path}" role="button" tabindex="0">
+                        <div class="wb-classic-thumb-box">
+                            <img src="${res.path}" alt="${res.title}" class="wb-classic-img">
+                            <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
+                        </div>
+                        <div class="wb-classic-name">${res.title}</div>
+                    </div>
+                `);
+                $('#studioClassicTplGrid .wb-classic-card').removeClass('active');
+                $('#studioClassicTplGrid').prepend(newCard);
+                window.selectedClassicTemplate = { id: res.id, title: res.title, image: res.path };
+                $('#studioCurrentTplName').text(res.title);
+                $('#studioCurrentTplThumb').attr('src', res.path).show();
+            } else {
+                alert(res.error || '上传背景失败');
             }
         });
+    });
+
+    // Studio "完成 · 开始拍照" Done & Capture Button
+    $(document).on('click', '#btnStudioDoneCapture', function (e) {
+        e.preventDefault();
+
+        if (window.photoboothMode === 'classic' && window.studioClassicLayout === 'burst') {
+            studioPage.removeClass('stage--active');
+            $('body').removeClass('mode--studio');
+            $('#btnClassicBurst').trigger('click');
+            return;
+        }
+
+        // Trigger capture for Single Photo (Classic or AI Swap)
+        studioPage.removeClass('stage--active');
+        $('body').removeClass('mode--studio');
+        if (typeof window.rembgReset === 'function') {
+            window.rembgReset();
+        }
+        api.thrill(PhotoStyle.PHOTO);
     });
 
     // Comparison with original snap (Hold/Click to compare)
@@ -2486,10 +2813,16 @@ const photoBooth = (function () {
         }
     });
 
-    // Change template from results page
+    // Change template or Retake from results page -> Return directly to Studio Page
     $(document).on('click', '#btnAiChangeTemplate', function (e) {
         e.preventDefault();
-        $('#aiTemplateModal').fadeIn(200);
+        api.enterStudio('ai_swap');
+        $('#tabBtnTemplates').trigger('click');
+    });
+
+    $(document).on('click', '.stage--result .newpic', function (e) {
+        e.preventDefault();
+        api.enterStudio(window.photoboothMode || 'classic');
     });
 
     // Upload Custom AI Template

@@ -1,6 +1,6 @@
-<?php
+﻿<?php
 
-require_once '../lib/boot.php';
+require_once __DIR__ . '/../lib/boot.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
