@@ -28,7 +28,7 @@ return [
         'cpu_threads' => 8,
     ],
     'picture' => [
-        'cheese_time' => 0,
+        'cheese_time' => 1000,
         'cntdwn_time' => 3,
     ],
     'gallery' => [
@@ -39,5 +39,11 @@ return [
     ],
     'beauty' => [
         'default_slim' => 12,
+    ],
+    'sound' => [
+        'enabled' => true,
+        'countdown_enabled' => true,
+        'cheese_enabled' => true,
+        'voice' => 'woman',
     ],
 ];

@@ -66,10 +66,27 @@ imagesavealpha($canvas, true);
 $themeColors = [
     'white' => ['bg' => [255, 255, 255], 'fg' => [30, 41, 59], 'sub' => [100, 116, 139], 'line' => [203, 213, 225]],
     'black' => ['bg' => [17, 24, 39], 'fg' => [248, 250, 252], 'sub' => [148, 163, 184], 'line' => [51, 65, 85]],
+    'gray' => ['bg' => [100, 116, 139], 'fg' => [255, 255, 255], 'sub' => [226, 232, 240], 'line' => [148, 163, 184]],
+    'coffee' => ['bg' => [120, 53, 15], 'fg' => [254, 243, 199], 'sub' => [253, 230, 138], 'line' => [146, 64, 14]],
     'pink' => ['bg' => [253, 242, 248], 'fg' => [157, 23, 77], 'sub' => [219, 39, 119], 'line' => [244, 114, 182]],
     'violet' => ['bg' => [30, 27, 75], 'fg' => [238, 242, 255], 'sub' => [165, 180, 252], 'line' => [99, 102, 241]],
 ];
-$col = $themeColors[$theme] ?? $themeColors['white'];
+
+if (preg_match('/^#?([a-f0-9]{6})$/i', $theme, $m)) {
+    $hex = $m[1];
+    $r = hexdec(substr($hex, 0, 2));
+    $g = hexdec(substr($hex, 2, 2));
+    $b = hexdec(substr($hex, 4, 2));
+    $isDark = ($r * 0.299 + $g * 0.587 + $b * 0.114) < 128;
+    $col = [
+        'bg' => [$r, $g, $b],
+        'fg' => $isDark ? [248, 250, 252] : [30, 41, 59],
+        'sub' => $isDark ? [148, 163, 184] : [100, 116, 139],
+        'line' => $isDark ? [min(255, $r + 30), min(255, $g + 30), min(255, $b + 30)] : [max(0, $r - 30), max(0, $g - 30), max(0, $b - 30)]
+    ];
+} else {
+    $col = $themeColors[$theme] ?? $themeColors['white'];
+}
 
 $bgColor = imagecolorallocate($canvas, $col['bg'][0], $col['bg'][1], $col['bg'][2]);
 $fgColor = imagecolorallocate($canvas, $col['fg'][0], $col['fg'][1], $col['fg'][2]);

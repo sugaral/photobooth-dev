@@ -252,6 +252,24 @@ $classicTemplates = [
             <div class="studio-countdown-number" id="studioCountdownNum">3</div>
             <div class="studio-countdown-tip" id="studioCountdownTip">📸 保持微笑，准备抓拍...</div>
         </div>
+
+        <!-- 趣味拍照姿势灵感卡 (Pose Inspiration Card) -->
+        <div class="studio-pose-card" id="studioPoseCard">
+            <div class="studio-pose-card-header">
+                <span class="pose-badge"><i class="fa fa-lightbulb"></i> 姿势灵感</span>
+                <button type="button" class="pose-nav-btn" id="btnPosePrev" title="上一个姿势"><i class="fa fa-chevron-left"></i></button>
+                <span class="pose-counter" id="lblPoseCounter">1/8</span>
+                <button type="button" class="pose-nav-btn" id="btnPoseNext" title="下一个姿势"><i class="fa fa-chevron-right"></i></button>
+                <button type="button" class="pose-toggle-btn" id="btnPoseToggle" title="收起/展开姿势卡"><i class="fa fa-chevron-down"></i></button>
+            </div>
+            <div class="studio-pose-card-body" id="studioPoseBody">
+                <div class="pose-icon" id="lblPoseIcon">🐱</div>
+                <div class="pose-info">
+                    <strong class="pose-title" id="lblPoseTitle">猫咪萌爪爪</strong>
+                    <p class="pose-desc" id="lblPoseDesc">双手半握拳放脸颊两侧，歪头微抿嘴笑</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 右侧个性化创意设置工作台 (Creative Workbench) -->
@@ -456,7 +474,27 @@ $classicTemplates = [
                             <i class="fa fa-camera"></i> 单张精修大头贴
                         </button>
                         <button type="button" class="wb-layout-chip" id="btnStudioModeBurst" data-layout="burst">
-                            <i class="fa fa-film"></i> 连拍四格 (6选4)
+                            <i class="fa fa-table-cells-large"></i> 经典四格 (2x2)
+                        </button>
+                        <button type="button" class="wb-layout-chip" id="btnStudioModeLife4" data-layout="life4cuts">
+                            <i class="fa fa-film"></i> 人生四格 (2x6双条)
+                        </button>
+                    </div>
+
+                    <!-- 人生四格经典定制相框底色 -->
+                    <div class="wb-frame-bar" id="studioFrameBar">
+                        <span class="wb-layout-label"><i class="fa fa-palette"></i> 相框底色:</span>
+                        <button type="button" class="wb-frame-chip active" data-color="#111827" data-name="曜石黑">
+                            <span class="frame-dot" style="background:#111827;border:1px solid #4b5563;"></span> 曜石黑
+                        </button>
+                        <button type="button" class="wb-frame-chip" data-color="#F9FAFB" data-name="纯净白">
+                            <span class="frame-dot" style="background:#F9FAFB;border:1px solid #d1d5db;"></span> 纯净白
+                        </button>
+                        <button type="button" class="wb-frame-chip" data-color="#64748B" data-name="高级灰">
+                            <span class="frame-dot" style="background:#64748B;"></span> 高级灰
+                        </button>
+                        <button type="button" class="wb-frame-chip" data-color="#78350F" data-name="复古咖">
+                            <span class="frame-dot" style="background:#78350F;"></span> 复古咖
                         </button>
                     </div>
 

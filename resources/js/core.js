@@ -1768,9 +1768,20 @@ const photoBooth = (function () {
             if (currentActiveMode === 'ai_swap') {
                 $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').hide();
                 $('#aiResultControlBar').show();
+                $('#classicResultControlBar').hide();
+                $('#classicFilterQuickBar').hide();
+                $('#stickerCanvasOverlay').hide().empty();
+                $('#stickerModal').hide();
             } else {
-                $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').show();
+                $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').hide();
                 $('#aiResultControlBar').hide();
+                $('#classicResultControlBar').show();
+                $('#classicFilterQuickBar').hide();
+                $('#stickerCanvasOverlay').show();
+                $('#stickerModal').hide();
+
+                window.lastClassicRawFile = filename;
+                window.lastClassicDecoratedFile = filename;
             }
 
             loader.removeClass('stage--active showBackgroundImage');
@@ -2480,7 +2491,66 @@ const photoBooth = (function () {
     // ==========================================
     // Studio Independent Stage Architecture (独立全屏摄影工作台)
     // ==========================================
-    window.studioClassicLayout = 'single'; // 'single' | 'burst'
+    window.studioClassicLayout = 'single'; // 'single' | 'burst' | 'life4cuts'
+
+    // --------------------------------------------------------
+    // Studio Pose Inspiration Card (趣味拍照姿势灵感卡)
+    // --------------------------------------------------------
+    const studioPoseList = [
+        { title: '猫咪萌爪爪', icon: '🐱', desc: '双手半握拳放脸颊两侧，歪头微抿嘴笑' },
+        { title: '比心三连击', icon: '🫰', desc: '单手比手指心或双手合十比爱心，眼神灵动俏皮' },
+        { title: '微托腮托下巴', icon: '🌸', desc: '单手轻托下巴显脸小，侧脸45度面对镜头' },
+        { title: '元气剪刀手', icon: '✌️', desc: '双手放眼睛前做剪刀手框住眼睛，眨眼微笑' },
+        { title: '酷飒拽姐墨镜', icon: '🕶️', desc: '手扶墨镜框或插兜，下巴微抬神情专注自信' },
+        { title: '脸颊小爱心', icon: '🫶', desc: '双手在脸颊比出心形轮廓，笑容甜度拉满' },
+        { title: '捂脸捉迷藏', icon: '🙈', desc: '双手轻遮半边脸，从指缝探出充满好奇的眼神' },
+        { title: '背靠背合影', icon: '👯', desc: '若有多人可侧身微靠，回头相视一笑氛围感满满' }
+    ];
+    let studioPoseIndex = 0;
+    let studioPoseTimer = null;
+
+    api.renderStudioPose = function (index) {
+        if (!studioPoseList || studioPoseList.length === 0) return;
+        studioPoseIndex = (index + studioPoseList.length) % studioPoseList.length;
+        const pose = studioPoseList[studioPoseIndex];
+        $('#lblPoseCounter').text(`${studioPoseIndex + 1}/${studioPoseList.length}`);
+        $('#lblPoseIcon').text(pose.icon);
+        $('#lblPoseTitle').text(pose.title);
+        $('#lblPoseDesc').text(pose.desc);
+    };
+
+    api.startStudioPoseCarousel = function () {
+        api.renderStudioPose(studioPoseIndex);
+        clearInterval(studioPoseTimer);
+        studioPoseTimer = setInterval(function () {
+            if (!$('#studioPoseCard').hasClass('is-collapsed')) {
+                api.renderStudioPose(studioPoseIndex + 1);
+            }
+        }, 6000);
+    };
+
+    api.stopStudioPoseCarousel = function () {
+        clearInterval(studioPoseTimer);
+        studioPoseTimer = null;
+    };
+
+    $(document).on('click', '#btnPosePrev', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        api.renderStudioPose(studioPoseIndex - 1);
+    });
+
+    $(document).on('click', '#btnPoseNext', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        api.renderStudioPose(studioPoseIndex + 1);
+    });
+
+    $(document).on('click', '#btnPoseToggle', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $('#studioPoseCard').toggleClass('is-collapsed');
+    });
 
     api.enterStudio = function (mode) {
         mode = mode || 'ai_swap';
@@ -2567,6 +2637,9 @@ const photoBooth = (function () {
             }
         }
 
+        // Start pose inspiration carousel
+        api.startStudioPoseCarousel();
+
         // Start real-time face orientation and alignment detection loop (Red/Green feedback)
         api.startFacePoseAlignmentLoop();
 
@@ -2578,6 +2651,7 @@ const photoBooth = (function () {
         studioPage.removeClass('stage--active');
         $('body').removeClass('mode--studio');
         startPage.addClass('stage--active');
+        api.stopStudioPoseCarousel();
         api.stopFacePoseAlignmentLoop();
         $('#aiPoseGuide').hide();
         $('#preview--video').css('filter', '').css('transform', '');
@@ -3056,6 +3130,9 @@ const photoBooth = (function () {
         $('.wb-layout-chip').removeClass('active');
         $(this).addClass('active');
         window.studioClassicLayout = 'single';
+        $('#studioFrameBar').slideUp(150);
+        const curTitle = $('#studioClassicTplGrid .wb-classic-card.active').data('title') || '实景原生 (不换背景)';
+        $('#studioCurrentTplName').text(curTitle);
     });
 
     $(document).on('click', '#btnStudioModeBurst', function (e) {
@@ -3063,6 +3140,32 @@ const photoBooth = (function () {
         $('.wb-layout-chip').removeClass('active');
         $(this).addClass('active');
         window.studioClassicLayout = 'burst';
+        $('#studioFrameBar').slideDown(150);
+        $('#studioCurrentTplName').text('经典四格 (2x2方形)');
+    });
+
+    $(document).on('click', '#btnStudioModeLife4', function (e) {
+        e.preventDefault();
+        $('.wb-layout-chip').removeClass('active');
+        $(this).addClass('active');
+        window.studioClassicLayout = 'life4cuts';
+        $('#studioFrameBar').slideDown(150);
+        $('#studioCurrentTplName').text('人生四格 (2x6双条相纸)');
+    });
+
+    // Custom Classic Frame Color Selection
+    $(document).on('click', '.wb-frame-chip', function (e) {
+        e.preventDefault();
+        $('.wb-frame-chip').removeClass('active');
+        $(this).addClass('active');
+        const color = $(this).data('color') || '#111827';
+        const name = $(this).data('name') || '';
+        window.studioClassicFrameColor = color;
+        if (name.includes('黑')) window.studioClassicFrameTheme = 'black';
+        else if (name.includes('白')) window.studioClassicFrameTheme = 'white';
+        else if (name.includes('灰')) window.studioClassicFrameTheme = 'gray';
+        else if (name.includes('咖')) window.studioClassicFrameTheme = 'coffee';
+        else window.studioClassicFrameTheme = color;
     });
 
     // Classic Background Template Selection
@@ -3134,9 +3237,19 @@ const photoBooth = (function () {
             localStorage.setItem('photobooth_custom_countdown', customSec);
         }
 
-        if (window.photoboothMode === 'classic' && window.studioClassicLayout === 'burst') {
+        api.stopStudioPoseCarousel();
+        api.stopFacePoseAlignmentLoop();
+
+        if (window.photoboothMode === 'classic' && (window.studioClassicLayout === 'burst' || window.studioClassicLayout === 'life4cuts')) {
             studioPage.removeClass('stage--active');
             $('body').removeClass('mode--studio');
+            if (window.studioClassicLayout === 'life4cuts') {
+                window.burstLayout = '1x4_strip';
+                window.burstTheme = window.studioClassicFrameTheme || 'black';
+            } else {
+                window.burstLayout = '2x2';
+                window.burstTheme = window.studioClassicFrameTheme || 'white';
+            }
             $('#btnClassicBurst').trigger('click');
             return;
         }
@@ -3150,7 +3263,7 @@ const photoBooth = (function () {
         api.thrill(PhotoStyle.PHOTO);
     });
 
-    // Comparison with original snap (Hold/Click to compare)
+    // Comparison with original snap in AI Mode (Hold/Click to compare)
     $(document).on('mousedown touchstart', '#btnAiCompareSnap', function (e) {
         e.preventDefault();
         if (window.lastAiSourceFile) {
@@ -3167,6 +3280,333 @@ const photoBooth = (function () {
             resultPage.css('--stage-background-image', `url("${swapUrl}")`);
             $(this).removeClass('active').find('span').text('查看原拍对比');
         }
+    });
+
+    // --------------------------------------------------------
+    // Classic Photobooth Commercial Post-Shot Editing
+    // --------------------------------------------------------
+
+    // 1. Hold to Compare Original Snap (Classic Mode)
+    $(document).on('mousedown touchstart', '#btnClassicCompareSnap', function (e) {
+        e.preventDefault();
+        if (window.lastClassicRawFile) {
+            const rawUrl = environment.publicFolders.images + '/' + window.lastClassicRawFile;
+            resultPage.css('--stage-background-image', `url("${rawUrl}")`);
+            if (resultPage[0]) {
+                resultPage[0].style.setProperty('--stage-background-image', `url("${rawUrl}")`);
+            }
+            $('#stickerCanvasOverlay').css('opacity', '0');
+            $(this).addClass('active').find('span').text('松开恢复成片');
+        }
+    });
+
+    $(document).on('mouseup mouseleave touchend', '#btnClassicCompareSnap', function (e) {
+        e.preventDefault();
+        const curFile = window.lastClassicDecoratedFile || api.filename || resultPage.attr('data-img');
+        if (curFile) {
+            const curUrl = environment.publicFolders.images + '/' + curFile + '?v=' + Date.now();
+            resultPage.css('--stage-background-image', `url("${curUrl}")`);
+            if (resultPage[0]) {
+                resultPage[0].style.setProperty('--stage-background-image', `url("${curUrl}")`);
+            }
+            $('#stickerCanvasOverlay').css('opacity', '1');
+            $(this).removeClass('active').find('span').text('按住看原图');
+        }
+    });
+
+    // 2. Filter Quick Bar Toggle & Apply
+    $(document).on('click', '#btnClassicToggleFilters', function (e) {
+        e.preventDefault();
+        $('#classicFilterQuickBar').fadeToggle(150);
+    });
+
+    $(document).on('click', '#btnClassicFilterClose', function (e) {
+        e.preventDefault();
+        $('#classicFilterQuickBar').fadeOut(150);
+    });
+
+    $(document).on('click', '.classic-qfilter-chip', function (e) {
+        e.preventDefault();
+        $('.classic-qfilter-chip').removeClass('active');
+        $(this).addClass('active');
+
+        const filterName = $(this).data('filter');
+        const baseFile = window.lastClassicRawFile || resultPage.attr('data-img');
+        if (!baseFile) return;
+
+        resultPage.removeClass(allFilterClasses);
+        if (filterName !== 'plain') {
+            resultPage.addClass('filter-effect-' + filterName);
+        }
+
+        if (window.photoboothTools && window.photoboothTools.overlay) {
+            photoboothTools.overlay.showWaiting('正在渲染滤镜，请稍候...');
+        }
+
+        photoboothTools.ajaxWithCsrf({
+            method: 'POST',
+            url: environment.publicFolders.api + '/applyEffects.php',
+            data: {
+                file: baseFile,
+                filter: filterName,
+                style: api.photoStyle || 'photo'
+            },
+            timeout: 25000
+        }).done(function (data) {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+            if (data && data.file) {
+                const newFile = data.file;
+                window.lastClassicDecoratedFile = newFile;
+                api.filename = newFile;
+                resultPage.attr('data-img', newFile);
+                const newUrl = environment.publicFolders.images + '/' + newFile + '?v=' + Date.now();
+                resultPage.css('--stage-background-image', `url("${newUrl}")`);
+                if (resultPage[0]) {
+                    resultPage[0].style.setProperty('--stage-background-image', `url("${newUrl}")`);
+                }
+            }
+        }).fail(function () {
+            if (window.photoboothTools && window.photoboothTools.overlay) {
+                photoboothTools.overlay.close();
+            }
+        });
+    });
+
+    // 3. Stickers Drawer & Interactive Overlay
+    $(document).on('click', '#btnClassicOpenStickers', function (e) {
+        e.preventDefault();
+        $('#stickerCanvasOverlay').show();
+        $('#stickerModal').fadeIn(150);
+    });
+
+    $(document).on('click', '#btnStickerClose', function (e) {
+        e.preventDefault();
+        $('#stickerModal').fadeOut(150);
+    });
+
+    $(document).on('click', '.sticker-tab-pill', function (e) {
+        e.preventDefault();
+        $('.sticker-tab-pill').removeClass('active');
+        $(this).addClass('active');
+
+        const cat = $(this).data('category');
+        $('#stickerGridCute, #stickerGridProps, #stickerGridText').hide();
+        if (cat === 'cute') $('#stickerGridCute').show();
+        else if (cat === 'props') $('#stickerGridProps').show();
+        else if (cat === 'text') $('#stickerGridText').show();
+    });
+
+    $(document).on('click', '#btnStickerClear', function (e) {
+        e.preventDefault();
+        $('#stickerCanvasOverlay').empty();
+    });
+
+    // Add Sticker to Overlay
+    $(document).on('click', '.sticker-item', function (e) {
+        e.preventDefault();
+        const type = $(this).data('type') || 'emoji';
+        const content = $(this).data('content') || '';
+        const isStamp = type === 'stamp';
+        const stampClass = isStamp ? 'placed-sticker--stamp' : '';
+        const initialSize = isStamp ? 26 : 48;
+
+        const overlay = $('#stickerCanvasOverlay');
+        const overlayW = overlay.width() || 600;
+        const overlayH = overlay.height() || 800;
+
+        const posX = Math.round(overlayW / 2 + (Math.random() * 80 - 40));
+        const posY = Math.round(overlayH / 2 + (Math.random() * 80 - 40));
+
+        const $sticker = $(`
+            <div class="placed-sticker ${stampClass}" style="left: ${posX}px; top: ${posY}px;" data-type="${type}" data-content="${content}">
+                <button type="button" class="sticker-del-btn" title="删除贴纸"><i class="fa fa-times"></i></button>
+                <div class="placed-sticker-content" style="font-size: ${initialSize}px;">${content}</div>
+                <div class="sticker-resize-btn" title="缩放贴纸"><i class="fa fa-up-right-and-down-left-from-center"></i></div>
+            </div>
+        `);
+
+        overlay.append($sticker);
+        api.initPlacedStickerInteraction($sticker);
+    });
+
+    $(document).on('click', '.sticker-del-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).closest('.placed-sticker').remove();
+    });
+
+    api.initPlacedStickerInteraction = function ($sticker) {
+        let isDragging = false;
+        let isResizing = false;
+        let startX, startY;
+        let initialLeft, initialTop;
+        let initialFontSize;
+
+        $sticker.on('pointerdown', function (e) {
+            if ($(e.target).closest('.sticker-del-btn').length) return;
+            if ($(e.target).closest('.sticker-resize-btn').length) {
+                isResizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                initialFontSize = parseFloat($sticker.find('.placed-sticker-content').css('font-size')) || 36;
+                $sticker.addClass('is-active');
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            initialLeft = parseFloat($sticker.css('left')) || 0;
+            initialTop = parseFloat($sticker.css('top')) || 0;
+            $('.placed-sticker').removeClass('is-active');
+            $sticker.addClass('is-active');
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        $(document).on('pointermove.stickerDrag', function (e) {
+            if (isDragging) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                $sticker.css({
+                    left: `${initialLeft + dx}px`,
+                    top: `${initialTop + dy}px`
+                });
+            } else if (isResizing) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                const delta = (dx + dy) / 2;
+                const newSize = Math.max(16, Math.min(180, initialFontSize + delta));
+                $sticker.find('.placed-sticker-content').css('font-size', `${newSize}px`);
+            }
+        });
+
+        $(document).on('pointerup.stickerDrag pointercancel.stickerDrag', function () {
+            if (isDragging || isResizing) {
+                isDragging = false;
+                isResizing = false;
+            }
+        });
+    };
+
+    // Save Stickers (Bake onto canvas & upload to server)
+    $(document).on('click', '#btnStickerSave', function (e) {
+        e.preventDefault();
+        const stickers = $('.placed-sticker');
+        if (stickers.length === 0) {
+            $('#stickerModal').fadeOut(150);
+            return;
+        }
+
+        const curFile = window.lastClassicDecoratedFile || api.filename || resultPage.attr('data-img');
+        if (!curFile) {
+            $('#stickerModal').fadeOut(150);
+            return;
+        }
+
+        if (window.photoboothTools && window.photoboothTools.overlay) {
+            photoboothTools.overlay.showWaiting('正在将潮流贴纸装扮合成至成片，请稍候...');
+        }
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            const overlay = $('#stickerCanvasOverlay');
+            const overlayW = overlay.width() || canvas.width;
+            const overlayH = overlay.height() || canvas.height;
+
+            const scale = Math.min(overlayW / canvas.width, overlayH / canvas.height);
+            const renderedW = canvas.width * scale;
+            const renderedH = canvas.height * scale;
+            const offsetX = (overlayW - renderedW) / 2;
+            const offsetY = (overlayH - renderedH) / 2;
+
+            stickers.each(function () {
+                const $st = $(this);
+                const content = $st.data('content');
+                const isStamp = $st.hasClass('placed-sticker--stamp');
+                const pos = $st.position();
+                const stW = $st.outerWidth();
+                const stH = $st.outerHeight();
+                const centerX = pos.left + stW / 2;
+                const centerY = pos.top + stH / 2;
+
+                const imgCenterX = (centerX - offsetX) / scale;
+                const imgCenterY = (centerY - offsetY) / scale;
+                const stFontSize = parseFloat($st.find('.placed-sticker-content').css('font-size')) || 36;
+                const imgFontSize = stFontSize / scale;
+
+                ctx.save();
+                ctx.translate(imgCenterX, imgCenterY);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                if (isStamp) {
+                    ctx.font = `bold ${Math.round(imgFontSize)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+                    ctx.shadowBlur = Math.round(8 / scale);
+                    ctx.fillText(content, 0, 0);
+                } else {
+                    ctx.font = `${Math.round(imgFontSize)}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+                    ctx.shadowBlur = Math.round(6 / scale);
+                    ctx.fillText(content, 0, 0);
+                }
+                ctx.restore();
+            });
+
+            canvas.toBlob(function (blob) {
+                const formData = new FormData();
+                formData.append('photo', blob, 'photobooth_sticker_' + Date.now() + '.jpg');
+
+                $.ajax({
+                    url: 'api/uploadPhoto.php',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    dataType: 'json'
+                }).done(function (res) {
+                    if (window.photoboothTools && window.photoboothTools.overlay) {
+                        photoboothTools.overlay.close();
+                    }
+                    if (res && res.success && res.file) {
+                        $('#stickerCanvasOverlay').empty();
+                        $('#stickerModal').fadeOut(150);
+                        window.lastClassicDecoratedFile = res.file;
+                        api.filename = res.file;
+                        resultPage.attr('data-img', res.file);
+                        const newUrl = environment.publicFolders.images + '/' + res.file + '?v=' + Date.now();
+                        resultPage.css('--stage-background-image', `url("${newUrl}")`);
+                        if (resultPage[0]) {
+                            resultPage[0].style.setProperty('--stage-background-image', `url("${newUrl}")`);
+                        }
+                        if (window.photoboothTools && window.photoboothTools.showNotification) {
+                            photoboothTools.showNotification('success', '✨ 潮流大头贴装扮已烘焙合成！');
+                        }
+                    } else {
+                        alert('装扮合成保存失败: ' + (res.error || '未知错误'));
+                    }
+                }).fail(function (xhr, status, error) {
+                    if (window.photoboothTools && window.photoboothTools.overlay) {
+                        photoboothTools.overlay.close();
+                    }
+                    alert('装扮上传请求失败: ' + error);
+                });
+            }, 'image/jpeg', 0.95);
+        };
+        img.src = environment.publicFolders.images + '/' + curFile + '?v=' + Date.now();
     });
 
     // Change template or Retake from results page -> Return directly to Studio Page
@@ -3321,6 +3761,16 @@ const photoBooth = (function () {
         });
 
         $('#burstSelectedCount').text(`已选 ${window.burstSelectedIndices.length} / 4 张`);
+
+        if (window.burstLayout) {
+            $('.burst-layout-btn').removeClass('active');
+            $(`.burst-layout-btn[data-layout="${window.burstLayout}"]`).addClass('active');
+        }
+        if (window.burstTheme) {
+            $('.burst-theme-pill').removeClass('active');
+            $(`.burst-theme-pill[data-theme="${window.burstTheme}"]`).addClass('active');
+        }
+
         $('#burstWorkbenchModal').fadeIn(200);
     };
 

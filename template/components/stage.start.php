@@ -587,6 +587,8 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
                     <span class="burst-option-label"><i class="fa fa-palette"></i> 边框配色:</span>
                     <button type="button" class="burst-theme-pill active theme-white" data-theme="white">极简白</button>
                     <button type="button" class="burst-theme-pill theme-black" data-theme="black">复古黑</button>
+                    <button type="button" class="burst-theme-pill theme-gray" data-theme="gray">高级灰</button>
+                    <button type="button" class="burst-theme-pill theme-coffee" data-theme="coffee">复古咖</button>
                     <button type="button" class="burst-theme-pill theme-pink" data-theme="pink">元气粉</button>
                     <button type="button" class="burst-theme-pill theme-violet" data-theme="violet">电光紫</button>
                 </div>

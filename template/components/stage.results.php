@@ -84,6 +84,64 @@ echo '
         <span>更换模板</span>
     </button>
 </div>
+
+<!-- Classic Photobooth Post-Shot Commercial Control Bar -->
+<div class="classic-result-control-bar" id="classicResultControlBar" style="display:none;">
+    <div class="classic-result-pill">
+        <i class="fa fa-camera-retro"></i>
+        <span id="classicResultTitle">大头贴精修成片</span>
+    </div>
+    <button type="button" class="classic-ctrl-btn" id="btnClassicCompareSnap" title="按住查看原始拍照">
+        <i class="fa fa-eye"></i>
+        <span>按住看原图</span>
+    </button>
+    <button type="button" class="classic-ctrl-btn" id="btnClassicToggleFilters" title="切换质感色调滤镜">
+        <i class="fa fa-palette"></i>
+        <span>色调滤镜</span>
+    </button>
+    <button type="button" class="classic-ctrl-btn" id="btnClassicOpenStickers" title="添加可爱贴纸与涂鸦">
+        <i class="fa fa-icons"></i>
+        <span>贴纸装扮</span>
+    </button>
+    <button type="button" class="classic-ctrl-btn classic-ctrl-retake newpic" title="重新拍摄">
+        <i class="fa fa-rotate-left"></i>
+        <span>重拍</span>
+    </button>
+    <button type="button" class="classic-ctrl-btn classic-ctrl-print printbtn" title="立即打印">
+        <i class="fa fa-print"></i>
+        <span>打印成片</span>
+    </button>
+</div>
+
+<!-- Floating Filter Quick Bar for Classic Mode -->
+<div class="classic-filter-quickbar" id="classicFilterQuickBar" style="display:none;">
+    <button type="button" class="classic-qfilter-chip active" data-filter="plain">
+        <span class="qfilter-preview qfilter-plain"></span>
+        <span class="qfilter-name">原画纯净</span>
+    </button>
+    <button type="button" class="classic-qfilter-chip" data-filter="cool">
+        <span class="qfilter-preview qfilter-cool"></span>
+        <span class="qfilter-name">韩系冷白</span>
+    </button>
+    <button type="button" class="classic-qfilter-chip" data-filter="grayscale">
+        <span class="qfilter-preview qfilter-grayscale"></span>
+        <span class="qfilter-name">黑白经典</span>
+    </button>
+    <button type="button" class="classic-qfilter-chip" data-filter="vintage">
+        <span class="qfilter-preview qfilter-vintage"></span>
+        <span class="qfilter-name">复古胶片</span>
+    </button>
+    <button type="button" class="classic-qfilter-chip" data-filter="washed">
+        <span class="qfilter-preview qfilter-washed"></span>
+        <span class="qfilter-name">奶油日系</span>
+    </button>
+    <button type="button" class="classic-qfilter-close" id="btnClassicFilterClose" title="关闭滤镜选单">
+        <i class="fa fa-times"></i>
+    </button>
+</div>
+
+<!-- Interactive Sticker Canvas Overlay on Result Page -->
+<div class="sticker-canvas-overlay" id="stickerCanvasOverlay" style="display:none;"></div>
 ';
 
 // Left Sidebar for Results Action Buttons
@@ -258,6 +316,68 @@ echo '
         <button type="button" class="beauty-btn-footer beauty-btn-done" id="btnBeautyDone">
             <i class="fa fa-check"></i>
             <span>完成保存</span>
+        </button>
+    </div>
+</div>
+
+<!-- Classic Photobooth Stickers Drawer -->
+<div class="sticker-drawer rotarygroup" id="stickerModal" style="display:none;" aria-hidden="true">
+    <div class="sticker-drawer-header">
+        <div class="sticker-drawer-title">
+            <i class="fa fa-icons"></i>
+            <span>潮流大头贴装扮</span>
+        </div>
+        <button type="button" class="sticker-drawer-close-btn rotaryfocus" id="btnStickerClose" title="关闭">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+    <div class="sticker-drawer-tabs">
+        <button type="button" class="sticker-tab-pill active" data-category="cute">
+            <i class="fa fa-face-smile"></i> 萌趣表情
+        </button>
+        <button type="button" class="sticker-tab-pill" data-category="props">
+            <i class="fa fa-hat-wizard"></i> 潮流配饰
+        </button>
+        <button type="button" class="sticker-tab-pill" data-category="text">
+            <i class="fa fa-stamp"></i> 印章文字
+        </button>
+    </div>
+    <div class="sticker-drawer-body">
+        <div class="sticker-grid" id="stickerGridCute">
+            <button type="button" class="sticker-item" data-type="emoji" data-content="❤️"><span>❤️</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="✨"><span>✨</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🐱"><span>🐱</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🌸"><span>🌸</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🍓"><span>🍓</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🐶"><span>🐶</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🎀"><span>🎀</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🍑"><span>🍑</span></button>
+        </div>
+        <div class="sticker-grid" id="stickerGridProps" style="display:none;">
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🕶️"><span>🕶️</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="👑"><span>👑</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="👒"><span>👒</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🐰"><span>🐰</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🦋"><span>🦋</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🎈"><span>🎈</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🎂"><span>🎂</span></button>
+            <button type="button" class="sticker-item" data-type="emoji" data-content="🎧"><span>🎧</span></button>
+        </div>
+        <div class="sticker-grid" id="stickerGridText" style="display:none;">
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="人生四格"><span>人生四格</span></button>
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="HAPPY DAY"><span>HAPPY DAY</span></button>
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="BESTIE"><span>BESTIE</span></button>
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="VIBES"><span>VIBES</span></button>
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="MEMORIES"><span>MEMORIES</span></button>
+            <button type="button" class="sticker-item sticker-item--stamp" data-type="stamp" data-content="SWEET"><span>SWEET</span></button>
+        </div>
+    </div>
+    <div class="sticker-drawer-footer">
+        <button type="button" class="sticker-footer-btn sticker-btn-clear" id="btnStickerClear">
+            <i class="fa fa-trash-can"></i> <span>清空贴纸</span>
+        </button>
+        <button type="button" class="sticker-footer-btn sticker-btn-done" id="btnStickerSave">
+            <i class="fa fa-check"></i> <span>完成装扮</span>
         </button>
     </div>
 </div>
