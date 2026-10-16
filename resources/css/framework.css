@@ -993,12 +993,14 @@ body,
 }
 #preview--ipcam.flip-horizontal,
 #preview--video.flip-horizontal,
+#preview--face-beauty-video.flip-horizontal,
 #previewframe--picture.flip-horizontal,
 #previewframe--collage.flip-horizontal {
   scale: -1 1;
 }
 #preview--ipcam.flip-vertical,
 #preview--video.flip-vertical,
+#preview--face-beauty-video.flip-vertical,
 #previewframe--picture.flip-vertical,
 #previewframe--collage.flip-vertical {
   scale: 1 -1;

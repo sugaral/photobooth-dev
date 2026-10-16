@@ -409,9 +409,9 @@ var photoboothPreview = function () {
     api.setElements();
     var storedFlip = localStorage.getItem('photobooth_camera_flip');
     if (storedFlip === 'true' || (storedFlip === null && config.preview && config.preview.flip === 'flip-horizontal')) {
-      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo').addClass('flip-horizontal');
+      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video').addClass('flip-horizontal');
     } else if (storedFlip === 'false' || (storedFlip === null && config.preview && config.preview.flip !== 'flip-horizontal')) {
-      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo').removeClass('flip-horizontal');
+      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video').removeClass('flip-horizontal');
     }
   };
   return api;

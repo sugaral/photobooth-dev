@@ -2781,7 +2781,7 @@ const photoBooth = (function () {
             vid.css('transform', '');
         }
 
-        // 6. Dedicated Face-Localized Beauty Video Layer (ONLY beautifies facial area, background is 100% untouched)
+        // 6. Dedicated Real-Time Face Beauty Video Layer
         const faceBeautyVid = $('#preview--face-beauty-video');
         const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
         if (faceBeautyVid.length) {
@@ -2792,14 +2792,29 @@ const photoBooth = (function () {
                     beautyEl.play().catch(function () {});
                 } catch (e) {}
             }
+
+            // CRITICAL: Strictly synchronize flip-horizontal state with main video to prevent reversed face
+            const isFlipped = vid.hasClass('flip-horizontal');
+            if (isFlipped) {
+                faceBeautyVid.addClass('flip-horizontal');
+            } else {
+                faceBeautyVid.removeClass('flip-horizontal');
+            }
+
             if (hasBeauty) {
+                const curMode = window.sessionPhotoboothMode || window.photoboothMode;
+                // In AI Swap mode: focus beauty on center alignment oval; in Classic photobooth: apply seamless full-frame beauty
+                const maskStyle = (curMode === 'ai_swap')
+                    ? 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)'
+                    : 'none';
+
                 faceBeautyVid.css({
                     'filter': beautyFilterStr,
                     '-webkit-filter': beautyFilterStr,
                     'opacity': '1',
                     'display': 'block',
-                    '-webkit-mask-image': 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)',
-                    'mask-image': 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)'
+                    '-webkit-mask-image': maskStyle,
+                    'mask-image': maskStyle
                 });
             } else {
                 faceBeautyVid.css({
@@ -2813,19 +2828,12 @@ const photoBooth = (function () {
 
         const faceLens = $('#studioFaceBeautyLens');
         if (faceLens.length) {
-            if (hasBeauty) {
-                faceLens.css({
-                    'backdrop-filter': beautyFilterStr,
-                    '-webkit-backdrop-filter': beautyFilterStr,
-                    'opacity': '1'
-                });
-            } else {
-                faceLens.css({
-                    'backdrop-filter': 'none',
-                    '-webkit-backdrop-filter': 'none',
-                    'opacity': '0'
-                });
-            }
+            faceLens.css({
+                'backdrop-filter': 'none',
+                '-webkit-backdrop-filter': 'none',
+                'opacity': '0',
+                'display': 'none'
+            });
         }
 
         // 7. Fix Face Guide Oval: MUST REMAIN COMPLETELY FIXED (no stretching, no shrinking)
