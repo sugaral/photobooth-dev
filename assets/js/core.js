@@ -2715,6 +2715,7 @@ const photoBooth = (function () {
     }
     let alignmentCanvas = null;
     let alignmentCtx = null;
+    let isAlignmentChecking = false;
 
     api.startFacePoseAlignmentLoop = function () {
         api.stopFacePoseAlignmentLoop();
@@ -2723,83 +2724,76 @@ const photoBooth = (function () {
         const guideOval = $('.ai-pose-oval');
         const guideBadge = $('.ai-pose-badge');
 
+        // Initial default state: unaligned red
+        guideOval.removeClass('is-aligned').addClass('is-unaligned');
+        guideBadge.removeClass('is-aligned').addClass('is-unaligned')
+            .html('<i class="fa fa-crosshairs"></i> AI正脸检测中...');
+
         faceAlignmentTimer = setInterval(async () => {
+            if ($('#aiPoseGuide').is(':hidden')) {
+                return;
+            }
+
             const vid = document.getElementById('preview--video');
             if (!vid || vid.paused || vid.ended || !vid.videoWidth || !vid.videoHeight) {
                 return;
             }
 
-            let isAligned = false;
-
-            // 1. Try Native Browser FaceDetector API (Chromium / WebView)
-            if (faceDetector) {
-                try {
-                    const faces = await faceDetector.detect(vid);
-                    if (faces && faces.length > 0) {
-                        const box = faces[0].boundingBox;
-                        const vidW = vid.videoWidth;
-                        const vidH = vid.videoHeight;
-                        const faceCenterX = (box.x + box.width / 2) / vidW;
-                        const faceCenterY = (box.y + box.height / 2) / vidH;
-                        const faceHeightRatio = box.height / vidH;
-
-                        // Face is well-centered horizontally and vertically with proper framing distance
-                        const isCenteredX = Math.abs(faceCenterX - 0.5) < 0.15;
-                        const isCenteredY = Math.abs(faceCenterY - 0.45) < 0.18;
-                        const isGoodDistance = faceHeightRatio >= 0.22 && faceHeightRatio <= 0.75;
-
-                        isAligned = (isCenteredX && isCenteredY && isGoodDistance);
-                    }
-                } catch (err) {
-                    faceDetector = null;
-                }
+            if (isAlignmentChecking) {
+                return;
             }
 
-            // 2. High-speed Fallback: Real-time Center Symmetry & Skin Luminescence Balance
-            if (!faceDetector) {
-                if (!alignmentCanvas) {
-                    alignmentCanvas = document.createElement('canvas');
-                    alignmentCanvas.width = 64;
-                    alignmentCanvas.height = 64;
-                    alignmentCtx = alignmentCanvas.getContext('2d', { willReadFrequently: true });
-                }
-                try {
-                    alignmentCtx.drawImage(vid, 0, 0, 64, 64);
-                    const imgData = alignmentCtx.getImageData(16, 12, 32, 40).data;
-                    let leftWeight = 0;
-                    let rightWeight = 0;
-                    let totalLuma = 0;
-                    for (let y = 0; y < 40; y++) {
-                        for (let x = 0; x < 32; x++) {
-                            const idx = (y * 32 + x) * 4;
-                            const r = imgData[idx];
-                            const g = imgData[idx + 1];
-                            const b = imgData[idx + 2];
-                            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-                            totalLuma += luma;
-                            if (x < 15) leftWeight += luma;
-                            else if (x > 16) rightWeight += luma;
+            if (!alignmentCanvas) {
+                alignmentCanvas = document.createElement('canvas');
+                alignmentCanvas.width = 240;
+                alignmentCanvas.height = 180;
+                alignmentCtx = alignmentCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            try {
+                isAlignmentChecking = true;
+                alignmentCtx.drawImage(vid, 0, 0, 240, 180);
+                const frameData = alignmentCanvas.toDataURL('image/jpeg', 0.6);
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+                const resp = await fetch('api/alignCheck.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: frameData }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (resp.ok) {
+                    const result = await resp.json();
+                    if (result.status === 'ok') {
+                        if (result.detected && result.aligned) {
+                            guideOval.removeClass('is-unaligned').addClass('is-aligned');
+                            guideBadge.removeClass('is-unaligned').addClass('is-aligned')
+                                .html('<i class="fa fa-circle-check"></i> ' + (result.message || '正脸已对正 · 可以拍照'));
+                        } else if (result.detected && !result.aligned) {
+                            guideOval.removeClass('is-aligned').addClass('is-unaligned');
+                            guideBadge.removeClass('is-aligned').addClass('is-unaligned')
+                                .html('<i class="fa fa-triangle-exclamation"></i> ' + (result.message || '请正对镜头 · 保持端正'));
+                        } else {
+                            // Nobody in frame
+                            guideOval.removeClass('is-aligned').addClass('is-unaligned');
+                            guideBadge.removeClass('is-aligned').addClass('is-unaligned')
+                                .html('<i class="fa fa-user-slash"></i> ' + (result.message || '请走入取景框中'));
                         }
                     }
-                    const symmetry = Math.abs(leftWeight - rightWeight) / (leftWeight + rightWeight + 1e-4);
-                    const hasFaceLuma = (totalLuma / (32 * 40)) > 42;
-                    isAligned = (hasFaceLuma && symmetry < 0.085);
-                } catch (e) {
-                    isAligned = true;
                 }
-            }
-
-            // Update Real-Time Red / Green UI Feedback
-            if (isAligned) {
-                guideOval.removeClass('is-unaligned').addClass('is-aligned');
-                guideBadge.removeClass('is-unaligned').addClass('is-aligned')
-                    .html('<i class="fa fa-circle-check"></i> 正脸已对正 · 可以拍照');
-            } else {
+            } catch (err) {
+                // Network error or timeout: do NOT falsely turn green!
                 guideOval.removeClass('is-aligned').addClass('is-unaligned');
                 guideBadge.removeClass('is-aligned').addClass('is-unaligned')
-                    .html('<i class="fa fa-triangle-exclamation"></i> 请正对镜头 · 保持端正');
+                    .html('<i class="fa fa-circle-notch fa-spin"></i> AI服务响应中...');
+            } finally {
+                isAlignmentChecking = false;
             }
-        }, 180);
+        }, 220);
     };
 
     api.stopFacePoseAlignmentLoop = function () {
@@ -2807,6 +2801,7 @@ const photoBooth = (function () {
             clearInterval(faceAlignmentTimer);
             faceAlignmentTimer = null;
         }
+        isAlignmentChecking = false;
     };
 
     // Beauty Presets Click

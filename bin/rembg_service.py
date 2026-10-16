@@ -5,6 +5,9 @@ os.environ["KMP_BLOCKTIME"] = "0"
 
 import json
 import threading
+import base64
+import numpy as np
+import cv2
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 try:
@@ -13,9 +16,9 @@ except ImportError:
     from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode
 
 try:
-    from beauty_core import BeautyEngine
+    from beauty_core import BeautyEngine, cv_read_image
 except ImportError:
-    from bin.beauty_core import BeautyEngine
+    from bin.beauty_core import BeautyEngine, cv_read_image
 
 try:
     from faceswap_core import FaceSwapEngine
@@ -44,9 +47,19 @@ class RembgHandler(BaseHTTPRequestHandler):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_GET(self):
         if self.path == "/health":
@@ -73,6 +86,7 @@ class RembgHandler(BaseHTTPRequestHandler):
             self._json({"error": "Not Found"}, 404)
 
     def do_POST(self):
+        global BEAUTY_ENGINE, FACESWAP_ENGINE
         if self.path in ("/device", "/threads", "/cpu"):
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -103,7 +117,6 @@ class RembgHandler(BaseHTTPRequestHandler):
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
-                global BEAUTY_ENGINE
                 with BEAUTY_LOCK:
                     if BEAUTY_ENGINE is None:
                         BEAUTY_ENGINE = BeautyEngine()
@@ -128,7 +141,6 @@ class RembgHandler(BaseHTTPRequestHandler):
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
-                global FACESWAP_ENGINE
                 with FACESWAP_LOCK:
                     if FACESWAP_ENGINE is None and FaceSwapEngine is not None:
                         with MANAGER_LOCK:
@@ -146,6 +158,114 @@ class RembgHandler(BaseHTTPRequestHandler):
                 self._json(result, 200 if result.get("success") else 500)
             except Exception as exc:
                 self._json({"success": False, "error": str(exc)}, 500)
+            return
+
+        if self.path == "/align":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+                img_data = data.get("image") or data.get("data")
+                if not img_data:
+                    self._json({"status": "error", "error": "Missing image data"}, 400)
+                    return
+
+                # Decode base64 data URL or raw path
+                if isinstance(img_data, str) and (img_data.startswith("data:") or len(img_data) > 500):
+                    if "," in img_data:
+                        img_data = img_data.split(",", 1)[1]
+                    raw_bytes = base64.b64decode(img_data)
+                    nparr = np.frombuffer(raw_bytes, np.uint8)
+                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                elif isinstance(img_data, str) and os.path.isfile(img_data):
+                    img = cv_read_image(img_data)
+                else:
+                    img = None
+
+                if img is None:
+                    self._json({"status": "error", "error": "Failed to decode image"}, 400)
+                    return
+
+                with BEAUTY_LOCK:
+                    if BEAUTY_ENGINE is None:
+                        BEAUTY_ENGINE = BeautyEngine()
+                    landmarks_list = BEAUTY_ENGINE.get_landmarks(img)
+
+                if not landmarks_list:
+                    self._json({
+                        "status": "ok",
+                        "detected": False,
+                        "aligned": False,
+                        "message": "请走入取景框中",
+                        "reason": "no_face"
+                    })
+                    return
+
+                # Pick primary face by maximum bounding box area
+                primary_pts = None
+                max_area = 0.0
+                for pts in landmarks_list:
+                    x_min, x_max = float(pts[:, 0].min()), float(pts[:, 0].max())
+                    y_min, y_max = float(pts[:, 1].min()), float(pts[:, 1].max())
+                    area = (x_max - x_min) * (y_max - y_min)
+                    if area > max_area:
+                        max_area = area
+                        primary_pts = pts
+
+                pts = primary_pts
+                x_min, x_max = float(pts[:, 0].min()), float(pts[:, 0].max())
+                y_min, y_max = float(pts[:, 1].min()), float(pts[:, 1].max())
+                face_w = x_max - x_min
+                face_h = y_max - y_min
+                center_x = (x_min + x_max) / 2.0
+                center_y = (y_min + y_max) / 2.0
+
+                nose = pts[1]
+                left_cheek = pts[234]
+                right_cheek = pts[454]
+                left_eye = pts[33]
+                right_eye = pts[263]
+
+                d_left = abs(nose[0] - left_cheek[0])
+                d_right = abs(right_cheek[0] - nose[0])
+                yaw_diff = abs(d_left - d_right) / (d_left + d_right + 1e-4)
+                tilt = abs(right_eye[1] - left_eye[1]) / (abs(right_eye[0] - left_eye[0]) + 1e-4)
+
+                is_size_ok = bool(face_w >= 0.10 and face_h >= 0.10)
+                is_centered = bool((0.25 <= center_x <= 0.75) and (0.15 <= center_y <= 0.85))
+                is_yaw_ok = bool(yaw_diff <= 0.18)
+                is_tilt_ok = bool(tilt <= 0.15)
+
+                aligned = bool(is_size_ok and is_centered and is_yaw_ok and is_tilt_ok)
+
+                if not is_size_ok:
+                    msg = "请靠近镜头一点"
+                    reason = "face_too_small"
+                elif not is_centered:
+                    msg = "请移至画面中心"
+                    reason = "off_center"
+                elif not is_yaw_ok:
+                    msg = "请正对镜头 · 避免侧脸"
+                    reason = "yaw_asymmetry"
+                elif not is_tilt_ok:
+                    msg = "请端正头部 · 避免歪头"
+                    reason = "head_tilted"
+                else:
+                    msg = "正脸已对正 · 可以拍照"
+                    reason = "ok"
+
+                self._json({
+                    "status": "ok",
+                    "detected": True,
+                    "aligned": aligned,
+                    "message": msg,
+                    "reason": reason,
+                    "yaw_diff": round(float(yaw_diff), 4),
+                    "tilt": round(float(tilt), 4),
+                    "center": [round(float(center_x), 3), round(float(center_y), 3)],
+                    "size": [round(float(face_w), 3), round(float(face_h), 3)]
+                })
+            except Exception as exc:
+                self._json({"status": "error", "error": str(exc)}, 500)
             return
 
         if self.path != "/process":
