@@ -92,6 +92,21 @@ $outputPath = $imagesDir . DIRECTORY_SEPARATOR . $outputFilename;
 $outputThumb = $thumbsDir . DIRECTORY_SEPARATOR . $outputFilename;
 
 // 4. 调用本地 Python AI 换脸微服务 (端口 8001)
+$daemonScript = realpath(__DIR__ . '/../bin/rembg_service.py');
+if ($daemonScript) {
+    $fp = @fsockopen('127.0.0.1', 8001, $errno, $errstr, 0.05);
+    if ($fp) {
+        fclose($fp);
+    } else {
+        if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
+            $psCmd = sprintf('powershell -NoProfile -NonInteractive -Command "Start-Process python -ArgumentList \'%s\' -WindowStyle Hidden"', addslashes($daemonScript));
+            @pclose(@popen('start "" /min ' . $psCmd, 'r'));
+        } else {
+            @exec('python ' . escapeshellarg($daemonScript) . ' > /dev/null 2>&1 &');
+        }
+    }
+}
+
 $serviceUrl = 'http://127.0.0.1:8001/faceswap';
 $postData = json_encode([
     'source' => $sourceInput,
@@ -179,5 +194,6 @@ echo json_encode([
     'image' => PathUtility::getPublicPath('data/images/' . $outputFilename),
     'thumb' => PathUtility::getPublicPath('data/thumbs/' . $outputFilename),
     'duration' => $resultJson['duration'] ?? 0,
+    'enhancer' => $resultJson['enhancer'] ?? null,
     'message' => $resultJson['message'] ?? 'AI 换脸融合成功！'
 ], JSON_UNESCAPED_UNICODE);

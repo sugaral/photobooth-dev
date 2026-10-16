@@ -86,6 +86,7 @@ class FaceSwapEngine:
         self.det_sess = None
         self.rec_sess = None
         self.swap_sess = None
+        self.enhancer_sess = None
         self.emap = None
         self._init_models()
 
@@ -143,8 +144,18 @@ class FaceSwapEngine:
             except Exception as e:
                 print(f"[FaceSwapEngine] Failed to load inswapper_128: {e}", flush=True)
 
+        enhancer_path = os.path.join(DEFAULT_FACE_DIR, "gfpgan_1.4.onnx")
+        if os.path.exists(enhancer_path):
+            try:
+                self.enhancer_sess = self._create_session(enhancer_path)
+            except Exception as e:
+                print(f"[FaceSwapEngine] Failed to load gfpgan_1.4: {e}", flush=True)
+
     def is_ready(self):
         return (self.det_sess is not None and self.rec_sess is not None and self.swap_sess is not None)
+
+    def has_enhancer(self):
+        return self.enhancer_sess is not None
 
     def detect_faces(self, img, conf_threshold=0.45):
         """SCRFD 10G face detection with anchor decoding and NMS."""
@@ -345,16 +356,7 @@ class FaceSwapEngine:
         else:
             swapped_face = aligned_target
 
-        # 6. 高保真羽化融合与逆仿射回贴 (Inverse Affine Transform)
-        M_inv = cv2.invertAffineTransform(M)
-        h, w = target_img.shape[:2]
-
-        # 创建柔软渐变椭圆蒙版
-        mask = np.zeros((128, 128), dtype=np.float32)
-        cv2.ellipse(mask, (64, 64), (46, 56), 0, 0, 360, 1.0, -1)
-        mask = cv2.GaussianBlur(mask, (19, 19), 0)
-
-        # 肤色光影均值自适应补偿 (Color & Lighting Match)
+        # 6. 肤色光影均值自适应补偿 (Color & Lighting Match)
         swapped_face_float = swapped_face.astype(np.float32)
         target_face_float = aligned_target.astype(np.float32)
         for c in range(3):
@@ -366,18 +368,51 @@ class FaceSwapEngine:
                 swapped_face_float[:, :, c] = np.clip(swapped_face_float[:, :, c] * (0.5 * ratio + 0.5), 0, 255)
         swapped_face = swapped_face_float.astype(np.uint8)
 
-        # 逆变换回贴至模板原图
-        warped_face = cv2.warpAffine(swapped_face, M_inv, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
-        warped_mask = cv2.warpAffine(mask, M_inv, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
-        warped_mask = np.expand_dims(warped_mask, axis=2)
+        # 7. 人脸超清重绘 (FaceFusion GFPGAN 1.4) 与逆仿射回贴 (Inverse Affine Transform)
+        h, w = target_img.shape[:2]
+        enhancer_applied = False
 
-        # 融合叠加
-        result = (target_img * (1.0 - warped_mask) + warped_face * warped_mask).astype(np.uint8)
+        if self.enhancer_sess is not None:
+            try:
+                # 512x512 高保真超分辨率与五官质感重构
+                swapped_512 = cv2.resize(swapped_face, (512, 512), interpolation=cv2.INTER_LANCZOS4)
+                blob_512 = cv2.cvtColor(swapped_512, cv2.COLOR_BGR2RGB).astype(np.float32) / 127.5 - 1.0
+                blob_512 = np.transpose(blob_512, (2, 0, 1))[None, ...]
 
-        # 细节微锐化，提升 300DPI 照片输出质感
-        kernel = np.array([[0, -0.2, 0], [-0.2, 1.8, -0.2], [0, -0.2, 0]], dtype=np.float32)
-        sharpened_face = cv2.filter2D(result, -1, kernel)
-        result = np.where(warped_mask > 0.4, sharpened_face, result)
+                input_name = self.enhancer_sess.get_inputs()[0].name
+                enh_out = self.enhancer_sess.run(None, {input_name: blob_512})[0]
+                enh_face = np.clip((enh_out[0].transpose((1, 2, 0)) + 1.0) * 127.5, 0, 255).astype(np.uint8)
+                enh_face = cv2.cvtColor(enh_face, cv2.COLOR_RGB2BGR)
+
+                # 85% 超清面部 + 15% 原始肤色融合，兼顾极致五官立体度与自然真实感
+                blend_face = cv2.addWeighted(enh_face, 0.85, swapped_512, 0.15, 0)
+
+                # 512 尺度逆仿射变换回贴
+                M_512 = M.copy()
+                M_512[0, :] *= 4.0
+                M_512[1, :] *= 4.0
+                M_inv_512 = cv2.invertAffineTransform(M_512)
+
+                mask_512 = np.zeros((512, 512), dtype=np.float32)
+                cv2.ellipse(mask_512, (256, 256), (184, 224), 0, 0, 360, 1.0, -1)
+                mask_512 = cv2.GaussianBlur(mask_512, (39, 39), 0)
+
+                warped_face = cv2.warpAffine(blend_face, M_inv_512, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
+                warped_mask = cv2.warpAffine(mask_512, M_inv_512, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
+                warped_mask = np.expand_dims(warped_mask, axis=2)
+
+                result = (target_img * (1.0 - warped_mask) + warped_face * warped_mask).astype(np.uint8)
+
+                # 质感微锐化，提升 300DPI 照片冲印质感
+                kernel = np.array([[0, -0.15, 0], [-0.15, 1.6, -0.15], [0, -0.15, 0]], dtype=np.float32)
+                sharpened = cv2.filter2D(result, -1, kernel)
+                result = np.where(warped_mask > 0.3, sharpened, result)
+                enhancer_applied = True
+            except Exception as exc:
+                print(f"[FaceSwapEngine] GFPGAN enhancer error: {exc}. Fallback to 128 blending.", flush=True)
+                result = self._blend_128(target_img, swapped_face, M, w, h)
+        else:
+            result = self._blend_128(target_img, swapped_face, M, w, h)
 
         if output_path is None:
             output_path = source_path.replace(".jpg", "_ai_swap.jpg")
@@ -389,8 +424,27 @@ class FaceSwapEngine:
             "success": True,
             "output": output_path,
             "duration": elapsed,
-            "message": f"AI 极速换脸融合成功，耗时 {elapsed}s"
+            "enhancer": "GFPGAN 1.4 (FaceFusion)" if enhancer_applied else "None",
+            "message": f"AI 变身换脸成功({'FaceFusion超清重塑' if enhancer_applied else '标准融合'})，耗时 {elapsed}s"
         }
+
+    def _blend_128(self, target_img, swapped_face, M, w, h):
+        """Fallback 128x128 blending if enhancer is unavailable."""
+        M_inv = cv2.invertAffineTransform(M)
+        mask = np.zeros((128, 128), dtype=np.float32)
+        cv2.ellipse(mask, (64, 64), (46, 56), 0, 0, 360, 1.0, -1)
+        mask = cv2.GaussianBlur(mask, (19, 19), 0)
+
+        warped_face = cv2.warpAffine(swapped_face, M_inv, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
+        warped_mask = cv2.warpAffine(mask, M_inv, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
+        warped_mask = np.expand_dims(warped_mask, axis=2)
+
+        result = (target_img * (1.0 - warped_mask) + warped_face * warped_mask).astype(np.uint8)
+
+        kernel = np.array([[0, -0.2, 0], [-0.2, 1.8, -0.2], [0, -0.2, 0]], dtype=np.float32)
+        sharpened_face = cv2.filter2D(result, -1, kernel)
+        result = np.where(warped_mask > 0.4, sharpened_face, result)
+        return result
 
 
 if __name__ == "__main__":
