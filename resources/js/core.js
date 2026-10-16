@@ -1259,13 +1259,26 @@ const photoBooth = (function () {
                 ? window.selectedAiTemplate.path 
                 : ('resources/img/templates_ai/' + (window.selectedAiTemplate ? window.selectedAiTemplate.id : 'hanfu_female_01') + '.jpg');
 
+            const bSmooth = (config.beauty && config.beauty.default_smooth !== undefined) ? config.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 30, 10);
+            const bWhite = (config.beauty && config.beauty.default_white !== undefined) ? config.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 25, 10);
+            const bRosy = (config.beauty && config.beauty.default_rosy !== undefined) ? config.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10);
+            const bClarity = (config.beauty && config.beauty.default_clarity !== undefined) ? config.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10);
+            const bEye = (config.beauty && config.beauty.default_eye !== undefined) ? config.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10);
+            const bSlim = (config.beauty && config.beauty.default_slim !== undefined) ? config.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10);
+
             photoboothTools
                 .ajaxWithCsrf({
                     method: 'POST',
                     url: environment.publicFolders.api + '/faceswapProcess.php',
                     data: {
                         file: result.file,
-                        template: tplPath
+                        template: tplPath,
+                        smooth: bSmooth,
+                        white: bWhite,
+                        rosy: bRosy,
+                        clarity: bClarity,
+                        eye: bEye,
+                        slim: bSlim
                     }
                 })
                 .done((swapData) => {
@@ -2726,26 +2739,35 @@ const photoBooth = (function () {
         const eye = parseInt($('#studioEyeSlider').val() || 15, 10);
         const slim = parseInt($('#studioSlimSlider').val() || 15, 10);
 
+        // Keep config.beauty in sync for subsequent shoots
+        config.beauty = config.beauty || {};
+        config.beauty.default_smooth = smooth;
+        config.beauty.default_white = white;
+        config.beauty.default_rosy = rosy;
+        config.beauty.default_clarity = clarity;
+        config.beauty.default_eye = eye;
+        config.beauty.default_slim = slim;
+
         // 1. Crystal Whitening & Luminance (S-Curve & Shadow Protection)
-        const brightness = (1.0 + (white / 100) * 0.28).toFixed(3);
-        const whiteContrast = (1.0 + (white / 100) * 0.05).toFixed(3);
+        const brightness = (1.0 + (white / 100) * 0.22).toFixed(3);
+        const whiteContrast = (1.0 + (white / 100) * 0.04).toFixed(3);
 
         // 2. Natural Rosy Blush (Warm peach / pink saturation boost)
-        const rosySat = (1.0 + (rosy / 100) * 0.25).toFixed(3);
-        const rosyHue = (rosy > 0) ? `hue-rotate(${-((rosy / 100) * 5.0).toFixed(1)}deg)` : '';
+        const rosySat = (1.0 + (rosy / 100) * 0.28).toFixed(3);
+        const rosyHue = (rosy > 0) ? `hue-rotate(${-((rosy / 100) * 4.5).toFixed(1)}deg)` : '';
 
         // 3. High-Definition Clarity (Micro-contrast enhancement)
-        const clarityContrast = (1.0 + (clarity / 100) * 0.18).toFixed(3);
+        const clarityContrast = (1.0 + (clarity / 100) * 0.16).toFixed(3);
 
-        // 4. Fine Skin Smoothing (Soft-focus skin diffusion, visible & delicate)
+        // 4. Fine Skin Smoothing (Soft-focus skin diffusion, delicate & prevents blur fog)
         let smoothFilter = '';
         if (smooth > 0) {
-            const blurPx = (0.4 + (smooth / 100) * 2.2).toFixed(2);
+            const blurPx = ((smooth / 100) * 0.65).toFixed(2);
             smoothFilter = `blur(${blurPx}px)`;
         }
 
         // Combined color and beauty filter
-        const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.04)).toFixed(3);
+        const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.02)).toFixed(3);
         const beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue} ${smoothFilter}`.trim();
 
         // 5. Combine with current artistic color filter
@@ -2772,8 +2794,21 @@ const photoBooth = (function () {
             } else {
                 guideOval.removeClass('ai-pose-oval--beauty-glow');
             }
-            const ovalTaper = (1.0 - (slim / 100) * 0.10).toFixed(2);
-            guideOval.css('transform', `scaleX(${ovalTaper})`);
+            const ovalTaper = (1.0 - (slim / 100) * 0.14).toFixed(2);
+            const ovalScaleY = (1.0 + (eye / 100) * 0.06).toFixed(2);
+            guideOval.css('transform', `scale(${ovalTaper}, ${ovalScaleY})`);
+        }
+
+        // 7. Live HUD Beauty Indicator Pill
+        const beautyPill = $('#studioBeautyPill');
+        const beautyPillText = $('#studioBeautyPillText');
+        if (beautyPill.length) {
+            if (smooth > 0 || white > 0 || rosy > 0 || eye > 0 || slim > 0) {
+                beautyPillText.text(`美颜实时生效中 · 磨皮${smooth}% 美白${white}% 大眼${eye}% 瘦脸${slim}%`);
+                beautyPill.stop(true, true).fadeIn(150);
+            } else {
+                beautyPill.stop(true, true).fadeOut(150);
+            }
         }
     };
 

@@ -4796,6 +4796,28 @@ body.mode--studio #aiPoseGuide {
   background: linear-gradient(135deg, #F472B6, #EC4899);
 }
 
+.studio-beauty-pill {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(8px);
+  color: #F472B6;
+  border: 1.5px solid rgba(244, 114, 182, 0.45);
+  border-radius: var(--pg-radius-full);
+  padding: 0.45rem 0.95rem;
+  font-family: var(--pg-font-heading);
+  font-weight: 700;
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  box-shadow: 0 4px 14px rgba(244, 114, 182, 0.25);
+  transition: all 0.2s ease;
+}
+
+.studio-beauty-pill i {
+  color: #F472B6;
+  font-size: 0.85rem;
+}
+
 /* Professional Camera Viewfinder Corner Brackets */
 .studio-viewfinder-overlay {
   position: absolute;
@@ -5896,9 +5918,12 @@ body.mode--studio #aiPoseGuide {
 /* 1. 趣味拍照姿势灵感卡 (Pose Inspiration Card) */
 .studio-pose-card {
   position: absolute;
-  top: 18px;
-  right: 22px;
+  bottom: 24px;
+  left: 24px;
+  top: auto;
+  right: auto;
   z-index: 45;
+  pointer-events: auto;
   background: rgba(15, 23, 42, 0.88);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);

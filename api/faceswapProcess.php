@@ -83,13 +83,58 @@ if (!$templatePath || !file_exists($templatePath)) {
     exit;
 }
 
-// 3. 准备输出路径
+// 3. 准备输出路径与美颜参数
 $pathParts = pathinfo($filename);
 $ext = isset($pathParts['extension']) ? $pathParts['extension'] : 'jpg';
 $baseName = $pathParts['filename'];
 $outputFilename = $baseName . '_swap.' . $ext;
 $outputPath = $imagesDir . DIRECTORY_SEPARATOR . $outputFilename;
 $outputThumb = $thumbsDir . DIRECTORY_SEPARATOR . $outputFilename;
+
+$smooth = isset($_POST['smooth']) && is_numeric($_POST['smooth']) ? (float)$_POST['smooth'] : 0.0;
+$white = isset($_POST['white']) && is_numeric($_POST['white']) ? (float)$_POST['white'] : 0.0;
+$rosy = isset($_POST['rosy']) && is_numeric($_POST['rosy']) ? (float)$_POST['rosy'] : 0.0;
+$clarity = isset($_POST['clarity']) && is_numeric($_POST['clarity']) ? (float)$_POST['clarity'] : 0.0;
+$eye = isset($_POST['eye']) && is_numeric($_POST['eye']) ? (float)$_POST['eye'] : 0.0;
+$slim = isset($_POST['slim']) && is_numeric($_POST['slim']) ? (float)$_POST['slim'] : 0.0;
+
+$swapSource = $sourceInput;
+if ($smooth > 0 || $white > 0 || $rosy > 0 || $clarity > 0 || $eye > 0 || $slim > 0) {
+    // 拍摄前置美颜：先对抓拍原图进行大眼、瘦脸、磨皮与冷白皮初修，确保送入换脸引擎的五官特征更美更立体
+    $beautifiedSource = $tmpDir . DIRECTORY_SEPARATOR . 'beauty_src_' . md5($filename . '_' . $eye . '_' . $slim . '_' . $smooth . '_' . $white) . '.jpg';
+    $beautyUrl = 'http://127.0.0.1:8001/beauty';
+    $beautyPayload = json_encode([
+        'input' => $sourceInput,
+        'output' => $beautifiedSource,
+        'eye' => $eye,
+        'slim' => $slim,
+        'smooth' => $smooth,
+        'white' => $white,
+        'rosy' => $rosy,
+        'clarity' => $clarity,
+        'preview' => false,
+    ]);
+    if (function_exists('curl_init')) {
+        $bch = curl_init($beautyUrl);
+        if ($bch) {
+            curl_setopt($bch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($bch, CURLOPT_POST, true);
+            curl_setopt($bch, CURLOPT_POSTFIELDS, $beautyPayload);
+            curl_setopt($bch, CURLOPT_HTTPHEADER, ['Content-Type: application/json; charset=utf-8']);
+            curl_setopt($bch, CURLOPT_TIMEOUT_MS, 8000);
+            curl_setopt($bch, CURLOPT_CONNECTTIMEOUT_MS, 1500);
+            curl_setopt($bch, CURLOPT_NOSIGNAL, 1);
+            $bresp = curl_exec($bch);
+            curl_close($bch);
+            if ($bresp) {
+                $bparsed = json_decode($bresp, true);
+                if (!empty($bparsed['success']) && file_exists($beautifiedSource) && filesize($beautifiedSource) > 0) {
+                    $swapSource = $beautifiedSource;
+                }
+            }
+        }
+    }
+}
 
 // 4. 调用本地 Python AI 换脸微服务 (端口 8001)
 $daemonScript = realpath(__DIR__ . '/../bin/rembg_service.py');
@@ -109,7 +154,7 @@ if ($daemonScript) {
 
 $serviceUrl = 'http://127.0.0.1:8001/faceswap';
 $postData = json_encode([
-    'source' => $sourceInput,
+    'source' => $swapSource,
     'target' => $templatePath,
     'output' => $outputPath,
 ], JSON_UNESCAPED_UNICODE);

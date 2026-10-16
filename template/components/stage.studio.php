@@ -228,6 +228,10 @@ $classicTemplates = [
                     <i class="fa fa-masks-theater"></i>
                     <span id="studioModePillText">AI 魔法变身照</span>
                 </div>
+                <div class="studio-beauty-pill" id="studioBeautyPill" style="display:none;">
+                    <i class="fa fa-wand-magic-sparkles"></i>
+                    <span id="studioBeautyPillText">美颜生效中</span>
+                </div>
             </div>
 
             <div class="studio-hud-actions">

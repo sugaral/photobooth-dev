@@ -75,14 +75,6 @@ echo '
         <i class="fa fa-wand-magic-sparkles"></i>
         <span id="aiResultTemplateName">AI 魔法变身照已生成</span>
     </div>
-    <button type="button" class="ai-compare-btn rotaryfocus" id="btnAiCompareSnap" title="按住或点击查看拍摄原图">
-        <i class="fa fa-eye"></i>
-        <span>查看原拍对比</span>
-    </button>
-    <button type="button" class="ai-switch-tpl-btn rotaryfocus" id="btnAiChangeTemplate" title="更换变身模板">
-        <i class="fa fa-palette"></i>
-        <span>更换模板</span>
-    </button>
 </div>
 
 <!-- Classic Photobooth Post-Shot Commercial Control Bar -->
