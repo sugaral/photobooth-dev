@@ -48,10 +48,76 @@ var photoboothPreview = function () {
     }
     video.show();
   };
+
+  api.getPreferredCamera = function () {
+    var id = localStorage.getItem('photobooth_preferred_camera_id') ||
+             localStorage.getItem('photobooth_preferred_camera') ||
+             (typeof photoboothServerCamera !== 'undefined' && photoboothServerCamera.id) || '';
+    var label = localStorage.getItem('photobooth_preferred_camera_label') ||
+                (typeof photoboothServerCamera !== 'undefined' && photoboothServerCamera.label) || '';
+    return { id: id, label: label };
+  };
+
+  api.setPreferredCamera = function (deviceId, label) {
+    if (deviceId) {
+      localStorage.setItem('photobooth_preferred_camera_id', deviceId);
+      localStorage.setItem('photobooth_preferred_camera', deviceId);
+      if (label) {
+        localStorage.setItem('photobooth_preferred_camera_label', label);
+      }
+      try {
+        $.ajax({
+          url: 'api/cameraConfig.php',
+          type: 'POST',
+          contentType: 'application/json; charset=utf-8',
+          data: JSON.stringify({ id: deviceId, label: label || '' })
+        });
+      } catch (e) {}
+    } else {
+      localStorage.removeItem('photobooth_preferred_camera_id');
+      localStorage.removeItem('photobooth_preferred_camera');
+      localStorage.removeItem('photobooth_preferred_camera_label');
+    }
+  };
+
+  api.resolveTargetDeviceId = function () {
+    var pref = api.getPreferredCamera();
+    if (!pref.id && !pref.label) {
+      return Promise.resolve('');
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return Promise.resolve(pref.id);
+    }
+    return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var videoDevices = devices.filter(function (d) { return d.kind === 'videoinput'; });
+      // 1. Exact ID match
+      if (pref.id) {
+        var matchById = videoDevices.find(function (d) { return d.deviceId === pref.id; });
+        if (matchById) {
+          return matchById.deviceId;
+        }
+      }
+      // 2. Fuzzy Label match (if session salted deviceId changed)
+      if (pref.label) {
+        var cleanTarget = pref.label.toLowerCase().trim();
+        var matchByLabel = videoDevices.find(function (d) {
+          var cleanD = (d.label || '').toLowerCase().trim();
+          return cleanD && (cleanD === cleanTarget || cleanD.indexOf(cleanTarget) !== -1 || cleanTarget.indexOf(cleanD) !== -1);
+        });
+        if (matchByLabel) {
+          localStorage.setItem('photobooth_preferred_camera_id', matchByLabel.deviceId);
+          localStorage.setItem('photobooth_preferred_camera', matchByLabel.deviceId);
+          return matchByLabel.deviceId;
+        }
+      }
+      return pref.id || '';
+    })['catch'](function () {
+      return pref.id || '';
+    });
+  };
+
   api.initializeMedia = function () {
-    var cb = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : function () {
-      return;
-    };
+    var cb = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : function () {};
     var retry = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
     photoboothTools.console.logDev('Preview: Trying to initialize media...');
     if (!navigator.mediaDevices || config.preview.mode === PreviewMode.NONE.valueOf() || config.preview.mode === PreviewMode.URL.valueOf()) {
@@ -63,66 +129,72 @@ var photoboothPreview = function () {
       photoboothTools.console.logDev('Preview: Could not get media!');
       return;
     }
-    var videoWidthDefault = config.preview.videoWidth;
-    var videoHeightDefault = config.preview.videoHeight;
-    var videoWidth = videoWidthDefault;
-    var videoHeight = videoHeightDefault;
-    var preferredCameraId = localStorage.getItem('photobooth_preferred_camera') || '';
 
-    var videoConstraints = {
-      width: {
-        ideal: videoWidth || 1280
-      },
-      height: {
-        ideal: videoHeight || 720
-      }
-    };
+    var videoWidthDefault = config.preview.videoWidth || 1280;
+    var videoHeightDefault = config.preview.videoHeight || 720;
 
-    if (preferredCameraId) {
-      videoConstraints.deviceId = { exact: preferredCameraId };
-    } else if (config.preview.camera_mode) {
-      videoConstraints.facingMode = config.preview.camera_mode;
-    }
+    api.resolveTargetDeviceId().then(function (targetDeviceId) {
+      var attachStream = function attachStream(stream) {
+        photoboothTools.console.logDev('Preview: getMedia done!');
+        api.stream = stream;
+        if (video && video.length) {
+          video.get(0).srcObject = stream;
+        }
+        var miniVideo = document.getElementById('settingCameraMiniVideo');
+        if (miniVideo) {
+          miniVideo.srcObject = stream;
+          $(miniVideo).show();
+          $('.settings-camera-preview-placeholder').hide();
+        }
+        cb(true);
+      };
 
-    var webcamConstraints = {
-      audio: false,
-      video: videoConstraints
-    };
-    var attachStream = function attachStream(stream) {
-      photoboothTools.console.logDev('Preview: getMedia done!');
-      api.stream = stream;
-      if (video && video.length) {
-        video.get(0).srcObject = stream;
-      }
-      var miniVideo = document.getElementById('settingCameraMiniVideo');
-      if (miniVideo) {
-        miniVideo.srcObject = stream;
-        $(miniVideo).show();
-        $('.settings-camera-preview-placeholder').hide();
-      }
-      cb();
-    };
-    getMedia.call(navigator.mediaDevices, webcamConstraints).then(attachStream)["catch"](function (error) {
-      photoboothTools.console.log('ERROR: Preview: Could not get user media with constraints, trying fallback: ', error);
-      if (preferredCameraId) {
-        localStorage.removeItem('photobooth_preferred_camera');
-      }
-      // Fallback to basic unconstrained video
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        }).then(attachStream)["catch"](function (fallbackError) {
-          photoboothTools.console.log('ERROR: Preview: Fallback also failed: ', fallbackError);
-          if (retry < retryGetMedia) {
-            photoboothTools.console.logDev('Preview: Retrying. Retry ' + retry + ' / ' + retryGetMedia);
-            retry += 1;
-            setTimeout(function () {
-              api.initializeMedia(cb, retry);
-            }, 1000);
-          }
+      // Progressive Constraint Negotiation Ladder
+      var tryLevel1 = function () {
+        var videoConstraints = {
+          width: { ideal: videoWidthDefault },
+          height: { ideal: videoHeightDefault }
+        };
+        if (targetDeviceId) {
+          videoConstraints.deviceId = { ideal: targetDeviceId };
+        } else if (config.preview.camera_mode) {
+          videoConstraints.facingMode = config.preview.camera_mode;
+        }
+        return getMedia.call(navigator.mediaDevices, { audio: false, video: videoConstraints });
+      };
+
+      var tryLevel2 = function () {
+        var videoConstraints = targetDeviceId ? { deviceId: { ideal: targetDeviceId } } : true;
+        return getMedia.call(navigator.mediaDevices, { audio: false, video: videoConstraints });
+      };
+
+      var tryLevel3 = function () {
+        return getMedia.call(navigator.mediaDevices, { audio: false, video: true });
+      };
+
+      tryLevel1()
+        .then(attachStream)
+        ['catch'](function (err1) {
+          photoboothTools.console.log('Preview: Level 1 constraint failed, trying Level 2: ', err1);
+          return tryLevel2()
+            .then(attachStream)
+            ['catch'](function (err2) {
+              photoboothTools.console.log('Preview: Level 2 constraint failed, trying fallback: ', err2);
+              return tryLevel3()
+                .then(attachStream)
+                ['catch'](function (err3) {
+                  photoboothTools.console.log('ERROR: Preview: All getUserMedia attempts failed: ', err3);
+                  if (retry < retryGetMedia) {
+                    retry += 1;
+                    setTimeout(function () {
+                      api.initializeMedia(cb, retry);
+                    }, 800);
+                  } else {
+                    cb(false);
+                  }
+                });
+            });
         });
-      }
     });
   };
   api.getAndDisplayMedia = function (mode) {
@@ -243,16 +315,8 @@ var photoboothPreview = function () {
       if (cb) cb([]);
       return Promise.resolve([]);
     }
-    var probePromise = Promise.resolve();
-    if (!api.stream) {
-      probePromise = navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(function (probeStream) {
-          probeStream.getTracks().forEach(function (t) { t.stop(); });
-        })
-        ["catch"](function () {});
-    }
 
-    return probePromise.then(function () {
+    var doEnumerate = function () {
       return navigator.mediaDevices.enumerateDevices().then(function (devices) {
         var videoDevices = [];
         var count = 1;
@@ -267,32 +331,56 @@ var photoboothPreview = function () {
         if (cb) cb(videoDevices);
         return videoDevices;
       });
-    })["catch"](function (err) {
+    };
+
+    if (api.stream && api.stream.active) {
+      return doEnumerate();
+    }
+
+    return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var hasLabels = devices.some(function (d) { return d.kind === 'videoinput' && d.label; });
+      if (hasLabels) {
+        return doEnumerate();
+      }
+      var targetId = api.getPreferredCamera().id;
+      var probeConstraint = targetId ? { deviceId: { ideal: targetId } } : true;
+      return navigator.mediaDevices.getUserMedia({ video: probeConstraint, audio: false })
+        .then(function (probeStream) {
+          probeStream.getTracks().forEach(function (t) { t.stop(); });
+          return new Promise(function (resolve) { setTimeout(resolve, 200); });
+        })
+        ['catch'](function () {})
+        .then(doEnumerate);
+    })['catch'](function (err) {
       photoboothTools.console.log('Error enumerating cameras: ', err);
       if (cb) cb([]);
       return [];
     });
   };
 
-  api.switchCamera = function (deviceId, cb) {
-    photoboothTools.console.log('Preview: Switching camera to deviceId: ' + deviceId);
-    if (deviceId) {
-      localStorage.setItem('photobooth_preferred_camera', deviceId);
-    } else {
-      localStorage.removeItem('photobooth_preferred_camera');
+  api.switchCamera = function (deviceId, label, cb) {
+    if (typeof label === 'function') {
+      cb = label;
+      label = '';
     }
+    photoboothTools.console.log('Preview: Switching camera to: ' + deviceId + ' (' + label + ')');
+
+    api.setPreferredCamera(deviceId, label);
 
     if (api.stream) {
       var tracks = api.stream.getTracks();
       tracks.forEach(function (track) {
-        track.stop();
+        try { track.stop(); } catch (e) {}
       });
       api.stream = null;
     }
 
-    api.initializeMedia(function () {
-      if (cb) cb(true);
-    });
+    // Cooldown 250ms for Windows DirectShow/MF driver handle release
+    setTimeout(function () {
+      api.initializeMedia(function (success) {
+        if (cb) cb(success !== false);
+      });
+    }, 250);
   };
 
   api.setFlip = function (isFlipped) {

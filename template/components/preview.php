@@ -53,10 +53,10 @@ echo '
     <div class="ai-pose-target">
         <div class="ai-pose-oval">
             <div class="ai-pose-scanline"></div>
-        </div>
-        <div class="ai-pose-eyes-line">
-            <span class="ai-pose-cross left"></span>
-            <span class="ai-pose-cross right"></span>
+            <div class="ai-pose-eyes-line">
+                <span class="ai-pose-cross left"></span>
+                <span class="ai-pose-cross right"></span>
+            </div>
         </div>
         <div class="ai-pose-badge">
             <i class="fa fa-crosshairs"></i> 请将正脸对准虚线框内 · 保持端正

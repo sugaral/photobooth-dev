@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Photobooth\Environment;
 
@@ -65,6 +65,16 @@ if (empty($config['screensaver']['text_position'])) {
     $config['screensaver']['text_position'] = 'center';
 }
 
+$cameraConfigFile = __DIR__ . '/../data/config/camera.json';
+$serverCamera = ['id' => '', 'label' => ''];
+if (file_exists($cameraConfigFile)) {
+    $camData = json_decode(@file_get_contents($cameraConfigFile), true);
+    if (is_array($camData)) {
+        $serverCamera = array_merge($serverCamera, $camData);
+    }
+}
+
 echo 'const config = ' . json_encode($config) . ';';
 echo 'const environment = ' . json_encode(new Environment()) . ';';
 echo 'const csrf = { key: "csrf", token: "' . $_SESSION['csrf'] . '" };';
+echo 'const photoboothServerCamera = ' . json_encode($serverCamera) . ';';

@@ -114,3 +114,16 @@
   - [x] 在 `api/faceswapProcess.php` 增加常驻 GPU 微服务静默自启检测与 `enhancer` 状态透传
   - [x] 全量同步至测试与运行目录 `c:\Users\WS\Desktop\photobooth美颜版`
 
+---
+
+## 阶段八：设置面板镜像按钮移除 & 摄像头智能切换与持久化重构 (✅ 已完成)
+
+- [x] **8.1 移除设置面板冗余的镜像翻转卡片**：
+  - [x] 在 `template/components/stage.start.php` 中彻底删除 `#quickSettingsModal` 内的“2. 镜像翻转开关”卡片
+  - [x] 在 `resources/js/core.js` 与 `assets/js/core.js` 中同步剔除 `#settingCameraFlip` DOM 获取与事件监听
+- [x] **8.2 摄像头切换失效与默认设置修复**：
+  - [x] **自毁清除根因消除**：彻底废除 `localStorage.removeItem('photobooth_preferred_camera')`，改用多级渐进协商（Level 1 理想分辨率 -> Level 2 宽松约束 -> Level 3 软回退），彻底杜绝协商降级时强行清除用户选择导致的 Iriun Webcam 强占
+  - [x] **Windows 驱动释放防抖 (Hardware Cooldown)**：在 `switchCamera` 中停止旧流轨后增加 250ms 冷却时间，避免 Windows DirectShow / Media Foundation 句柄占用冲突抛出 `TrackStartError`
+  - [x] **跨环境持久化与 Label 模糊回溯**：新建 `api/cameraConfig.php` 服务端存储接口与 `api/settings.php` 注入机制，支持持久化 `{ id, label }`。通过 `resolveTargetDeviceId` 智能比对设备 Label（如 "Integrated Camera"），突破 Chrome/Edge Kiosk 独立数据沙箱 (`--user-data-dir`) 下 deviceId 动态加盐哈希不一致的壁垒
+- [x] **8.3 双端同步与生产交付**：
+  - [x] 核心代码、前端编译脚本与配置接口 100% 同步至 `c:\Users\WS\Desktop\photobooth-dev` 与 `c:\Users\WS\Desktop\photobooth美颜版`

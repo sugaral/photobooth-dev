@@ -216,29 +216,8 @@ const photoBooth = (function () {
         const selectCamera = $('#settingCameraSelect');
         const btnRefresh = $('#btnRefreshCameras');
         const hintText = $('#settingCameraHint');
-        const flipSwitch = $('#settingCameraFlip');
         const miniVideo = document.getElementById('settingCameraMiniVideo');
         const placeholder = $('.settings-camera-preview-placeholder');
-
-        // 1. 初始化镜像开关状态 (优先读取本地偏好，若未设置则跟随配置)
-        const storedFlip = localStorage.getItem('photobooth_camera_flip');
-        if (storedFlip === 'false' || (storedFlip === null && config.preview && config.preview.flip !== 'flip-horizontal')) {
-            flipSwitch.prop('checked', false);
-            if (miniVideo) $(miniVideo).removeClass('flip-horizontal');
-        } else {
-            flipSwitch.prop('checked', true);
-            if (miniVideo) $(miniVideo).addClass('flip-horizontal');
-        }
-
-        flipSwitch.on('change', function () {
-            const isFlipped = $(this).is(':checked');
-            if (window.photoboothPreview && typeof window.photoboothPreview.setFlip === 'function') {
-                window.photoboothPreview.setFlip(isFlipped);
-            }
-            if (miniVideo) {
-                $(miniVideo).toggleClass('flip-horizontal', isFlipped);
-            }
-        });
 
         // 同步活动视频流到设置面板的迷你取景框
         function syncMiniVideo() {
@@ -253,7 +232,7 @@ const photoBooth = (function () {
             }
         }
 
-        // 2. 加载与刷新摄像头设备列表
+        // 1. 加载与刷新摄像头设备列表
         function refreshCameraList() {
             selectCamera.prop('disabled', true);
             selectCamera.empty().append($('<option>').val('').text('正在检测可用摄像头...'));
@@ -274,21 +253,30 @@ const photoBooth = (function () {
                     return;
                 }
 
-                const preferredId = localStorage.getItem('photobooth_preferred_camera');
+                const pref = (window.photoboothPreview.getPreferredCamera && window.photoboothPreview.getPreferredCamera()) || {
+                    id: localStorage.getItem('photobooth_preferred_camera_id') || localStorage.getItem('photobooth_preferred_camera') || '',
+                    label: localStorage.getItem('photobooth_preferred_camera_label') || ''
+                };
+
                 selectCamera.empty();
-                let matched = false;
+                let matchedIndex = -1;
 
                 cameras.forEach(function (cam, index) {
                     const label = cam.label || ('摄像头 ' + (index + 1));
-                    const opt = $('<option>').val(cam.deviceId).text(label);
-                    if (preferredId && cam.deviceId === preferredId) {
-                        opt.prop('selected', true);
-                        matched = true;
+                    const opt = $('<option>').val(cam.deviceId).text(label).data('label', label);
+
+                    // 优先按 ID 精确匹配，若 ID 不符则按设备名称模糊匹配
+                    if (pref.id && cam.deviceId === pref.id) {
+                        matchedIndex = index;
+                    } else if (matchedIndex === -1 && pref.label && label.toLowerCase().indexOf(pref.label.toLowerCase()) !== -1) {
+                        matchedIndex = index;
                     }
                     selectCamera.append(opt);
                 });
 
-                if (!matched && cameras.length > 0) {
+                if (matchedIndex >= 0) {
+                    selectCamera.val(cameras[matchedIndex].deviceId);
+                } else if (cameras.length > 0) {
                     selectCamera.val(cameras[0].deviceId);
                 }
 
@@ -297,22 +285,23 @@ const photoBooth = (function () {
             });
         }
 
-        // 3. 切换摄像头
+        // 2. 切换摄像头
         selectCamera.on('change', function () {
             const selectedId = $(this).val();
+            const selectedLabel = $(this).find('option:selected').data('label') || $(this).find('option:selected').text();
             if (!selectedId) return;
 
-            hintText.html('<i class="fa fa-spinner fa-spin"></i> 正在切换摄像头画面...');
+            hintText.html('<i class="fa fa-spinner fa-spin"></i> 正在切换至 [' + selectedLabel + ']...');
             selectCamera.prop('disabled', true);
 
             if (window.photoboothPreview && typeof window.photoboothPreview.switchCamera === 'function') {
-                window.photoboothPreview.switchCamera(selectedId, function (success) {
+                window.photoboothPreview.switchCamera(selectedId, selectedLabel, function (success) {
                     selectCamera.prop('disabled', false);
                     if (success) {
                         syncMiniVideo();
-                        hintText.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 摄像头切换成功，画面已更新');
+                        hintText.html('<i class="fa fa-circle-check" style="color: #10b981;"></i> 已切换为 [' + selectedLabel + ']');
                     } else {
-                        hintText.html('<i class="fa fa-circle-exclamation" style="color: #ef4444;"></i> 摄像头切换失败，请重试');
+                        hintText.html('<i class="fa fa-circle-exclamation" style="color: #ef4444;"></i> 切换受限，已锁定配置并重试连接');
                     }
                 });
             }

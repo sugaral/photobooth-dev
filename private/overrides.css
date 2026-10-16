@@ -3747,12 +3747,14 @@ button, .button, a {
 .ai-pose-eyes-line {
   position: absolute;
   top: 42%;
-  left: 15%;
-  right: 15%;
-  height: 2px;
+  left: 18%;
+  right: 18%;
+  height: 24px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   pointer-events: none;
+  z-index: 5;
 }
 
 .ai-pose-cross {

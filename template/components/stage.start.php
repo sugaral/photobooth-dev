@@ -269,20 +269,6 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
                     </div>
                 </div>
 
-                <!-- 2. 镜像翻转开关 -->
-                <div class="settings-card">
-                    <div class="settings-card-header">
-                        <div class="settings-card-icon"><i class="fa fa-arrows-left-right"></i></div>
-                        <div class="settings-card-info">
-                            <span class="settings-card-label">画面镜像翻转 (Mirror)</span>
-                            <span class="settings-card-desc">如照镜子般的自拍方向感体验</span>
-                        </div>
-                        <label class="settings-switch">
-                            <input type="checkbox" id="settingCameraFlip" checked>
-                            <span class="settings-slider"></span>
-                        </label>
-                    </div>
-                </div>
 
                 <!-- 3. AI 抠图计算设备 (GPU / CPU) 设置 -->
                 <?php
