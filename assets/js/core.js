@@ -2770,41 +2770,53 @@ const photoBooth = (function () {
         const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.02)).toFixed(3);
         const beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue} ${smoothFilter}`.trim();
 
-        // 5. Combine with current artistic color filter
+        // 5. Background Video maintains base artistic filter (do NOT wash out background scenery)
         const activeFilter = imgFilter || 'plain';
         const filterVal = (typeof activeFilter === 'object' && activeFilter !== null && activeFilter.value) ? activeFilter.value : activeFilter;
         const baseColorFilter = (filterCssMap && filterCssMap[filterVal] && filterCssMap[filterVal] !== 'none') ? filterCssMap[filterVal] : '';
 
-        const fullFilter = (baseColorFilter + ' ' + beautyFilterStr).trim();
-
         const vid = $('#preview--video');
         if (vid.length) {
-            vid.css('filter', fullFilter);
-            // CRITICAL FIX: Do NOT set transform on video element.
-            // Horizontal mirror is handled by CSS .flip-horizontal (scale: -1 1).
-            // Setting transform: scale(-1) causes double-negative inversion bug.
+            vid.css('filter', baseColorFilter);
             vid.css('transform', '');
         }
 
-        // 6. Dynamic Pose Guide Oval Feedback for Eye & Slim
+        // 6. Dedicated Face-Localized Beauty Lens (ONLY beautifies facial area, background is 100% untouched)
+        const faceLens = $('#studioFaceBeautyLens');
+        if (faceLens.length) {
+            const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
+            if (hasBeauty) {
+                faceLens.css({
+                    'backdrop-filter': beautyFilterStr,
+                    '-webkit-backdrop-filter': beautyFilterStr,
+                    'opacity': '1'
+                });
+            } else {
+                faceLens.css({
+                    'backdrop-filter': 'none',
+                    '-webkit-backdrop-filter': 'none',
+                    'opacity': '0'
+                });
+            }
+        }
+
+        // 7. Fix Face Guide Oval: MUST REMAIN COMPLETELY FIXED (no stretching, no shrinking)
         const guideOval = $('.ai-pose-oval');
         if (guideOval.length) {
+            guideOval.css('transform', '');
             if (eye > 15 || slim > 15) {
                 guideOval.addClass('ai-pose-oval--beauty-glow');
             } else {
                 guideOval.removeClass('ai-pose-oval--beauty-glow');
             }
-            const ovalTaper = (1.0 - (slim / 100) * 0.14).toFixed(2);
-            const ovalScaleY = (1.0 + (eye / 100) * 0.06).toFixed(2);
-            guideOval.css('transform', `scale(${ovalTaper}, ${ovalScaleY})`);
         }
 
-        // 7. Live HUD Beauty Indicator Pill
+        // 8. Live HUD Beauty Indicator Pill
         const beautyPill = $('#studioBeautyPill');
         const beautyPillText = $('#studioBeautyPillText');
         if (beautyPill.length) {
             if (smooth > 0 || white > 0 || rosy > 0 || eye > 0 || slim > 0) {
-                beautyPillText.text(`美颜实时生效中 · 磨皮${smooth}% 美白${white}% 大眼${eye}% 瘦脸${slim}%`);
+                beautyPillText.text(`面部美颜生效中 · 磨皮${smooth}% 美白${white}% 大眼${eye}% 瘦脸${slim}%`);
                 beautyPill.stop(true, true).fadeIn(150);
             } else {
                 beautyPill.stop(true, true).fadeOut(150);

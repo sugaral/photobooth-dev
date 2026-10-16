@@ -249,6 +249,8 @@ $classicTemplates = [
             <div class="studio-corner studio-corner--bl"></div>
             <div class="studio-corner studio-corner--br"></div>
             <div class="studio-center-cross"></div>
+            <!-- 专属面部局部实时美颜透镜 (仅作用于面部，绝不改变周围背景环境与取景) -->
+            <div class="studio-face-beauty-lens" id="studioFaceBeautyLens"></div>
         </div>
 
         <!-- 倒计时覆盖层 (在取景框中直接倒计时) -->
