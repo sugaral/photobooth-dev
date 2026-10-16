@@ -3,6 +3,7 @@
  * Photobooth AI Face Pose Alignment Proxy
  * Forwards camera preview frames to the local resident AI microservice (Port 8001).
  * Avoids browser cross-port CORS complications and supports multi-device / tablet kiosk setups.
+ * Includes automated background watchdog self-healing if port 8001 is not running.
  */
 declare(strict_types=1);
 
@@ -37,11 +38,30 @@ curl_close($ch);
 if ($response !== false && $httpCode >= 200 && $httpCode < 300) {
     echo $response;
 } else {
+    // Attempt auto-awaken resident AI microservice if port 8001 is offline
+    $daemonScript = realpath(__DIR__ . '/../bin/rembg_service.py');
+    if ($daemonScript) {
+        $fp = @fsockopen('127.0.0.1', 8001, $errno, $errstr, 0.05);
+        if ($fp) {
+            fclose($fp);
+        } else {
+            if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
+                $psCmd = sprintf(
+                    'powershell -NoProfile -NonInteractive -Command "Start-Process python -ArgumentList \'-X utf8 \\"%s\\"\' -WindowStyle Hidden"',
+                    addslashes($daemonScript)
+                );
+                @pclose(@popen('start "" /min ' . $psCmd, 'r'));
+            } else {
+                @exec('python -X utf8 ' . escapeshellarg($daemonScript) . ' > /dev/null 2>&1 &');
+            }
+        }
+    }
+
     echo json_encode([
         'status' => 'ok',
         'detected' => false,
         'aligned' => false,
-        'message' => 'AI服务响应中...',
+        'message' => 'AI服务唤醒中...',
         'reason' => 'service_unreachable'
     ], JSON_UNESCAPED_UNICODE);
 }

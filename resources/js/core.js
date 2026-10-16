@@ -847,7 +847,10 @@ const photoBooth = (function () {
                 api.shellCommand('pre-command');
             }
 
-            if (chromaFile) {
+            if (window.photoboothMode === 'classic' || window.photoboothMode === 'ai_swap' || window.sessionPhotoboothMode === 'classic' || window.sessionPhotoboothMode === 'ai_swap') {
+                chromaFile = null;
+                photoStyle = PhotoStyle.PHOTO;
+            } else if (chromaFile) {
                 photoStyle = PhotoStyle.CHROMA;
             }
             api.photoStyle = photoStyle;
@@ -1391,7 +1394,7 @@ const photoBooth = (function () {
 
                         if (data.error) {
                             api.errorPic(data);
-                        } else if (api.photoStyle === PhotoStyle.CHROMA) {
+                        } else if (api.photoStyle === PhotoStyle.CHROMA && window.photoboothMode !== 'classic' && window.photoboothMode !== 'ai_swap' && window.sessionPhotoboothMode !== 'classic' && window.sessionPhotoboothMode !== 'ai_swap') {
                             api.renderChroma(data.file);
                         } else {
                             api.renderPic(data.file, data.images);
