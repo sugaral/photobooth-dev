@@ -93,11 +93,8 @@ $startpageTextPosition = StartpageTextPosition::resolve(
                             </div>
                         </div>
                         <div class="mode-card__footer">
-                            <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnClassicBurst" title="连拍 6 张照片并在选片台自由组合四格">
-                                <i class="fa fa-film"></i> 连拍四格 (6选4)
-                            </button>
-                            <button type="button" class="mode-action-btn mode-action-btn--secondary takePic" id="btnClassicStart" data-command="takePic" title="单张快速美颜拍摄">
-                                <i class="fa fa-camera"></i> 单张自拍
+                            <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnClassicStart" title="点击开始经典美颜大头贴">
+                                <i class="fa fa-camera"></i> 点击
                             </button>
                             <?php if ($config['rembg']['enabled'] ?? true): ?>
                             <button type="button" class="mode-action-btn mode-action-btn--secondary uploadBtn" id="btnClassicUpload" title="上传相册已有照片">

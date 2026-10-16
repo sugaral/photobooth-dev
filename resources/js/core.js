@@ -2667,7 +2667,7 @@ const photoBooth = (function () {
 
     // Mode Card Classic Click -> Enter Studio (Classic Mode)
     $(document).on('click', '#cardModeClassic', function (e) {
-        if ($(e.target).closest('#btnClassicBurst').length > 0) {
+        if ($(e.target).closest('#btnClassicUpload, .uploadBtn').length > 0) {
             return;
         }
         e.preventDefault();
@@ -2677,15 +2677,9 @@ const photoBooth = (function () {
 
     $(document).on('click', '#btnClassicStart', function (e) {
         e.preventDefault();
+        e.stopPropagation();
         window.studioClassicLayout = 'single';
         api.enterStudio('classic');
-    });
-
-    $(document).on('click', '#btnClassicBurst', function (e) {
-        e.preventDefault();
-        window.studioClassicLayout = 'burst';
-        api.enterStudio('classic');
-        $('#btnStudioModeBurst').trigger('click');
     });
 
     // Mode Card AI Click -> Enter Studio (AI Mode)
@@ -3261,7 +3255,7 @@ const photoBooth = (function () {
                 window.burstLayout = '2x2';
                 window.burstTheme = window.studioClassicFrameTheme || 'white';
             }
-            $('#btnClassicBurst').trigger('click');
+            api.startBurstFlow();
             return;
         }
 
@@ -3785,9 +3779,7 @@ const photoBooth = (function () {
         $('#burstWorkbenchModal').fadeIn(200);
     };
 
-    // Trigger Burst Shoot from Card A
-    $(document).on('click', '#btnClassicBurst', function (e) {
-        e.preventDefault();
+    api.startBurstFlow = function () {
         api.setPhotoboothMode('classic');
         window.burstModeActive = true;
         window.burstPhotos = [];
@@ -3796,6 +3788,12 @@ const photoBooth = (function () {
         window.burstSelectedIndices = [0, 1, 2, 3];
         $('#burstWorkbenchModal').hide();
         api.startBurstShot(0);
+    };
+
+    // Trigger Burst Shoot
+    $(document).on('click', '#btnClassicBurst', function (e) {
+        e.preventDefault();
+        api.startBurstFlow();
     });
 
     // Select / Deselect Card in Burst Workbench
@@ -3860,7 +3858,7 @@ const photoBooth = (function () {
         e.preventDefault();
         if (confirm('确定作废整组照片并重新连拍 6 张吗？')) {
             $('#burstWorkbenchModal').fadeOut(150, function () {
-                $('#btnClassicBurst').trigger('click');
+                api.startBurstFlow();
             });
         }
     });
