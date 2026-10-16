@@ -119,6 +119,8 @@ var photoboothPreview = function () {
   api.initializeMedia = function () {
     var cb = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : function () {};
     var retry = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+    var explicitTargetId = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : null;
+
     photoboothTools.console.logDev('Preview: Trying to initialize media...');
     if (!navigator.mediaDevices || config.preview.mode === PreviewMode.NONE.valueOf() || config.preview.mode === PreviewMode.URL.valueOf()) {
       photoboothTools.console.logDev('Preview: No preview from device cam or no webcam available!');
@@ -133,12 +135,23 @@ var photoboothPreview = function () {
     var videoWidthDefault = config.preview.videoWidth || 1280;
     var videoHeightDefault = config.preview.videoHeight || 720;
 
-    api.resolveTargetDeviceId().then(function (targetDeviceId) {
+    var targetPromise = explicitTargetId ? Promise.resolve(explicitTargetId) : api.resolveTargetDeviceId();
+
+    targetPromise.then(function (targetDeviceId) {
+      photoboothTools.console.log('Preview: Initializing media with targetDeviceId: [' + targetDeviceId + ']');
+
       var attachStream = function attachStream(stream) {
-        photoboothTools.console.logDev('Preview: getMedia done!');
         api.stream = stream;
+        try {
+          var activeTrack = stream.getVideoTracks()[0];
+          var settings = activeTrack.getSettings ? activeTrack.getSettings() : {};
+          photoboothTools.console.log('Preview: Stream active! Camera: ' + activeTrack.label + ' (DeviceId: ' + settings.deviceId + ')');
+        } catch (e) {}
+
         if (video && video.length) {
-          video.get(0).srcObject = stream;
+          var vEl = video.get(0);
+          vEl.srcObject = stream;
+          vEl.play().catch(function () {});
         }
         var beautyVideo = document.getElementById('preview--face-beauty-video');
         if (beautyVideo) {
@@ -148,20 +161,21 @@ var photoboothPreview = function () {
         var miniVideo = document.getElementById('settingCameraMiniVideo');
         if (miniVideo) {
           miniVideo.srcObject = stream;
+          miniVideo.play().catch(function () {});
           $(miniVideo).show();
           $('.settings-camera-preview-placeholder').hide();
         }
         cb(true);
       };
 
-      // Progressive Constraint Negotiation Ladder
+      // Progressive Constraint Negotiation Ladder (强制锁定目标摄像头，绝不静默回退至默认设备)
       var tryLevel1 = function () {
         var videoConstraints = {
           width: { ideal: videoWidthDefault },
           height: { ideal: videoHeightDefault }
         };
         if (targetDeviceId) {
-          videoConstraints.deviceId = { ideal: targetDeviceId };
+          videoConstraints.deviceId = { exact: targetDeviceId };
         } else if (config.preview.camera_mode) {
           videoConstraints.facingMode = config.preview.camera_mode;
         }
@@ -169,18 +183,22 @@ var photoboothPreview = function () {
       };
 
       var tryLevel2 = function () {
-        var videoConstraints = targetDeviceId ? { deviceId: { ideal: targetDeviceId } } : true;
+        // 自适应任何原生分辨率，强制锁定指定 targetDeviceId
+        var videoConstraints = targetDeviceId ? { deviceId: { exact: targetDeviceId } } : true;
         return getMedia.call(navigator.mediaDevices, { audio: false, video: videoConstraints });
       };
 
       var tryLevel3 = function () {
+        if (targetDeviceId) {
+          return getMedia.call(navigator.mediaDevices, { audio: false, video: { deviceId: { ideal: targetDeviceId } } });
+        }
         return getMedia.call(navigator.mediaDevices, { audio: false, video: true });
       };
 
       tryLevel1()
         .then(attachStream)
         ['catch'](function (err1) {
-          photoboothTools.console.log('Preview: Level 1 constraint failed, trying Level 2: ', err1);
+          photoboothTools.console.log('Preview: Level 1 exact constraint failed, trying Level 2: ', err1);
           return tryLevel2()
             .then(attachStream)
             ['catch'](function (err2) {
@@ -192,7 +210,7 @@ var photoboothPreview = function () {
                   if (retry < retryGetMedia) {
                     retry += 1;
                     setTimeout(function () {
-                      api.initializeMedia(cb, retry);
+                      api.initializeMedia(cb, retry, targetDeviceId);
                     }, 800);
                   } else {
                     cb(false);
@@ -203,9 +221,32 @@ var photoboothPreview = function () {
     });
   };
   api.getAndDisplayMedia = function (mode) {
+    var pref = api.getPreferredCamera();
+    var isCurrentStreamMatching = false;
+
     if (api.stream && api.stream.active) {
+      if (!pref.id) {
+        isCurrentStreamMatching = true;
+      } else {
+        try {
+          var curTrack = api.stream.getVideoTracks()[0];
+          var curSettings = curTrack.getSettings ? curTrack.getSettings() : {};
+          if (curSettings.deviceId === pref.id || (pref.label && curTrack.label && curTrack.label.indexOf(pref.label) !== -1)) {
+            isCurrentStreamMatching = true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (isCurrentStreamMatching) {
       api.changeVideoMode(mode);
     } else {
+      if (api.stream) {
+        try {
+          api.stream.getTracks().forEach(function (t) { t.stop(); });
+        } catch (e) {}
+        api.stream = null;
+      }
       api.initializeMedia(function () {
         api.changeVideoMode(mode);
       });
@@ -380,12 +421,12 @@ var photoboothPreview = function () {
       api.stream = null;
     }
 
-    // Cooldown 250ms for Windows DirectShow/MF driver handle release
+    // Cooldown 200ms for Windows DirectShow/MF driver handle release
     setTimeout(function () {
       api.initializeMedia(function (success) {
         if (cb) cb(success !== false);
-      });
-    }, 250);
+      }, 0, deviceId);
+    }, 200);
   };
 
   api.setFlip = function (isFlipped) {

@@ -2821,7 +2821,6 @@ const photoBooth = (function () {
 
             if (shouldShowBeauty) {
                 let maskStyle = 'none';
-                let faceTransform = '';
 
                 if (isAiMode && trackedFace.detected) {
                     const cx = (trackedFace.x * 100).toFixed(1);
@@ -2831,20 +2830,14 @@ const photoBooth = (function () {
 
                     // 动态紧跟人脸中心位置的边缘羽化径向蒙版（人动美颜动）
                     maskStyle = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 90%)`;
-
-                    // 实时大眼（纵向提拉）与精致瘦脸（横向收紧微缩放）
-                    const scaleX = (1.0 - (slim / 100) * 0.06).toFixed(3);
-                    const scaleY = (1.0 + (eye / 100) * 0.035).toFixed(3);
-                    faceTransform = `scale(${scaleX}, ${scaleY})`;
-                    faceBeautyVid.css('transform-origin', `${cx}% ${cy}%`);
-                } else {
-                    faceBeautyVid.css('transform-origin', '50% 50%');
                 }
 
+                // 绝不使用 DOM scale 变形，保证双层视频 100% 像素点对点重合（物理根除分身重影）
                 faceBeautyVid.css({
                     'filter': beautyFilterStr,
                     '-webkit-filter': beautyFilterStr,
-                    'transform': faceTransform,
+                    'transform': '',
+                    'transform-origin': '',
                     'opacity': '1',
                     'display': 'block',
                     '-webkit-mask-image': maskStyle,
@@ -2856,8 +2849,8 @@ const photoBooth = (function () {
                     'filter': 'none',
                     '-webkit-filter': 'none',
                     'transform': '',
+                    'transform-origin': '',
                     'opacity': '0',
-                    'display': 'none'
                 });
             }
         }
