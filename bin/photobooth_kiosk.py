@@ -15,6 +15,14 @@ import socket
 import urllib.request
 import subprocess
 import threading
+import shutil
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXIT_FLAG = os.path.join(ROOT_DIR, "admin_exit.flag")
@@ -40,6 +48,16 @@ def check_http_alive(url, timeout=1.5):
         return False
 
 
+def find_php_executable():
+    candidate = shutil.which("php")
+    if candidate:
+        return candidate
+    winget_path = os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\PHP.PHP.8.4_Microsoft.Winget.Source_8wekyb3d8bbwe\php.exe")
+    if os.path.exists(winget_path):
+        return winget_path
+    return "php"
+
+
 def start_php_service():
     global php_process
     if check_http_alive("http://127.0.0.1:8000/"):
@@ -47,7 +65,15 @@ def start_php_service():
         return
 
     print("[Watchdog] Starting PHP Web Server on port 8000 (hidden background)...")
-    cmd = ["php", "-S", "127.0.0.1:8000", "-t", ROOT_DIR]
+    php_exe = find_php_executable()
+    cmd = [
+        php_exe,
+        "-d", "memory_limit=512M",
+        "-d", "upload_max_filesize=64M",
+        "-d", "post_max_size=64M",
+        "-S", "127.0.0.1:8000",
+        "-t", ROOT_DIR
+    ]
     flags = 0x08000000 if sys.platform == "win32" else 0 # CREATE_NO_WINDOW
     try:
         php_process = subprocess.Popen(
@@ -169,7 +195,7 @@ def watchdog_guardian_loop():
 def main():
     global running
     print("=" * 65)
-    print("  📸 商用一体机 24/7 展亭看门狗守护中心 (Photobooth Commercial Kiosk)")
+    print("  [Photobooth] 商用一体机 24/7 展亭看门狗守护中心 (Photobooth Commercial Kiosk)")
     print("  双模式：经典自拍大头贴 + AI 魔法变身照")
     print("=" * 65)
 
