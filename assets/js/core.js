@@ -2602,6 +2602,9 @@ const photoBooth = (function () {
                     $('#studioCurrentTplThumb').attr('src', window.selectedAiTemplate.image).show();
                 }
             }
+
+            // AI相机模式：启动正脸对正检测与识别框
+            api.startFacePoseAlignmentLoop();
         } else {
             $('#studioModePill').addClass('classic');
             $('#studioModePillText').text('经典美颜大头贴');
@@ -2612,6 +2615,9 @@ const photoBooth = (function () {
 
             $('#studioAiTplContainer').hide();
             $('#studioClassicTplContainer').show();
+
+            // 大头照模式：彻底关闭正脸对正检测与识别框
+            api.stopFacePoseAlignmentLoop();
             $('#aiPoseGuide').hide();
 
             const firstBg = $('#studioClassicTplGrid .wb-classic-card.active').first();
@@ -2639,9 +2645,6 @@ const photoBooth = (function () {
 
         // Start pose inspiration carousel
         api.startStudioPoseCarousel();
-
-        // Start real-time face orientation and alignment detection loop (Red/Green feedback)
-        api.startFacePoseAlignmentLoop();
 
         // Apply selected filter and real-time beauty to live preview
         api.applyStudioBeautyPreview();
@@ -2795,6 +2798,13 @@ const photoBooth = (function () {
     let isAlignmentChecking = false;
 
     api.startFacePoseAlignmentLoop = function () {
+        const curMode = window.sessionPhotoboothMode || window.photoboothMode;
+        if (curMode !== 'ai_swap') {
+            api.stopFacePoseAlignmentLoop();
+            $('#aiPoseGuide').hide();
+            return;
+        }
+
         api.stopFacePoseAlignmentLoop();
         $('#aiPoseGuide').show();
 
@@ -2879,6 +2889,7 @@ const photoBooth = (function () {
             faceAlignmentTimer = null;
         }
         isAlignmentChecking = false;
+        $('#aiPoseGuide').hide();
     };
 
     // Beauty Presets Click
