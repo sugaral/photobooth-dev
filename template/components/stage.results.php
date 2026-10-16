@@ -77,34 +77,6 @@ echo '
     </div>
 </div>
 
-<!-- Classic Photobooth Post-Shot Commercial Control Bar -->
-<div class="classic-result-control-bar" id="classicResultControlBar" style="display:none;">
-    <div class="classic-result-pill">
-        <i class="fa fa-camera-retro"></i>
-        <span id="classicResultTitle">大头贴精修成片</span>
-    </div>
-    <button type="button" class="classic-ctrl-btn" id="btnClassicCompareSnap" title="按住查看原始拍照">
-        <i class="fa fa-eye"></i>
-        <span>按住看原图</span>
-    </button>
-    <button type="button" class="classic-ctrl-btn" id="btnClassicToggleFilters" title="切换质感色调滤镜">
-        <i class="fa fa-palette"></i>
-        <span>色调滤镜</span>
-    </button>
-    <button type="button" class="classic-ctrl-btn" id="btnClassicOpenStickers" title="添加可爱贴纸与涂鸦">
-        <i class="fa fa-icons"></i>
-        <span>贴纸装扮</span>
-    </button>
-    <button type="button" class="classic-ctrl-btn classic-ctrl-retake newpic" title="重新拍摄">
-        <i class="fa fa-rotate-left"></i>
-        <span>重拍</span>
-    </button>
-    <button type="button" class="classic-ctrl-btn classic-ctrl-print printbtn" title="立即打印">
-        <i class="fa fa-print"></i>
-        <span>打印成片</span>
-    </button>
-</div>
-
 <!-- Floating Filter Quick Bar for Classic Mode -->
 <div class="classic-filter-quickbar" id="classicFilterQuickBar" style="display:none;">
     <button type="button" class="classic-qfilter-chip active" data-filter="plain">

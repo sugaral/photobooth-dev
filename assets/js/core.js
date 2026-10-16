@@ -1781,14 +1781,12 @@ const photoBooth = (function () {
             if (currentActiveMode === 'ai_swap') {
                 $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').hide();
                 $('#aiResultControlBar').show();
-                $('#classicResultControlBar').hide();
                 $('#classicFilterQuickBar').hide();
                 $('#stickerCanvasOverlay').hide().empty();
                 $('#stickerModal').hide();
             } else {
                 $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').hide();
                 $('#aiResultControlBar').hide();
-                $('#classicResultControlBar').show();
                 $('#classicFilterQuickBar').hide();
                 $('#stickerCanvasOverlay').show();
                 $('#stickerModal').hide();
@@ -2740,7 +2738,103 @@ const photoBooth = (function () {
         lastSeen: 0
     };
 
-    // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer (实时跟脸美颜渲染器)
+    // Real-Time 60FPS Big Eyes & Face Slimming Liquid Displacement Generator
+    let beautyDispCanvas = null;
+    let beautyDispCtx = null;
+    api.updateBeautyDisplacementMap = function (eye, slim) {
+        const feImg = document.getElementById('beautyDisplaceFeImg');
+        const feDisp = document.getElementById('beautyFeDisplace');
+        if (!feImg || !feDisp) return;
+
+        if (eye <= 0 && slim <= 0) {
+            feDisp.setAttribute('scale', '0');
+            return;
+        }
+
+        if (!beautyDispCanvas) {
+            beautyDispCanvas = document.createElement('canvas');
+            beautyDispCanvas.width = 128;
+            beautyDispCanvas.height = 128;
+            beautyDispCtx = beautyDispCanvas.getContext('2d', { willReadFrequently: true });
+        }
+
+        const w = 128, h = 128;
+        const imgData = beautyDispCtx.createImageData(w, h);
+        const data = imgData.data;
+
+        // Neutral gray (128, 128, 128) = 0 displacement
+        for (let i = 0; i < data.length; i += 4) {
+            data[i] = 128;
+            data[i + 1] = 128;
+            data[i + 2] = 128;
+            data[i + 3] = 255;
+        }
+
+        // 1. Big Eyes: Spherical expansion centered at eyes
+        if (eye > 0) {
+            const eyeStrength = (eye / 100.0) * 2.2;
+            const rEye = 18;
+            const eyeCenters = [[54, 52], [74, 52]];
+            for (const [cx, cy] of eyeCenters) {
+                for (let y = cy - rEye; y <= cy + rEye; y++) {
+                    if (y < 0 || y >= h) continue;
+                    for (let x = cx - rEye; x <= cx + rEye; x++) {
+                        if (x < 0 || x >= w) continue;
+                        const dx = x - cx;
+                        const dy = y - cy;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < rEye) {
+                            const factor = Math.pow(1.0 - (dist / rEye), 2) * eyeStrength;
+                            const idx = (y * w + x) * 4;
+                            data[idx] = Math.min(255, Math.max(0, Math.round(128 - dx * factor * 2.4)));
+                            data[idx + 1] = Math.min(255, Math.max(0, Math.round(128 - dy * factor * 2.4)));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Slim Face: Centripetal cheek contraction inwards
+        if (slim > 0) {
+            const slimStrength = (slim / 100.0) * 32.0;
+            const rSlim = 22;
+            // Left cheek (pull right)
+            for (let y = 76 - rSlim; y <= 76 + rSlim; y++) {
+                if (y < 0 || y >= h) continue;
+                for (let x = 44 - rSlim; x <= 44 + rSlim; x++) {
+                    if (x < 0 || x >= w) continue;
+                    const d = Math.sqrt((x - 44) * (x - 44) + (y - 76) * (y - 76));
+                    if (d < rSlim) {
+                        const factor = Math.pow(1.0 - (d / rSlim), 2);
+                        const idx = (y * w + x) * 4;
+                        data[idx] = Math.min(255, Math.max(0, Math.round(128 - slimStrength * factor)));
+                    }
+                }
+            }
+            // Right cheek (pull left)
+            for (let y = 76 - rSlim; y <= 76 + rSlim; y++) {
+                if (y < 0 || y >= h) continue;
+                for (let x = 84 - rSlim; x <= 84 + rSlim; x++) {
+                    if (x < 0 || x >= w) continue;
+                    const d = Math.sqrt((x - 84) * (x - 84) + (y - 76) * (y - 76));
+                    if (d < rSlim) {
+                        const factor = Math.pow(1.0 - (d / rSlim), 2);
+                        const idx = (y * w + x) * 4;
+                        data[idx] = Math.min(255, Math.max(0, Math.round(128 + slimStrength * factor)));
+                    }
+                }
+            }
+        }
+
+        beautyDispCtx.putImageData(imgData, 0, 0);
+        const dataUri = beautyDispCanvas.toDataURL('image/png');
+        feImg.setAttribute('href', dataUri);
+        feImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUri);
+        const scaleVal = Math.max(eye, slim) > 0 ? (Math.max(eye, slim) / 100.0 * 28.0).toFixed(1) : '0';
+        feDisp.setAttribute('scale', scaleVal);
+    };
+
+    // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer (商业级实时美颜渲染器)
     api.applyStudioBeautyPreview = function () {
         const smooth = parseInt($('#studioSmoothSlider').val() || 30, 10);
         const white = parseInt($('#studioWhiteSlider').val() || 25, 10);
@@ -2769,18 +2863,27 @@ const photoBooth = (function () {
         // 3. High-Definition Clarity (微反差增强，保留原生睫毛与毛发细节)
         const clarityContrast = (1.0 + (clarity / 100) * 0.18).toFixed(3);
 
-        // 4. Fine Skin Smoothing (柔焦磨皮，细腻平滑，0~1.8px)
-        let smoothFilter = '';
-        if (smooth > 0) {
-            const blurPx = ((smooth / 100) * 1.8).toFixed(2);
-            smoothFilter = `blur(${blurPx}px)`;
+        // 4. Commercial Porcelain Skin Smoothing via High-Pass SVG Filter
+        const svgBlur = document.getElementById('beautySvgBlur');
+        if (svgBlur) {
+            const blurRadius = (smooth > 0) ? ((smooth / 100) * 4.2).toFixed(2) : '0';
+            svgBlur.setAttribute('stdDeviation', blurRadius);
         }
+
+        // 5. Interactive Liquid Mesh for Big Eyes & Face Slimming
+        api.updateBeautyDisplacementMap(eye, slim);
 
         // Combined color and beauty filter
         const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.025)).toFixed(3);
-        const beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue} ${smoothFilter}`.trim();
+        let beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue}`.trim();
+        if (smooth > 0) {
+            beautyFilterStr = `url(#beautyPorcelainSkinFilter) ${beautyFilterStr}`;
+        }
+        if (eye > 0 || slim > 0) {
+            beautyFilterStr = `url(#beautyDisplacementFilter) ${beautyFilterStr}`;
+        }
 
-        // 5. Background Video maintains base artistic filter (do NOT wash out background scenery)
+        // 6. Background Video maintains base artistic filter
         const activeFilter = imgFilter || 'plain';
         const filterVal = (typeof activeFilter === 'object' && activeFilter !== null && activeFilter.value) ? activeFilter.value : activeFilter;
         const baseColorFilter = (filterCssMap && filterCssMap[filterVal] && filterCssMap[filterVal] !== 'none') ? filterCssMap[filterVal] : '';
@@ -2791,7 +2894,7 @@ const photoBooth = (function () {
             vid.css('transform', '');
         }
 
-        // 6. Dedicated Real-Time Face Beauty Video Layer (人脸跟随动态美颜层)
+        // 7. Dedicated Real-Time Face Beauty Video Layer
         const faceBeautyVid = $('#preview--face-beauty-video');
         const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
         if (faceBeautyVid.length) {
@@ -2803,7 +2906,6 @@ const photoBooth = (function () {
                 } catch (e) {}
             }
 
-            // CRITICAL: Strictly synchronize flip-horizontal state with main video to prevent reversed face
             const isFlipped = vid.hasClass('flip-horizontal');
             if (isFlipped) {
                 faceBeautyVid.addClass('flip-horizontal');
@@ -2811,69 +2913,16 @@ const photoBooth = (function () {
                 faceBeautyVid.removeClass('flip-horizontal');
             }
 
-            const curMode = window.sessionPhotoboothMode || window.photoboothMode;
-            const isAiMode = (curMode === 'ai_swap');
-
-            // 核心解决色块问题：
-            // 在 AI 相机模式下：美颜定死在人脸上；若画面中没有人脸（trackedFace.detected === false），美颜图层 100% 隐藏，绝对无固定色块！
-            // 在 经典大头贴模式下：应用全画面无缝美颜。
-            const shouldShowBeauty = hasBeauty && (!isAiMode || trackedFace.detected);
-
-            if (shouldShowBeauty) {
-                let maskStyle = 'none';
-
-                if (isAiMode && trackedFace.detected) {
-                    const cx = (trackedFace.x * 100).toFixed(1);
-                    const cy = (trackedFace.y * 100).toFixed(1);
-                    const rx = Math.max(16, (trackedFace.w * 72)).toFixed(1);
-                    const ry = Math.max(22, (trackedFace.h * 84)).toFixed(1);
-
-                    // 动态紧跟人脸中心位置的边缘羽化径向蒙版（人动美颜动）
-                    maskStyle = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 90%)`;
-                }
-
-                // 绝不使用 DOM scale 变形，保证双层视频 100% 像素点对点重合（物理根除分身重影）
-                faceBeautyVid.css({
-                    'filter': beautyFilterStr,
-                    '-webkit-filter': beautyFilterStr,
-                    'transform': '',
-                    'transform-origin': '',
-                    'opacity': '1',
-                    'display': 'block',
-                    '-webkit-mask-image': maskStyle,
-                    'mask-image': maskStyle
-                });
-            } else {
-                // 无人脸或无美颜时：完全静默并隐藏，杜绝任何背景补丁和色差！
-                faceBeautyVid.css({
-                    'filter': 'none',
-                    '-webkit-filter': 'none',
-                    'transform': '',
-                    'transform-origin': '',
-                    'opacity': '0',
-                });
-            }
-        }
-
-        const faceLens = $('#studioFaceBeautyLens');
-        if (faceLens.length) {
-            faceLens.css({
-                'backdrop-filter': 'none',
-                '-webkit-backdrop-filter': 'none',
-                'opacity': '0',
-                'display': 'none'
+            faceBeautyVid.css({
+                'filter': beautyFilterStr,
+                '-webkit-filter': beautyFilterStr,
+                'transform': '',
+                'transform-origin': '',
+                'opacity': hasBeauty ? '1' : '0',
+                'display': 'block',
+                '-webkit-mask-image': 'none',
+                'mask-image': 'none'
             });
-        }
-
-        // 7. Fix Face Guide Oval: MUST REMAIN COMPLETELY FIXED (no stretching, no shrinking)
-        const guideOval = $('.ai-pose-oval');
-        if (guideOval.length) {
-            guideOval.css('transform', '');
-            if (eye > 15 || slim > 15) {
-                guideOval.addClass('ai-pose-oval--beauty-glow');
-            } else {
-                guideOval.removeClass('ai-pose-oval--beauty-glow');
-            }
         }
 
         // 8. Live HUD Beauty Indicator Pill
@@ -2881,7 +2930,7 @@ const photoBooth = (function () {
         const beautyPillText = $('#studioBeautyPillText');
         if (beautyPill.length) {
             if (smooth > 0 || white > 0 || rosy > 0 || eye > 0 || slim > 0) {
-                beautyPillText.text(`面部美颜生效中 · 磨皮${smooth}% 美白${white}% 大眼${eye}% 瘦脸${slim}%`);
+                beautyPillText.text(`美颜生效中 · 磨皮${smooth}% 美白${white}% 大眼${eye}% 瘦脸${slim}%`);
                 beautyPill.stop(true, true).fadeIn(150);
             } else {
                 beautyPill.stop(true, true).fadeOut(150);
@@ -2889,130 +2938,13 @@ const photoBooth = (function () {
         }
     };
 
-    // Stage 3.7: Real-Time Face Orientation & Pose Alignment Loop (Red / Green Detection)
-    let faceAlignmentTimer = null;
-    let faceDetector = null;
-    if (window.FaceDetector) {
-        try {
-            faceDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
-        } catch (e) {
-            faceDetector = null;
-        }
-    }
-    let alignmentCanvas = null;
-    let alignmentCtx = null;
-    let isAlignmentChecking = false;
-
+    // Stage 3.7: Cleaned Pose Guide Controller (Intrusive overlay deleted per user request)
     api.startFacePoseAlignmentLoop = function () {
-        const curMode = window.sessionPhotoboothMode || window.photoboothMode;
-        if (curMode !== 'ai_swap') {
-            api.stopFacePoseAlignmentLoop();
-            $('#aiPoseGuide').hide();
-            return;
-        }
-
-        api.stopFacePoseAlignmentLoop();
-        $('#aiPoseGuide').show();
-
-        const guideOval = $('.ai-pose-oval');
-        const guideBadge = $('.ai-pose-badge');
-
-        // Initial default state: unaligned red
-        guideOval.removeClass('is-aligned').addClass('is-unaligned');
-        guideBadge.removeClass('is-aligned').addClass('is-unaligned')
-            .html('<i class="fa fa-crosshairs"></i> AI正脸检测中...');
-
-        faceAlignmentTimer = setInterval(async () => {
-            if ($('#aiPoseGuide').is(':hidden')) {
-                return;
-            }
-
-            const vid = document.getElementById('preview--video');
-            if (!vid || vid.paused || vid.ended || !vid.videoWidth || !vid.videoHeight) {
-                return;
-            }
-
-            if (isAlignmentChecking) {
-                return;
-            }
-
-            if (!alignmentCanvas) {
-                alignmentCanvas = document.createElement('canvas');
-                alignmentCanvas.width = 240;
-                alignmentCanvas.height = 180;
-                alignmentCtx = alignmentCanvas.getContext('2d', { willReadFrequently: true });
-            }
-
-            try {
-                isAlignmentChecking = true;
-                alignmentCtx.drawImage(vid, 0, 0, 240, 180);
-                const frameData = alignmentCanvas.toDataURL('image/jpeg', 0.6);
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-                const resp = await fetch('api/alignCheck.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: frameData }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-
-                if (resp.ok) {
-                    const result = await resp.json();
-                    if (result.status === 'ok') {
-                        if (result.detected && result.center && result.size) {
-                            trackedFace.detected = true;
-                            trackedFace.lastSeen = Date.now();
-                            const alpha = 0.45;
-                            trackedFace.x = trackedFace.x * (1 - alpha) + result.center[0] * alpha;
-                            trackedFace.y = trackedFace.y * (1 - alpha) + result.center[1] * alpha;
-                            trackedFace.w = trackedFace.w * (1 - alpha) + result.size[0] * alpha;
-                            trackedFace.h = trackedFace.h * (1 - alpha) + result.size[1] * alpha;
-                        } else {
-                            if (Date.now() - trackedFace.lastSeen > 650) {
-                                trackedFace.detected = false;
-                            }
-                        }
-
-                        // 每次检测更新均毫秒级同步美颜位置（人动美颜动）
-                        api.applyStudioBeautyPreview();
-
-                        if (result.detected && result.aligned) {
-                            guideOval.removeClass('is-unaligned').addClass('is-aligned');
-                            guideBadge.removeClass('is-unaligned').addClass('is-aligned')
-                                .html('<i class="fa fa-circle-check"></i> ' + (result.message || '正脸已对正 · 可以拍照'));
-                        } else if (result.detected && !result.aligned) {
-                            guideOval.removeClass('is-aligned').addClass('is-unaligned');
-                            guideBadge.removeClass('is-aligned').addClass('is-unaligned')
-                                .html('<i class="fa fa-triangle-exclamation"></i> ' + (result.message || '请正对镜头 · 保持端正'));
-                        } else {
-                            // Nobody in frame
-                            guideOval.removeClass('is-aligned').addClass('is-unaligned');
-                            guideBadge.removeClass('is-aligned').addClass('is-unaligned')
-                                .html('<i class="fa fa-user-slash"></i> ' + (result.message || '请走入取景框中'));
-                        }
-                    }
-                }
-            } catch (err) {
-                // Network error or timeout: do NOT falsely turn green!
-                guideOval.removeClass('is-aligned').addClass('is-unaligned');
-                guideBadge.removeClass('is-aligned').addClass('is-unaligned')
-                    .html('<i class="fa fa-circle-notch fa-spin"></i> AI服务响应中...');
-            } finally {
-                isAlignmentChecking = false;
-            }
-        }, 200);
+        $('#aiPoseGuide').hide();
+        api.applyStudioBeautyPreview();
     };
 
     api.stopFacePoseAlignmentLoop = function () {
-        if (faceAlignmentTimer) {
-            clearInterval(faceAlignmentTimer);
-            faceAlignmentTimer = null;
-        }
-        isAlignmentChecking = false;
-        trackedFace.detected = false;
         $('#aiPoseGuide').hide();
         api.applyStudioBeautyPreview();
     };

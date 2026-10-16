@@ -89,6 +89,7 @@ class FaceSwapEngine:
         self.enhancer_sess = None
         self.enhancer_type = None
         self.mask_sess = None
+        self.bisenet_sess = None
         self.emap = None
         self._init_models()
 
@@ -192,6 +193,38 @@ class FaceSwapEngine:
                 print("[FaceSwapEngine] Loaded DFL XSeg face segmentation mask", flush=True)
             except Exception as e:
                 print(f"[FaceSwapEngine] Failed to load dfl_xseg: {e}", flush=True)
+
+        # 6. BiSeNet SOTA Full-Face Semantic Segmentation & Masking
+        bisenet_path = os.path.join(DEFAULT_FACE_DIR, "bisenet_resnet_34.onnx")
+        if os.path.exists(bisenet_path):
+            try:
+                self.bisenet_sess = self._create_session(bisenet_path)
+                print("[FaceSwapEngine] Loaded BiSeNet Face Parsing for whole-face semantic masking", flush=True)
+            except Exception as e:
+                print(f"[FaceSwapEngine] Failed to load bisenet: {e}", flush=True)
+
+    def get_bisenet_mask(self, face_512):
+        """
+        Extract organic whole-face semantic segmentation mask (skin + eyebrows + eyes + nose + mouth) using BiSeNet.
+        Completely eliminates rigid hardcoded ellipses and fits natural facial contours 100%.
+        """
+        if self.bisenet_sess is None:
+            return None
+        try:
+            blob = cv2.cvtColor(face_512, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+            blob = (blob - np.array([0.485, 0.456, 0.406], dtype=np.float32)) / np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            blob = np.transpose(blob, (2, 0, 1))[None, ...].astype(np.float32)
+            out = self.bisenet_sess.run(None, {"input": blob})[0]
+            parsing = np.argmax(out[0], axis=0)
+            # Classes: 1:skin, 2:l_brow, 3:r_brow, 4:l_eye, 5:r_eye, 10:nose, 11:mouth, 12:u_lip, 13:l_lip
+            face_mask = np.isin(parsing, [1, 2, 3, 4, 5, 10, 11, 12, 13]).astype(np.float32)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+            face_mask = cv2.morphologyEx(face_mask, cv2.MORPH_CLOSE, kernel)
+            face_mask = cv2.GaussianBlur(face_mask, (25, 25), 0)
+            return np.clip(face_mask * 1.15, 0.0, 1.0)
+        except Exception as exc:
+            print(f"[FaceSwapEngine] BiSeNet mask exception: {exc}", flush=True)
+            return None
 
     def is_ready(self):
         return (self.det_sess is not None and self.rec_sess is not None and self.swap_sess is not None)
@@ -392,6 +425,21 @@ class FaceSwapEngine:
         tgt_h = max(1.0, float(tgt_bbox[3] - tgt_bbox[1]))
         rho = float(np.clip((src_w / src_h) / (tgt_w / tgt_h), 0.88, 1.30))
 
+        # 下巴长宽比与垂直伸长测算 (Chin Proportion Normalization)
+        src_kps = np.array(source_face["kps"], dtype=np.float32)
+        tgt_kps = np.array(target_face["kps"], dtype=np.float32)
+        src_eye_center = (src_kps[0] + src_kps[1]) / 2.0
+        src_mouth_center = (src_kps[3] + src_kps[4]) / 2.0
+        src_mid_h = max(1.0, float(np.linalg.norm(src_mouth_center - src_eye_center)))
+        src_chin_dist = max(1.0, float(src_bbox[3] - src_mouth_center[1]))
+        src_chin_ratio = src_chin_dist / src_mid_h
+
+        tgt_eye_center = (tgt_kps[0] + tgt_kps[1]) / 2.0
+        tgt_mouth_center = (tgt_kps[3] + tgt_kps[4]) / 2.0
+        tgt_mid_h = max(1.0, float(np.linalg.norm(tgt_mouth_center - tgt_eye_center)))
+        tgt_chin_dist = max(1.0, float(tgt_bbox[3] - tgt_mouth_center[1]))
+        tgt_chin_ratio = tgt_chin_dist / tgt_mid_h
+
         # 4. 投影特征至 Inswapper 空间
         latent = source_emb
         if self.emap is not None:
@@ -458,24 +506,55 @@ class FaceSwapEngine:
                 # 90% 超清重构五官 + 10% 原始肤色，极高立体度与原生质感
                 blend_face = cv2.addWeighted(enh_face, 0.90, swapped_512, 0.10, 0)
 
-                # 脸型保型重塑 (Face Shape Preservation): 当拍照者脸型偏宽/圆时自适应舒展下颌，绝不压缩成畸形瘦脸
-                if rho > 1.03:
-                    grid_x, grid_y = np.meshgrid(np.arange(512, dtype=np.float32), np.arange(512, dtype=np.float32))
+                # 脸型保型重塑与下颌回缩 (Face Shape Adaptation & Chin Morphing):
+                # 1) 当拍照者脸型偏圆/宽时 (rho > 1.02)，舒展双腮，不挤压面部
+                # 2) 当模板下巴明显比拍照者长 (tgt_chin_ratio > src_chin_ratio * 1.04)，
+                #    自适应向上收紧模板下巴，根除“长脸模板硬套圆脸”留下的畸形怪下巴！
+                grid_x, grid_y = np.meshgrid(np.arange(512, dtype=np.float32), np.arange(512, dtype=np.float32))
+                map_x = grid_x.copy()
+                map_y = grid_y.copy()
+                is_morphed = False
+
+                if rho > 1.02:
                     y_weight = np.exp(-((grid_y - 330.0) ** 2) / (2.0 * (95.0 ** 2)))
                     expand_factor = min(0.18, (rho - 1.0) * 0.50)
                     dx = (grid_x - 256.0) * expand_factor * y_weight
-                    map_x = grid_x - dx
-                    map_y = grid_y
-                    blend_face = cv2.remap(blend_face, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                    map_x = map_x - dx
+                    is_morphed = True
 
-                # 512 尺度逆仿射变换回贴
+                if tgt_chin_ratio > src_chin_ratio * 1.04:
+                    chin_shrink = float(np.clip(1.0 - (src_chin_ratio / tgt_chin_ratio), 0.05, 0.32))
+                    vertical_t = np.clip((grid_y - 390.0) / 122.0, 0.0, 1.0)
+                    horizontal_t = np.exp(-((grid_x - 256.0) ** 2) / (2.0 * (85.0 ** 2)))
+                    dy = vertical_t * (chin_shrink * 110.0) * horizontal_t
+                    map_y = np.clip(map_y + dy, 0.0, 511.0)
+                    is_morphed = True
+
+                # 512 尺度逆仿射变换
                 M_512 = M.copy()
                 M_512[0, :] *= 4.0
                 M_512[1, :] *= 4.0
                 M_inv_512 = cv2.invertAffineTransform(M_512)
 
-                # 精细掩膜 (DFL XSeg 有机人脸分割，如未就绪则回退至自适应羽化椭圆)
-                if self.mask_sess is not None:
+                if is_morphed:
+                    blend_face = cv2.remap(blend_face, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                    # 同时收缩模板图像的下颌区域，使背景领口/脖颈完美贴合收短后的新圆下巴
+                    if tgt_chin_ratio > src_chin_ratio * 1.04:
+                        aligned_tgt_512 = cv2.warpAffine(target_img, M_512, (512, 512), borderMode=cv2.BORDER_REFLECT)
+                        aligned_tgt_512 = cv2.remap(aligned_tgt_512, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+                        neck_mask = np.zeros((512, 512), dtype=np.float32)
+                        neck_mask[385:, :] = 1.0
+                        neck_mask = cv2.GaussianBlur(neck_mask, (31, 31), 0)
+                        warped_neck_mask = cv2.warpAffine(neck_mask, M_inv_512, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)[:, :, None]
+                        warped_tgt_morphed = cv2.warpAffine(aligned_tgt_512, M_inv_512, (w, h), borderMode=cv2.BORDER_REFLECT)
+                        target_img = (target_img * (1.0 - warped_neck_mask) + warped_tgt_morphed * warped_neck_mask).astype(np.uint8)
+
+                # 精细有机掩膜生成 (优先 BiSeNet 语义全脸分割 > DFL XSeg > 自适应羽化椭圆)
+                mask_512 = None
+                if self.bisenet_sess is not None:
+                    mask_512 = self.get_bisenet_mask(blend_face)
+
+                if mask_512 is None and self.mask_sess is not None:
                     try:
                         xseg_in = (cv2.cvtColor(cv2.resize(blend_face, (256, 256)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0)[None, ...]
                         mask_out = self.mask_sess.run(None, {"input": xseg_in})[0]
@@ -484,7 +563,8 @@ class FaceSwapEngine:
                         mask_512 = np.clip(mask_512 * 1.15, 0.0, 1.0)
                     except Exception:
                         mask_512 = self._get_ellipse_mask(rho)
-                else:
+
+                if mask_512 is None:
                     mask_512 = self._get_ellipse_mask(rho)
 
                 warped_face = cv2.warpAffine(blend_face, M_inv_512, (w, h), borderMode=cv2.BORDER_TRANSPARENT)

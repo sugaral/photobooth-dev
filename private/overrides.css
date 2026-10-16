@@ -6555,5 +6555,15 @@ body.mode--studio #aiPoseGuide {
   box-shadow: 0 6px 16px rgba(16, 185, 129, 0.6);
 }
 
+/* Permanently hide deprecated face calibration guide and classic bottom result floating bar */
+#aiPoseGuide,
+.ai-pose-guide,
+#classicResultControlBar,
+.classic-result-control-bar {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 
 
