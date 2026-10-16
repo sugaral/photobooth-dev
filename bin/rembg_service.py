@@ -112,8 +112,10 @@ class RembgHandler(BaseHTTPRequestHandler):
                         output_path=data.get("output"),
                         eye=float(data.get("eye", 15)),
                         slim=float(data.get("slim", 15)),
-                        smooth=float(data.get("smooth", 20)),
-                        white=float(data.get("white", 15)),
+                        smooth=float(data.get("smooth", 30)),
+                        white=float(data.get("white", 25)),
+                        rosy=float(data.get("rosy", 20)),
+                        clarity=float(data.get("clarity", 15)),
                         preview=bool(data.get("preview", False)),
                         preview_max=int(data.get("preview_max", 960)),
                     )

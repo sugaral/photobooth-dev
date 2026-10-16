@@ -3932,27 +3932,40 @@ button, .button, a {
 }
 
 .ai-shuttle-progress-wrap {
-  width: 320px;
-  height: 10px;
-  background: rgba(255, 255, 255, 0.15);
+  width: 360px;
+  height: 14px;
+  background: rgba(15, 23, 42, 0.6);
   border-radius: var(--pg-radius-full);
   overflow: hidden;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  margin-bottom: 1rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  margin-bottom: 0.6rem;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 .ai-shuttle-progress-bar {
   height: 100%;
-  width: 30%;
-  background: linear-gradient(90deg, #38BDF8, #8B5CF6, #F472B6);
+  width: 0%;
+  background: linear-gradient(90deg, #38BDF8, #8B5CF6, #F472B6, #38BDF8);
+  background-size: 200% 100%;
   border-radius: var(--pg-radius-full);
-  transition: width 0.3s ease;
-  animation: shuttleBarAnim 1.6s infinite ease-in-out;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: shuttleShimmer 2s infinite linear;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.7);
 }
 
-@keyframes shuttleBarAnim {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
+@keyframes shuttleShimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.ai-shuttle-percent {
+  font-family: var(--pg-font-heading);
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #38BDF8;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+  letter-spacing: 1px;
 }
 
 .ai-shuttle-tips {
@@ -5059,6 +5072,48 @@ body.mode--studio #aiPoseGuide {
 .wb-reset-btn:hover {
   background: #E2E8F0;
   color: #1E293B;
+}
+
+/* Beauty Presets Pills */
+.wb-beauty-presets {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+}
+
+.wb-preset-pill {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
+  font-family: var(--pg-font-heading);
+  font-size: 0.82rem;
+  font-weight: 800;
+  border-radius: var(--pg-radius-full);
+  background: #F1F5F9;
+  color: #475569;
+  border: 1.5px solid #CBD5E1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+
+.wb-preset-pill:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+  transform: translateY(-1px);
+}
+
+.wb-preset-pill.active {
+  background: linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%);
+  color: #FFFFFF;
+  border-color: #8B5CF6;
+  box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
 }
 
 /* Beauty Sliders Grid */

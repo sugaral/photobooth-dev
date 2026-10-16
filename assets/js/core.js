@@ -1213,18 +1213,31 @@ const photoBooth = (function () {
 
         if (activeCaptureMode === 'ai_swap') {
             $('#aiShuttleOverlay').show();
+            $('#aiShuttleProgressBar').css('width', '8%');
+            $('#aiShuttlePercent').text('8%');
             const shuttleSteps = [
-                '✨ 正在定位面部 5 维几何关键点...',
-                '🧬 正在提取 ArcFace 512维身份特征向量...',
-                '⚡ 正在调用 Inswapper 隐空间重塑华服...',
-                '🎨 正在进行光影与肤色逆仿射自适应贴合...',
-                '🌟 AI 魔法变身即将完成，惊艳亮相中...'
+                { text: '✨ 正在定位面部 5 维几何关键点...', progress: 25 },
+                { text: '🧬 正在提取 ArcFace 512维身份特征向量...', progress: 48 },
+                { text: '⚡ 正在调用 Inswapper 隐空间重塑华服...', progress: 70 },
+                { text: '🎨 正在进行下颌自适应保型与无缝去须融合...', progress: 88 },
+                { text: '🌟 GFPGAN 高清纹理重塑，惊艳亮相中...', progress: 96 }
             ];
             let stepIdx = 0;
+            let currentPct = 8;
             const tickerTimer = setInterval(() => {
-                stepIdx = (stepIdx + 1) % shuttleSteps.length;
-                $('#aiShuttleTicker').html('<span class="ai-ticker-step active">' + shuttleSteps[stepIdx] + '</span>');
-            }, 600);
+                if (stepIdx < shuttleSteps.length) {
+                    const step = shuttleSteps[stepIdx];
+                    $('#aiShuttleTicker').html('<span class="ai-ticker-step active">' + step.text + '</span>');
+                    currentPct = step.progress;
+                    $('#aiShuttleProgressBar').css('width', currentPct + '%');
+                    $('#aiShuttlePercent').text(currentPct + '%');
+                    stepIdx++;
+                } else if (currentPct < 98) {
+                    currentPct += 1;
+                    $('#aiShuttleProgressBar').css('width', currentPct + '%');
+                    $('#aiShuttlePercent').text(currentPct + '%');
+                }
+            }, 550);
 
             const tplPath = (window.selectedAiTemplate && window.selectedAiTemplate.path) 
                 ? window.selectedAiTemplate.path 
@@ -1240,32 +1253,36 @@ const photoBooth = (function () {
                     }
                 })
                 .done((swapData) => {
-                    clearInterval(tickerTimer);
-                    $('#aiShuttleOverlay').hide();
-                    setFiltersEnabled(true);
-                    if (swapData && swapData.success) {
-                        window.lastAiSourceFile = result.file;
-                        window.lastAiSwapFile = swapData.file;
-                        photoboothTools.console.log('AI Face Swap Success:', swapData);
-                        api.renderPic(swapData.file, swapData.images);
-                        $('#aiResultControlBar').show();
-                        if (window.selectedAiTemplate && window.selectedAiTemplate.title) {
-                            $('#aiResultTemplateName').text('变身完成：' + window.selectedAiTemplate.title);
+                    $('#aiShuttleProgressBar').css('width', '100%');
+                    $('#aiShuttlePercent').text('100%');
+                    setTimeout(() => {
+                        clearInterval(tickerTimer);
+                        $('#aiShuttleOverlay').hide();
+                        setFiltersEnabled(true);
+                        if (swapData && swapData.success) {
+                            window.lastAiSourceFile = result.file;
+                            window.lastAiSwapFile = swapData.file;
+                            photoboothTools.console.log('AI Face Swap Success:', swapData);
+                            api.renderPic(swapData.file, swapData.images);
+                            $('#aiResultControlBar').show();
+                            if (window.selectedAiTemplate && window.selectedAiTemplate.title) {
+                                $('#aiResultTemplateName').text('变身完成：' + window.selectedAiTemplate.title);
+                            }
+                        } else {
+                            const errMsg = (swapData && swapData.error) ? swapData.error : 'AI 变身换脸处理失败，请重试';
+                            photoboothTools.modal.open('error');
+                            photoboothTools.modal.empty();
+                            photoboothTools.modal.append($('<h3 style="margin-bottom:0.8rem;color:#EF4444;"><i class="fa fa-triangle-exclamation"></i> 变身拍照提示</h3>'));
+                            photoboothTools.modal.append($('<p style="font-size:1.1rem;margin-bottom:1.5rem;">').text(errMsg));
+                            const retryBtn = $('<button class="button" style="background:#8B5CF6;color:#fff;border-radius:9999px;padding:0.75rem 2rem;font-weight:800;box-shadow:3px 3px 0 #1E293B;">')
+                                .text('📸 重新拍摄')
+                                .on('click', () => {
+                                    photoboothTools.modal.close();
+                                    api.thrill(PhotoStyle.PHOTO);
+                                });
+                            photoboothTools.modal.append(retryBtn);
                         }
-                    } else {
-                        const errMsg = (swapData && swapData.error) ? swapData.error : 'AI 变身换脸处理失败，请重试';
-                        photoboothTools.modal.open('error');
-                        photoboothTools.modal.empty();
-                        photoboothTools.modal.append($('<h3 style="margin-bottom:0.8rem;color:#EF4444;"><i class="fa fa-triangle-exclamation"></i> 变身拍照提示</h3>'));
-                        photoboothTools.modal.append($('<p style="font-size:1.1rem;margin-bottom:1.5rem;">').text(errMsg));
-                        const retryBtn = $('<button class="button" style="background:#8B5CF6;color:#fff;border-radius:9999px;padding:0.75rem 2rem;font-weight:800;box-shadow:3px 3px 0 #1E293B;">')
-                            .text('📸 重新拍摄')
-                            .on('click', () => {
-                                photoboothTools.modal.close();
-                                api.thrill(PhotoStyle.PHOTO);
-                            });
-                        photoboothTools.modal.append(retryBtn);
-                    }
+                    }, 350);
                 })
                 .fail((jqXHR, textStatus) => {
                     clearInterval(tickerTimer);
@@ -1282,37 +1299,42 @@ const photoBooth = (function () {
         const classicTpl = (window.selectedClassicTemplate && window.selectedClassicTemplate.id && window.selectedClassicTemplate.id !== 'none')
             ? (window.selectedClassicTemplate.image || window.selectedClassicTemplate.path || '')
             : '';
-        const bSmooth = (config.beauty && config.beauty.default_smooth !== undefined) ? config.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10);
-        const bWhite = (config.beauty && config.beauty.default_white !== undefined) ? config.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10);
+        const bSmooth = (config.beauty && config.beauty.default_smooth !== undefined) ? config.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 30, 10);
+        const bWhite = (config.beauty && config.beauty.default_white !== undefined) ? config.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 25, 10);
+        const bRosy = (config.beauty && config.beauty.default_rosy !== undefined) ? config.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10);
+        const bClarity = (config.beauty && config.beauty.default_clarity !== undefined) ? config.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10);
         const bEye = (config.beauty && config.beauty.default_eye !== undefined) ? config.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10);
         const bSlim = (config.beauty && config.beauty.default_slim !== undefined) ? config.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10);
 
-        if (classicTpl || bSmooth > 0 || bWhite > 0 || bEye > 0 || bSlim > 0) {
-            loaderMessage.html(
-                '<div style="text-align:center;padding:1.5rem;">' +
-                '<i class="fa fa-wand-magic-sparkles fa-spin" style="font-size:3rem;color:#F472B6;margin-bottom:1rem;display:inline-block;"></i>' +
-                '<h2 style="font-size:1.8rem;color:#FFF;margin-bottom:0.5rem;font-weight:800;">大头贴美颜精修中...</h2>' +
-                '<p style="font-size:1.1rem;color:#CBD5E1;">正在进行发丝抠图、智能美肤与背景模板合成</p>' +
-                '</div>'
-            );
-        } else {
-            loaderMessage.html(
-                '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busy')
-            );
-        }
-
-        if (
-            (api.photoStyle === PhotoStyle.PHOTO || api.photoStyle === PhotoStyle.CUSTOM) &&
-            config.picture.preview_before_processing
-        ) {
-            const tempImageUrl = environment.publicFolders.tmp + '/' + result.file;
-            const preloadImage = new Image();
-            preloadImage.onload = () => {
-                loader.css('background-image', `url(${tempImageUrl})`);
-                loader.addClass('showBackgroundImage');
-            };
-            preloadImage.src = tempImageUrl;
-        }
+        $('#classicLoaderOverlay').show();
+        $('#classicProgressBar').css('width', '10%');
+        $('#classicProgressPercent').text('10%');
+        const classicSteps = classicTpl ? [
+            { text: '✨ 正在分析画面构图与人像定位...', progress: 28 },
+            { text: '💄 正在执行智能磨皮、晶透美白与元气红润...', progress: 58 },
+            { text: '✂️ 正在进行发丝级抠图与柔光背景模板融合...', progress: 86 },
+            { text: '📸 正在输出商业级质感大头贴大片...', progress: 96 }
+        ] : [
+            { text: '✨ 正在分析画面构图与人脸定位...', progress: 35 },
+            { text: '💄 正在执行自然磨皮、晶透美白与红润气色...', progress: 75 },
+            { text: '📸 正在输出高质感实景自拍大头贴...', progress: 96 }
+        ];
+        let cStepIdx = 0;
+        let cPct = 10;
+        const classicTimer = setInterval(() => {
+            if (cStepIdx < classicSteps.length) {
+                const step = classicSteps[cStepIdx];
+                $('#classicLoaderTicker').html('<span class="ai-ticker-step active">' + step.text + '</span>');
+                cPct = step.progress;
+                $('#classicProgressBar').css('width', cPct + '%');
+                $('#classicProgressPercent').text(cPct + '%');
+                cStepIdx++;
+            } else if (cPct < 98) {
+                cPct += 1;
+                $('#classicProgressBar').css('width', cPct + '%');
+                $('#classicProgressPercent').text(cPct + '%');
+            }
+        }, 450);
 
         const applyData = {
             file: result.file,
@@ -1321,6 +1343,8 @@ const photoBooth = (function () {
             template: classicTpl,
             smooth: bSmooth,
             white: bWhite,
+            rosy: bRosy,
+            clarity: bClarity,
             eye: bEye,
             slim: bSlim
         };
@@ -1332,41 +1356,49 @@ const photoBooth = (function () {
                 data: applyData
             })
             .done((data) => {
-                try {
-                    setFiltersEnabled(true);
-                    photoboothTools.console.log(api.photoStyle + ' processed', data);
-                    endTime = new Date().getTime();
-                    totalTime = endTime - startTime;
-                    photoboothTools.console.logDev(
-                        'Processing ' + api.photoStyle + ' took ' + totalTime + 'ms for filter `' + imgFilter + '`'
-                    );
-                    photoboothTools.console.logDev('Images:', data.images);
+                $('#classicProgressBar').css('width', '100%');
+                $('#classicProgressPercent').text('100%');
+                setTimeout(() => {
+                    clearInterval(classicTimer);
+                    $('#classicLoaderOverlay').hide();
+                    try {
+                        setFiltersEnabled(true);
+                        photoboothTools.console.log(api.photoStyle + ' processed', data);
+                        endTime = new Date().getTime();
+                        totalTime = endTime - startTime;
+                        photoboothTools.console.logDev(
+                            'Processing ' + api.photoStyle + ' took ' + totalTime + 'ms for filter `' + imgFilter + '`'
+                        );
+                        photoboothTools.console.logDev('Images:', data.images);
 
-                    if (config.get_request.processed) {
-                        const getUrl = config.get_request.server + '/' + api.photoStyle;
-                        photoboothTools.getRequest(getUrl);
-                    }
+                        if (config.get_request.processed) {
+                            const getUrl = config.get_request.server + '/' + api.photoStyle;
+                            photoboothTools.getRequest(getUrl);
+                        }
 
-                    if (data.error) {
-                        api.errorPic(data);
-                    } else if (api.photoStyle === PhotoStyle.CHROMA) {
-                        api.renderChroma(data.file);
-                    } else {
-                        api.renderPic(data.file, data.images);
+                        if (data.error) {
+                            api.errorPic(data);
+                        } else if (api.photoStyle === PhotoStyle.CHROMA) {
+                            api.renderChroma(data.file);
+                        } else {
+                            api.renderPic(data.file, data.images);
+                        }
+                    } catch (error) {
+                        photoboothTools.console.log('processPic.success: unexpected error:', error);
+                        api.errorPic({ error: error.message || 'Unexpected error processing picture' });
                     }
-                } catch (error) {
-                    photoboothTools.console.log('processPic.success: unexpected error:', error);
-                    api.errorPic({ error: error.message || 'Unexpected error processing picture' });
-                }
+                }, 300);
             })
             .fail((jqXHR, textStatus) => {
+                clearInterval(classicTimer);
+                $('#classicLoaderOverlay').hide();
                 if (photoboothTools.isCsrfErrorResponse(jqXHR)) {
                     photoboothTools.handleCsrfMismatch(environment.publicFolders.api + '/applyEffects.php');
                     return;
                 }
                 setFiltersEnabled(true);
                 api.errorPic({
-                    error: 'Request failed: ' + textStatus
+                    error: '大头贴精修处理网络请求失败: ' + textStatus
                 });
             });
     };
@@ -2585,27 +2617,36 @@ const photoBooth = (function () {
 
     // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer
     api.applyStudioBeautyPreview = function () {
-        const smooth = parseInt($('#studioSmoothSlider').val() || 20, 10);
-        const white = parseInt($('#studioWhiteSlider').val() || 15, 10);
+        const smooth = parseInt($('#studioSmoothSlider').val() || 30, 10);
+        const white = parseInt($('#studioWhiteSlider').val() || 25, 10);
+        const rosy = parseInt($('#studioRosySlider').val() || 20, 10);
+        const clarity = parseInt($('#studioClaritySlider').val() || 15, 10);
         const eye = parseInt($('#studioEyeSlider').val() || 15, 10);
         const slim = parseInt($('#studioSlimSlider').val() || 15, 10);
 
-        // 1. Calculate color & lighting enhancements (Skin Whitening)
-        const brightness = (1 + (white / 100) * 0.22).toFixed(3);
-        const contrast = (1 - (white / 100) * 0.05).toFixed(3);
-        const saturate = (1 + (white / 100) * 0.08).toFixed(3);
+        // 1. Crystal Whitening & Luminance (S-Curve & Shadow Protection)
+        const brightness = (1.0 + (white / 100) * 0.28).toFixed(3);
+        const whiteContrast = (1.0 + (white / 100) * 0.05).toFixed(3);
 
-        // 2. Calculate soft-focus skin smoothing (Micro-diffusion)
+        // 2. Natural Rosy Blush (Warm peach / pink saturation boost)
+        const rosySat = (1.0 + (rosy / 100) * 0.25).toFixed(3);
+        const rosyHue = (rosy > 0) ? `hue-rotate(${-((rosy / 100) * 5.0).toFixed(1)}deg)` : '';
+
+        // 3. High-Definition Clarity (Micro-contrast enhancement)
+        const clarityContrast = (1.0 + (clarity / 100) * 0.18).toFixed(3);
+
+        // 4. Fine Skin Smoothing (Soft-focus skin diffusion, visible & delicate)
         let smoothFilter = '';
         if (smooth > 0) {
-            const blurPx = (smooth * 0.012).toFixed(2);
-            const glowPx = (smooth * 0.08).toFixed(1);
-            smoothFilter = `drop-shadow(0 0 ${glowPx}px rgba(255, 245, 248, 0.45)) blur(${blurPx}px)`;
+            const blurPx = (0.4 + (smooth / 100) * 2.2).toFixed(2);
+            smoothFilter = `blur(${blurPx}px)`;
         }
 
-        const beautyFilterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturate}) ${smoothFilter}`.trim();
+        // Combined color and beauty filter
+        const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.04)).toFixed(3);
+        const beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue} ${smoothFilter}`.trim();
 
-        // 3. Combine with current artistic color filter
+        // 5. Combine with current artistic color filter
         const activeFilter = imgFilter || 'plain';
         const filterVal = (typeof activeFilter === 'object' && activeFilter !== null && activeFilter.value) ? activeFilter.value : activeFilter;
         const baseColorFilter = (filterCssMap && filterCssMap[filterVal] && filterCssMap[filterVal] !== 'none') ? filterCssMap[filterVal] : '';
@@ -2615,18 +2656,66 @@ const photoBooth = (function () {
         const vid = $('#preview--video');
         if (vid.length) {
             vid.css('filter', fullFilter);
+
+            // 6. Dynamic Visual Deformation for Eye & Slim (Subtle focal jawline taper & eye zoom)
+            const slimFactorX = (1.0 - (slim / 100) * 0.07).toFixed(3);
+            const eyeFactor = (1.0 + (eye / 100) * 0.05).toFixed(3);
+            const isFlipped = vid.hasClass('flip-horizontal');
+            const flipScale = isFlipped ? -1 : 1;
+            vid.css('transform', `scale(${flipScale * slimFactorX * eyeFactor}, ${eyeFactor})`);
         }
 
-        // 4. Subtle guide indicator pulse for Eye & Slim
+        // 7. Dynamic Pose Guide Oval Feedback for Eye & Slim
         const guideOval = $('.ai-pose-oval');
         if (guideOval.length) {
-            if (eye > 20 || slim > 20) {
+            if (eye > 15 || slim > 15) {
                 guideOval.addClass('ai-pose-oval--beauty-glow');
             } else {
                 guideOval.removeClass('ai-pose-oval--beauty-glow');
             }
+            const ovalTaper = (1.0 - (slim / 100) * 0.12).toFixed(2);
+            guideOval.css('transform', `scaleX(${ovalTaper})`);
         }
     };
+
+    // Beauty Presets Click
+    $(document).on('click', '.wb-preset-pill', function (e) {
+        e.preventDefault();
+        $('.wb-preset-pill').removeClass('active');
+        $(this).addClass('active');
+
+        const preset = $(this).data('preset');
+        if (preset === 'natural') {
+            $('#studioSmoothSlider').val(35).trigger('input');
+            $('#studioWhiteSlider').val(25).trigger('input');
+            $('#studioRosySlider').val(20).trigger('input');
+            $('#studioClaritySlider').val(15).trigger('input');
+            $('#studioEyeSlider').val(15).trigger('input');
+            $('#studioSlimSlider').val(15).trigger('input');
+        } else if (preset === 'rosy') {
+            $('#studioSmoothSlider').val(45).trigger('input');
+            $('#studioWhiteSlider').val(30).trigger('input');
+            $('#studioRosySlider').val(45).trigger('input');
+            $('#studioClaritySlider').val(10).trigger('input');
+            $('#studioEyeSlider').val(25).trigger('input');
+            $('#studioSlimSlider').val(20).trigger('input');
+        } else if (preset === 'cool') {
+            $('#studioSmoothSlider').val(40).trigger('input');
+            $('#studioWhiteSlider').val(45).trigger('input');
+            $('#studioRosySlider').val(10).trigger('input');
+            $('#studioClaritySlider').val(30).trigger('input');
+            $('#studioEyeSlider').val(15).trigger('input');
+            $('#studioSlimSlider').val(25).trigger('input');
+        } else if (preset === 'raw') {
+            $('#studioSmoothSlider').val(0).trigger('input');
+            $('#studioWhiteSlider').val(0).trigger('input');
+            $('#studioRosySlider').val(0).trigger('input');
+            $('#studioClaritySlider').val(0).trigger('input');
+            $('#studioEyeSlider').val(0).trigger('input');
+            $('#studioSlimSlider').val(0).trigger('input');
+        }
+        api.applyStudioBeautyPreview();
+    });
 
     // Studio Beauty Sliders Live Input
     $(document).on('input', '#studioSmoothSlider', function () {
@@ -2642,6 +2731,22 @@ const photoBooth = (function () {
         $('#valStudioWhite').text(val + '%');
         config.beauty = config.beauty || {};
         config.beauty.default_white = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
+    });
+
+    $(document).on('input', '#studioRosySlider', function () {
+        const val = $(this).val();
+        $('#valStudioRosy').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_rosy = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
+    });
+
+    $(document).on('input', '#studioClaritySlider', function () {
+        const val = $(this).val();
+        $('#valStudioClarity').text(val + '%');
+        config.beauty = config.beauty || {};
+        config.beauty.default_clarity = parseInt(val, 10);
         api.applyStudioBeautyPreview();
     });
 
@@ -2663,8 +2768,12 @@ const photoBooth = (function () {
 
     $(document).on('click', '#btnResetStudioBeauty', function (e) {
         e.preventDefault();
-        $('#studioSmoothSlider').val(20).trigger('input');
-        $('#studioWhiteSlider').val(15).trigger('input');
+        $('.wb-preset-pill').removeClass('active');
+        $('.wb-preset-pill[data-preset="natural"]').addClass('active');
+        $('#studioSmoothSlider').val(30).trigger('input');
+        $('#studioWhiteSlider').val(25).trigger('input');
+        $('#studioRosySlider').val(20).trigger('input');
+        $('#studioClaritySlider').val(15).trigger('input');
         $('#studioEyeSlider').val(15).trigger('input');
         $('#studioSlimSlider').val(15).trigger('input');
         api.applyStudioBeautyPreview();

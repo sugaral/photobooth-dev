@@ -37,8 +37,10 @@ class Beauty
                 'output' => $tempOutput,
                 'eye' => (float)($beautyConfig['default_eye'] ?? 15),
                 'slim' => (float)($beautyConfig['default_slim'] ?? 15),
-                'smooth' => (float)($beautyConfig['default_smooth'] ?? 20),
-                'white' => (float)($beautyConfig['default_white'] ?? 15),
+                'smooth' => (float)($beautyConfig['default_smooth'] ?? 30),
+                'white' => (float)($beautyConfig['default_white'] ?? 25),
+                'rosy' => (float)($beautyConfig['default_rosy'] ?? 20),
+                'clarity' => (float)($beautyConfig['default_clarity'] ?? 15),
                 'preview' => false,
             ]);
 

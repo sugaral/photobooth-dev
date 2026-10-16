@@ -330,6 +330,15 @@ class FaceSwapEngine:
             return {"success": False, "error": "选中的模板未能识别到基准人脸"}
         target_face = target_faces[0]
 
+        # 计算人脸宽高长宽比与轮廓保型系数 (Face Shape Ratio)
+        src_bbox = source_face["bbox"]
+        tgt_bbox = target_face["bbox"]
+        src_w = max(1.0, float(src_bbox[2] - src_bbox[0]))
+        src_h = max(1.0, float(src_bbox[3] - src_bbox[1]))
+        tgt_w = max(1.0, float(tgt_bbox[2] - tgt_bbox[0]))
+        tgt_h = max(1.0, float(tgt_bbox[3] - tgt_bbox[1]))
+        rho = float(np.clip((src_w / src_h) / (tgt_w / tgt_h), 0.88, 1.30))
+
         # 4. 投影特征至 Inswapper 空间
         latent = source_emb
         if self.emap is not None:
@@ -387,15 +396,31 @@ class FaceSwapEngine:
                 # 85% 超清面部 + 15% 原始肤色融合，兼顾极致五官立体度与自然真实感
                 blend_face = cv2.addWeighted(enh_face, 0.85, swapped_512, 0.15, 0)
 
+                # 脸型保型重塑 (Face Shape Preservation): 当拍照者是圆脸时自适应舒展下颌，绝不压缩成畸形瘦脸
+                if rho > 1.03:
+                    grid_x, grid_y = np.meshgrid(np.arange(512, dtype=np.float32), np.arange(512, dtype=np.float32))
+                    y_weight = np.exp(-((grid_y - 330.0) ** 2) / (2.0 * (95.0 ** 2)))
+                    expand_factor = min(0.18, (rho - 1.0) * 0.50)
+                    dx = (grid_x - 256.0) * expand_factor * y_weight
+                    map_x = grid_x - dx
+                    map_y = grid_y
+                    blend_face = cv2.remap(blend_face, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+
                 # 512 尺度逆仿射变换回贴
                 M_512 = M.copy()
                 M_512[0, :] *= 4.0
                 M_512[1, :] *= 4.0
                 M_inv_512 = cv2.invertAffineTransform(M_512)
 
+                # 动态自适应下颌扩展遮罩 (覆盖模板下巴络腮胡并自适应脸型宽度)
                 mask_512 = np.zeros((512, 512), dtype=np.float32)
-                cv2.ellipse(mask_512, (256, 256), (184, 224), 0, 0, 360, 1.0, -1)
-                mask_512 = cv2.GaussianBlur(mask_512, (39, 39), 0)
+                rx = int(np.clip(184 * (rho ** 0.65), 180, 225))
+                # 上半部分：额头自然羽化收束 (205px)
+                cv2.ellipse(mask_512, (256, 256), (rx, 205), 0, 180, 360, 1.0, -1)
+                # 下半部分：下颌向下延伸至 245px (触达 y=505)，彻底擦除并覆盖模板残留的络腮胡与胡茬
+                rx_jaw = int(rx * 1.05)
+                cv2.ellipse(mask_512, (256, 260), (rx_jaw, 245), 0, 0, 180, 1.0, -1)
+                mask_512 = cv2.GaussianBlur(mask_512, (37, 37), 0)
 
                 warped_face = cv2.warpAffine(blend_face, M_inv_512, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
                 warped_mask = cv2.warpAffine(mask_512, M_inv_512, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
@@ -410,9 +435,9 @@ class FaceSwapEngine:
                 enhancer_applied = True
             except Exception as exc:
                 print(f"[FaceSwapEngine] GFPGAN enhancer error: {exc}. Fallback to 128 blending.", flush=True)
-                result = self._blend_128(target_img, swapped_face, M, w, h)
+                result = self._blend_128(target_img, swapped_face, M, w, h, rho=rho)
         else:
-            result = self._blend_128(target_img, swapped_face, M, w, h)
+            result = self._blend_128(target_img, swapped_face, M, w, h, rho=rho)
 
         if output_path is None:
             output_path = source_path.replace(".jpg", "_ai_swap.jpg")
@@ -428,12 +453,14 @@ class FaceSwapEngine:
             "message": f"AI 变身换脸成功({'FaceFusion超清重塑' if enhancer_applied else '标准融合'})，耗时 {elapsed}s"
         }
 
-    def _blend_128(self, target_img, swapped_face, M, w, h):
+    def _blend_128(self, target_img, swapped_face, M, w, h, rho=1.0):
         """Fallback 128x128 blending if enhancer is unavailable."""
         M_inv = cv2.invertAffineTransform(M)
         mask = np.zeros((128, 128), dtype=np.float32)
-        cv2.ellipse(mask, (64, 64), (46, 56), 0, 0, 360, 1.0, -1)
-        mask = cv2.GaussianBlur(mask, (19, 19), 0)
+        rx = int(np.clip(46 * (rho ** 0.65), 45, 58))
+        cv2.ellipse(mask, (64, 64), (rx, 52), 0, 180, 360, 1.0, -1)
+        cv2.ellipse(mask, (64, 66), (int(rx * 1.05), 60), 0, 0, 180, 1.0, -1)
+        mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
         warped_face = cv2.warpAffine(swapped_face, M_inv, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
         warped_mask = cv2.warpAffine(mask, M_inv, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)

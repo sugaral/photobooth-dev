@@ -62,10 +62,12 @@ try {
 $templateParam = isset($_POST['template']) ? trim((string)$_POST['template']) : '';
 $smoothParam = isset($_POST['smooth']) && is_numeric($_POST['smooth']) ? (float)$_POST['smooth'] : null;
 $whiteParam = isset($_POST['white']) && is_numeric($_POST['white']) ? (float)$_POST['white'] : null;
+$rosyParam = isset($_POST['rosy']) && is_numeric($_POST['rosy']) ? (float)$_POST['rosy'] : null;
+$clarityParam = isset($_POST['clarity']) && is_numeric($_POST['clarity']) ? (float)$_POST['clarity'] : null;
 $eyeParam = isset($_POST['eye']) && is_numeric($_POST['eye']) ? (float)$_POST['eye'] : null;
 $slimParam = isset($_POST['slim']) && is_numeric($_POST['slim']) ? (float)$_POST['slim'] : null;
 
-if ($smoothParam !== null || $whiteParam !== null || $eyeParam !== null || $slimParam !== null) {
+if ($smoothParam !== null || $whiteParam !== null || $rosyParam !== null || $clarityParam !== null || $eyeParam !== null || $slimParam !== null) {
     if (!isset($config['beauty']) || !is_array($config['beauty'])) {
         $config['beauty'] = [];
     }
@@ -73,6 +75,8 @@ if ($smoothParam !== null || $whiteParam !== null || $eyeParam !== null || $slim
     $config['beauty']['auto_apply'] = true;
     if ($smoothParam !== null) $config['beauty']['default_smooth'] = $smoothParam;
     if ($whiteParam !== null) $config['beauty']['default_white'] = $whiteParam;
+    if ($rosyParam !== null) $config['beauty']['default_rosy'] = $rosyParam;
+    if ($clarityParam !== null) $config['beauty']['default_clarity'] = $clarityParam;
     if ($eyeParam !== null) $config['beauty']['default_eye'] = $eyeParam;
     if ($slimParam !== null) $config['beauty']['default_slim'] = $slimParam;
 }
@@ -85,6 +89,12 @@ if (!empty($templateParam) && $templateParam !== 'none') {
     $config['rembg']['auto_apply'] = true;
     $config['rembg']['background'] = $templateParam;
     $config['rembg']['backgroundMode'] = 'scale-fill';
+} elseif ($templateParam === 'none') {
+    if (!isset($config['rembg']) || !is_array($config['rembg'])) {
+        $config['rembg'] = [];
+    }
+    $config['rembg']['enabled'] = false;
+    $config['rembg']['auto_apply'] = false;
 }
 
 $vars['isCollage'] = false;

@@ -23,10 +23,37 @@
                     <span class="ai-ticker-step active"><i class="fa fa-crosshairs"></i> 正在定位面部 5 维几何关键点...</span>
                 </div>
                 <div class="ai-shuttle-progress-wrap">
-                    <div class="ai-shuttle-progress-bar" id="aiShuttleProgressBar"></div>
+                    <div class="ai-shuttle-progress-bar" id="aiShuttleProgressBar" style="width: 0%;"></div>
                 </div>
+                <div class="ai-shuttle-percent" id="aiShuttlePercent">0%</div>
                 <div class="ai-shuttle-tips">
                     <span>💡 RTX 5060 DirectML 硬件加速中 · 华服即将织就</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 经典大头贴美颜与模板合成过渡特效 -->
+        <div id="classicLoaderOverlay" class="ai-shuttle-overlay classic-shuttle-overlay" style="display:none;" aria-live="assertive">
+            <div class="ai-shuttle-backdrop"></div>
+            <div class="ai-shuttle-portal">
+                <div class="ai-shuttle-ring ring-outer"></div>
+                <div class="ai-shuttle-ring ring-middle"></div>
+                <div class="ai-shuttle-ring ring-inner" style="background:linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%);">
+                    <i class="fa fa-camera-retro"></i>
+                </div>
+                <div class="ai-shuttle-pulse"></div>
+            </div>
+            <div class="ai-shuttle-content">
+                <div class="ai-shuttle-title" id="classicLoaderTitle">📸 大头贴美颜精修中</div>
+                <div class="ai-shuttle-ticker" id="classicLoaderTicker">
+                    <span class="ai-ticker-step active"><i class="fa fa-wand-magic-sparkles"></i> 正在进行智能人像美颜与发丝精修...</span>
+                </div>
+                <div class="ai-shuttle-progress-wrap">
+                    <div class="ai-shuttle-progress-bar" id="classicProgressBar" style="width: 0%;"></div>
+                </div>
+                <div class="ai-shuttle-percent" id="classicProgressPercent">0%</div>
+                <div class="ai-shuttle-tips">
+                    <span>💡 GPU 加速人像精修 · 即将呈现最终大片</span>
                 </div>
             </div>
         </div>

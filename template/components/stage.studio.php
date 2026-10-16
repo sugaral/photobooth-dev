@@ -7,8 +7,10 @@ $defFilterVal = is_object($defaultFilter) && isset($defaultFilter->value) ? $def
 
 $bEye = (int)($config['beauty']['default_eye'] ?? 15);
 $bSlim = (int)($config['beauty']['default_slim'] ?? 15);
-$bSmooth = (int)($config['beauty']['default_smooth'] ?? 20);
-$bWhite = (int)($config['beauty']['default_white'] ?? 15);
+$bSmooth = (int)($config['beauty']['default_smooth'] ?? 30);
+$bWhite = (int)($config['beauty']['default_white'] ?? 25);
+$bRosy = (int)($config['beauty']['default_rosy'] ?? 20);
+$bClarity = (int)($config['beauty']['default_clarity'] ?? 15);
 
 $filterPresets = [
     ['id' => 'plain', 'name' => '自然原图', 'tag' => 'RAW'],
@@ -77,14 +79,14 @@ $aiTemplates = [
 $classicTemplates = [
     [
         'id' => 'none',
-        'title' => '实景原生 (不换景)',
-        'tag' => '实景原生',
-        'thumb' => 'resources/img/templates/transparent.png',
+        'title' => '实景原生 (不换背景)',
+        'tag' => '相机原图',
+        'thumb' => 'resources/img/templates/icon_natural.png',
     ],
     [
         'id' => 'studio_light',
-        'title' => '极简摄影棚',
-        'tag' => '经典纯色',
+        'title' => '极简影棚',
+        'tag' => '柔和质感',
         'thumb' => 'resources/img/templates/studio_light.jpg',
     ],
     [
@@ -219,6 +221,14 @@ $classicTemplates = [
                         </button>
                     </div>
 
+                    <!-- 美颜风格快速预设胶囊 -->
+                    <div class="wb-beauty-presets" id="studioBeautyPresets">
+                        <button type="button" class="wb-preset-pill active" data-preset="natural"><i class="fa fa-wand-magic-sparkles"></i> 自然清透</button>
+                        <button type="button" class="wb-preset-pill" data-preset="rosy"><i class="fa fa-heart"></i> 粉嫩元气</button>
+                        <button type="button" class="wb-preset-pill" data-preset="cool"><i class="fa fa-gem"></i> 高级冷白</button>
+                        <button type="button" class="wb-preset-pill" data-preset="raw"><i class="fa fa-camera"></i> 原生微修</button>
+                    </div>
+
                     <div class="wb-beauty-grid">
                         <!-- 磨皮 -->
                         <div class="wb-beauty-card">
@@ -236,6 +246,24 @@ $classicTemplates = [
                                 <span class="wb-slider-val" id="valStudioWhite"><?= $bWhite ?>%</span>
                             </div>
                             <input type="range" min="0" max="100" value="<?= $bWhite ?>" class="wb-range-slider" id="studioWhiteSlider">
+                        </div>
+
+                        <!-- 红润 -->
+                        <div class="wb-beauty-card">
+                            <div class="wb-slider-row">
+                                <span class="wb-slider-label"><i class="fa fa-droplet"></i> 元气红润</span>
+                                <span class="wb-slider-val" id="valStudioRosy"><?= $bRosy ?>%</span>
+                            </div>
+                            <input type="range" min="0" max="100" value="<?= $bRosy ?>" class="wb-range-slider" id="studioRosySlider">
+                        </div>
+
+                        <!-- 立体修容 -->
+                        <div class="wb-beauty-card">
+                            <div class="wb-slider-row">
+                                <span class="wb-slider-label"><i class="fa fa-sliders"></i> 立体修容</span>
+                                <span class="wb-slider-val" id="valStudioClarity"><?= $bClarity ?>%</span>
+                            </div>
+                            <input type="range" min="0" max="100" value="<?= $bClarity ?>" class="wb-range-slider" id="studioClaritySlider">
                         </div>
 
                         <!-- 大眼 -->
@@ -356,7 +384,7 @@ $classicTemplates = [
                     <!-- 经典背景模板网格 -->
                     <div class="wb-tpl-grid" id="studioClassicTplGrid">
                         <?php foreach ($classicTemplates as $cidx => $ctpl): ?>
-                            <?php $isClassicAct = ($ctpl['id'] === 'studio_light'); ?>
+                            <?php $isClassicAct = ($ctpl['id'] === 'none'); ?>
                             <div class="wb-classic-card <?= $isClassicAct ? 'active' : '' ?>"
                                  data-id="<?= $ctpl['id'] ?>"
                                  data-title="<?= htmlspecialchars($ctpl['title']) ?>"

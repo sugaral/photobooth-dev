@@ -142,7 +142,7 @@ class BeautyEngine:
 
         return faces_landmarks
 
-    def apply_retouch(self, img_bgr, faces_landmarks, eye=15, slim=15, smooth=20, white=15):
+    def apply_retouch(self, img_bgr, faces_landmarks, eye=15, slim=15, smooth=30, white=25, rosy=20, clarity=15):
         """
         Applies parameterized beauty retouching to all faces in img_bgr.
         Uses a unified continuous C2 deformation field and additive skin tone blending.
@@ -153,6 +153,8 @@ class BeautyEngine:
         slim_k = max(0.0, min(100.0, float(slim))) / 100.0
         smooth_k = max(0.0, min(100.0, float(smooth))) / 100.0
         white_k = max(0.0, min(100.0, float(white))) / 100.0
+        rosy_k = max(0.0, min(100.0, float(rosy))) / 100.0
+        clarity_k = max(0.0, min(100.0, float(clarity))) / 100.0
 
         has_faces = len(faces_landmarks) > 0
 
@@ -250,20 +252,27 @@ class BeautyEngine:
                 borderMode=cv2.BORDER_REFLECT,
             )
 
-        if smooth_k <= 0.001 and white_k <= 0.001:
+        if smooth_k <= 0.001 and white_k <= 0.001 and rosy_k <= 0.001 and clarity_k <= 0.001:
             return warped
 
-        # Step 2: Whitening & Color Radiance (Lab S-Curve Luminance Brightening)
-        if white_k > 0.001:
+        # Step 2: Whitening, Rosy Radiance & Clarity
+        whitened = warped
+        if white_k > 0.001 or rosy_k > 0.001:
             lab = cv2.cvtColor(warped, cv2.COLOR_BGR2Lab).astype(np.float32)
-            l_chan = lab[:, :, 0]
-            l_norm = l_chan / 255.0
-            l_delta = (white_k * 22.0) * np.sin(np.pi * l_norm)
-            lab[:, :, 0] = np.clip(l_chan + l_delta, 0, 255)
-            lab[:, :, 1] = np.clip(lab[:, :, 1] + white_k * 2.2, 0, 255)
+            if white_k > 0.001:
+                l_chan = lab[:, :, 0]
+                l_norm = l_chan / 255.0
+                l_delta = (white_k * 22.0) * np.sin(np.pi * l_norm)
+                lab[:, :, 0] = np.clip(l_chan + l_delta, 0, 255)
+                lab[:, :, 1] = np.clip(lab[:, :, 1] + white_k * 2.2, 0, 255)
+            if rosy_k > 0.001:
+                lab[:, :, 1] = np.clip(lab[:, :, 1] + rosy_k * 8.5, 0, 255)
+                lab[:, :, 2] = np.clip(lab[:, :, 2] + rosy_k * 1.5, 0, 255)
             whitened = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_Lab2BGR)
-        else:
-            whitened = warped
+
+        if clarity_k > 0.001:
+            blur_clarity = cv2.GaussianBlur(whitened, (0, 0), 2.0)
+            whitened = cv2.addWeighted(whitened, 1.0 + clarity_k * 0.25, blur_clarity, -clarity_k * 0.25, 0)
 
         # Step 3: Bilateral Smoothing with High-Frequency Texture Conservation
         if smooth_k > 0.001:
@@ -330,7 +339,7 @@ class BeautyEngine:
         final_float = warped.astype(np.float32) + delta * skin_mask_3c
         return np.clip(final_float, 0, 255).astype(np.uint8)
 
-    def process_image(self, input_path, output_path, eye=15, slim=15, smooth=20, white=15, preview=False, preview_max=960):
+    def process_image(self, input_path, output_path, eye=15, slim=15, smooth=30, white=25, rosy=20, clarity=15, preview=False, preview_max=960):
         """
         High-level image processing pipeline with dual-mode execution (preview vs bake).
         """
@@ -367,7 +376,9 @@ class BeautyEngine:
             eye=eye,
             slim=slim,
             smooth=smooth,
-            white=white
+            white=white,
+            rosy=rosy,
+            clarity=clarity
         )
 
         # Save output image
@@ -389,6 +400,8 @@ class BeautyEngine:
                 "slim": slim,
                 "smooth": smooth,
                 "white": white,
+                "rosy": rosy,
+                "clarity": clarity,
             }
         }
 
@@ -399,8 +412,10 @@ def main():
     parser.add_argument("--output", "-o", required=True, help="Output image path")
     parser.add_argument("--eye", type=float, default=15, help="Eye enlargement (0-100)")
     parser.add_argument("--slim", type=float, default=15, help="Face slimming (0-100)")
-    parser.add_argument("--smooth", type=float, default=20, help="Skin smoothing (0-100)")
-    parser.add_argument("--white", type=float, default=15, help="Skin whitening (0-100)")
+    parser.add_argument("--smooth", type=float, default=30, help="Skin smoothing (0-100)")
+    parser.add_argument("--white", type=float, default=25, help="Skin whitening (0-100)")
+    parser.add_argument("--rosy", type=float, default=20, help="Rosy blush (0-100)")
+    parser.add_argument("--clarity", type=float, default=15, help="Clarity & Contour (0-100)")
     parser.add_argument("--preview", action="store_true", help="Generate fast preview (<=960px)")
     parser.add_argument("--preview-max", type=int, default=960, help="Max preview dimension")
     args = parser.parse_args()
@@ -413,6 +428,8 @@ def main():
         slim=args.slim,
         smooth=args.smooth,
         white=args.white,
+        rosy=args.rosy,
+        clarity=args.clarity,
         preview=args.preview,
         preview_max=args.preview_max,
     )
