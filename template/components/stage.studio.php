@@ -26,28 +26,108 @@ $filterPresets = [
 ];
 
 $aiTemplates = [
+    // --- 女士风格 (Female Styles) ---
     [
         'id' => 'hanfu_female_01',
         'category' => 'hanfu',
         'title' => '盛唐绮梦 · 汉服仙子',
         'tag' => '盛唐华服',
         'sex' => '女性',
+        'sex_code' => 'female',
         'thumb' => 'resources/img/templates_ai/hanfu_female_01.jpg',
     ],
+    [
+        'id' => 'wedding_female_01',
+        'category' => 'wedding',
+        'title' => '纯白花嫁 · 法式轻婚纱',
+        'tag' => '浪漫婚纱',
+        'sex' => '女性',
+        'sex_code' => 'female',
+        'thumb' => 'resources/img/templates_ai/wedding_female_01.jpg',
+    ],
+    [
+        'id' => 'school_female_01',
+        'category' => 'school',
+        'title' => '甜酷学院 · 韩系制服',
+        'tag' => '青春校园',
+        'sex' => '女性',
+        'sex_code' => 'female',
+        'thumb' => 'resources/img/templates_ai/school_female_01.jpg',
+    ],
+    [
+        'id' => 'dunhuang_female_01',
+        'category' => 'hanfu',
+        'title' => '梦幻飞天 · 敦煌神女',
+        'tag' => '国风神仙',
+        'sex' => '女性',
+        'sex_code' => 'female',
+        'thumb' => 'resources/img/templates_ai/dunhuang_female_01.jpg',
+    ],
+    [
+        'id' => 'business_female_01',
+        'category' => 'business',
+        'title' => '精英名媛 · 高定西装',
+        'tag' => '棚拍高管',
+        'sex' => '女性',
+        'sex_code' => 'female',
+        'thumb' => 'resources/img/templates_ai/business_female_01.jpg',
+    ],
+
+    // --- 男士风格 (Male Styles) ---
     [
         'id' => 'hanfu_male_01',
         'category' => 'hanfu',
         'title' => '青衫折扇 · 古风书生',
         'tag' => '儒雅古风',
         'sex' => '男性',
+        'sex_code' => 'male',
         'thumb' => 'resources/img/templates_ai/hanfu_male_01.jpg',
     ],
+    [
+        'id' => 'business_01',
+        'category' => 'business',
+        'title' => '商务精英 · 经典西装',
+        'tag' => '棚拍商务',
+        'sex' => '男性',
+        'sex_code' => 'male',
+        'thumb' => 'resources/img/templates_ai/business_01.jpg',
+    ],
+    [
+        'id' => 'school_male_01',
+        'category' => 'school',
+        'title' => '初见少年 · 日系白衬衫',
+        'tag' => '阳光校草',
+        'sex' => '男性',
+        'sex_code' => 'male',
+        'thumb' => 'resources/img/templates_ai/school_male_01.jpg',
+    ],
+    [
+        'id' => 'agent_male_01',
+        'category' => 'cyberpunk',
+        'title' => '暗夜特工 · 冷光机车',
+        'tag' => '机车特工',
+        'sex' => '男性',
+        'sex_code' => 'male',
+        'thumb' => 'resources/img/templates_ai/agent_male_01.jpg',
+    ],
+    [
+        'id' => 'street_male_01',
+        'category' => 'cyberpunk',
+        'title' => '潮流街头 · 银发机甲',
+        'tag' => '银发潮人',
+        'sex' => '男性',
+        'sex_code' => 'male',
+        'thumb' => 'resources/img/templates_ai/street_male_01.jpg',
+    ],
+
+    // --- 通用/中性风格 (Unisex Styles) ---
     [
         'id' => 'mecha_01',
         'category' => 'cyberpunk',
         'title' => '未来战警 · 量子机甲',
         'tag' => '量子机甲',
         'sex' => '通用',
+        'sex_code' => 'unisex',
         'thumb' => 'resources/img/templates_ai/mecha_01.jpg',
     ],
     [
@@ -56,6 +136,7 @@ $aiTemplates = [
         'title' => '霓虹夜市 · 赛博黑客',
         'tag' => '赛博霓虹',
         'sex' => '通用',
+        'sex_code' => 'unisex',
         'thumb' => 'resources/img/templates_ai/cyber_01.jpg',
     ],
     [
@@ -64,15 +145,8 @@ $aiTemplates = [
         'title' => '旺角雨夜 · 港风胶片',
         'tag' => '90s港风',
         'sex' => '通用',
+        'sex_code' => 'unisex',
         'thumb' => 'resources/img/templates_ai/vintage_01.jpg',
-    ],
-    [
-        'id' => 'business_01',
-        'category' => 'business',
-        'title' => '精英名片 · 高管肖像',
-        'tag' => '棚拍商务',
-        'sex' => '通用',
-        'thumb' => 'resources/img/templates_ai/business_01.jpg',
     ],
 ];
 
@@ -315,21 +389,35 @@ $classicTemplates = [
             <div class="wb-tab-pane" id="paneTemplates">
                 <!-- AI 相机模板模式 -->
                 <div class="wb-tpl-container" id="studioAiTplContainer">
-                    <!-- 分类过滤器与上传按钮 -->
+                    <!-- 分类与性别过滤器与上传按钮 -->
                     <div class="wb-tpl-toolbar">
-                        <div class="wb-tpl-pills" id="studioAiCatPills">
-                            <button type="button" class="wb-pill active" data-cat="all">全部</button>
-                            <button type="button" class="wb-pill" data-cat="hanfu">🌸 汉服</button>
-                            <button type="button" class="wb-pill" data-cat="cyberpunk">🤖 机甲/赛博</button>
-                            <button type="button" class="wb-pill" data-cat="vintage">🎞️ 港风</button>
-                            <button type="button" class="wb-pill" data-cat="business">👔 商务</button>
-                            <button type="button" class="wb-pill" data-cat="custom">⭐ 我的上传</button>
+                        <!-- 性别分类筛选 (一级筛选) -->
+                        <div class="wb-gender-filter-bar" id="studioAiGenderPills">
+                            <span class="wb-filter-group-label"><i class="fa fa-venus-mars"></i> 性别分类:</span>
+                            <button type="button" class="wb-gender-pill active" data-sex="all">全部性别</button>
+                            <button type="button" class="wb-gender-pill" data-sex="female"><i class="fa fa-venus"></i> 👩 女士模板</button>
+                            <button type="button" class="wb-gender-pill" data-sex="male"><i class="fa fa-mars"></i> 👨 男士模板</button>
+                            <button type="button" class="wb-gender-pill" data-sex="unisex"><i class="fa fa-wand-magic-sparkles"></i> ✨ 通用/机甲</button>
                         </div>
-                        <button type="button" class="wb-upload-btn" id="btnStudioUploadAiTemplate" title="上传您喜爱的任意写真图片作为换脸模板">
-                            <i class="fa fa-cloud-arrow-up"></i>
-                            <span>上传模板</span>
-                        </button>
-                        <input type="file" id="studioAiTemplateUploadInput" accept="image/jpeg,image/png,image/webp,image/jpg" style="display: none;" />
+
+                        <!-- 风格分类筛选 (二级筛选) 与 上传 -->
+                        <div class="wb-tpl-cat-row">
+                            <div class="wb-tpl-pills" id="studioAiCatPills">
+                                <button type="button" class="wb-pill active" data-cat="all">全部风格</button>
+                                <button type="button" class="wb-pill" data-cat="hanfu">🌸 汉服古风</button>
+                                <button type="button" class="wb-pill" data-cat="wedding">💍 唯美婚纱</button>
+                                <button type="button" class="wb-pill" data-cat="school">🎓 青春校园</button>
+                                <button type="button" class="wb-pill" data-cat="cyberpunk">🤖 机甲/赛博</button>
+                                <button type="button" class="wb-pill" data-cat="business">👔 商务名片</button>
+                                <button type="button" class="wb-pill" data-cat="vintage">🎞️ 港风复古</button>
+                                <button type="button" class="wb-pill" data-cat="custom">⭐ 我的上传</button>
+                            </div>
+                            <button type="button" class="wb-upload-btn" id="btnStudioUploadAiTemplate" title="上传您喜爱的任意写真图片作为换脸模板">
+                                <i class="fa fa-cloud-arrow-up"></i>
+                                <span>上传模板</span>
+                            </button>
+                            <input type="file" id="studioAiTemplateUploadInput" accept="image/jpeg,image/png,image/webp,image/jpg" style="display: none;" />
+                        </div>
                     </div>
 
                     <!-- AI 模板网格卡片 -->
@@ -338,6 +426,7 @@ $classicTemplates = [
                             <div class="wb-tpl-card <?= $idx === 0 ? 'active' : '' ?>"
                                  data-id="<?= $tpl['id'] ?>"
                                  data-cat="<?= $tpl['category'] ?>"
+                                 data-sex="<?= $tpl['sex_code'] ?? 'unisex' ?>"
                                  data-title="<?= htmlspecialchars($tpl['title']) ?>"
                                  data-image="<?= $tpl['thumb'] ?>"
                                  role="button" tabindex="0">
@@ -415,6 +504,23 @@ $classicTemplates = [
             </div>
 
             <div class="wb-footer-actions">
+                <div class="wb-countdown-box">
+                    <label for="studioCountdownSelect" class="wb-countdown-label">
+                        <i class="fa fa-stopwatch"></i> 拍照倒计时
+                    </label>
+                    <select id="studioCountdownSelect" class="wb-countdown-select">
+                        <option value="1">1 秒</option>
+                        <option value="2">2 秒</option>
+                        <option value="3" selected>3 秒 (标准)</option>
+                        <option value="4">4 秒</option>
+                        <option value="5">5 秒 (从容)</option>
+                        <option value="6">6 秒</option>
+                        <option value="7">7 秒</option>
+                        <option value="8">8 秒 (多合影)</option>
+                        <option value="9">9 秒</option>
+                        <option value="10">10 秒 (大合影)</option>
+                    </select>
+                </div>
                 <button type="button" class="wb-capture-btn" id="btnStudioDoneCapture">
                     <div class="wb-capture-btn-inner">
                         <i class="fa fa-camera-retro"></i>

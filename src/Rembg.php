@@ -67,8 +67,8 @@ class Rembg
                 curl_setopt($chFast, CURLOPT_POST, true);
                 curl_setopt($chFast, CURLOPT_POSTFIELDS, $fastPost);
                 curl_setopt($chFast, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($chFast, CURLOPT_TIMEOUT_MS, 10000);
-                curl_setopt($chFast, CURLOPT_CONNECTTIMEOUT_MS, 1500);
+                curl_setopt($chFast, CURLOPT_TIMEOUT_MS, 35000);
+                curl_setopt($chFast, CURLOPT_CONNECTTIMEOUT_MS, 2000);
                 curl_setopt($chFast, CURLOPT_NOSIGNAL, 1);
                 $fastResp = curl_exec($chFast);
                 $fastErr = curl_errno($chFast);
@@ -84,7 +84,7 @@ class Rembg
             }
 
             if (!$fastSuccess) {
-                // Fallback to external/docker API on port 7000
+                // Fallback to external/docker API on port 7000 (optional)
                 $apiUrl = 'http://localhost:7000/api/remove';
                 $queryParams = [];
                 if (!empty($rembgConfig['model'])) {
@@ -127,46 +127,32 @@ class Rembg
                 $error = curl_error($ch);
                 curl_close($ch);
 
-                if ($error) {
-                    $logger->error("Image processing failed: cURL error - $error");
-                    throw new \Exception('cURL error: ' . $error);
-                }
-                if ($httpCode !== 200) {
-                    $responsePreview = is_string($response) ? substr($response, 0, 200) : 'no response';
-                    $logger->error("Image processing failed: HTTP $httpCode - Response: " . $responsePreview);
-                    throw new \Exception('API error: HTTP ' . $httpCode . ' - ' . $responsePreview);
-                }
-
-                if (!is_string($response)) {
-                    throw new \Exception('Invalid API response: expected string');
-                }
-                $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                if ($finfo === false) {
-                    throw new \Exception('Failed to initialize fileinfo');
-                }
-                $mimeType = finfo_buffer($finfo, $response);
-                finfo_close($finfo);
-                if ($mimeType === false || !str_starts_with($mimeType, 'image/')) {
-                    $mimeDisplay = $mimeType !== false ? $mimeType : 'unknown';
-                    $logger->error("Invalid response: Expected image, got $mimeDisplay - Response: " . substr($response, 0, 200));
-                    throw new \Exception('Invalid API response: not an image');
-                }
-
-                if (file_put_contents($tempOutput, $response) === false) {
-                    throw new \Exception('Failed to save output image');
+                if ($error || $httpCode !== 200) {
+                    $logger->warning("Background matting services unavailable ($error / HTTP $httpCode). Gracefully preserving original image.");
+                } else if (is_string($response)) {
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    $mimeType = $finfo !== false ? finfo_buffer($finfo, $response) : false;
+                    if ($finfo !== false) finfo_close($finfo);
+                    if ($mimeType !== false && str_starts_with($mimeType, 'image/')) {
+                        file_put_contents($tempOutput, $response);
+                    }
                 }
             }
 
-            // Load processed image
-            $processedImage = @imagecreatefrompng($tempOutput);
-            if ($processedImage === false) {
-                $processedImage = @imagecreatefromjpeg($tempOutput);
+            // Load processed image if output was generated, else fallback to input
+            $processedImage = null;
+            if (file_exists($tempOutput) && filesize($tempOutput) > 0) {
+                $processedImage = @imagecreatefrompng($tempOutput);
+                if ($processedImage === false) {
+                    $processedImage = @imagecreatefromjpeg($tempOutput);
+                }
+                if ($processedImage === false) {
+                    $processedImage = $imageHandler->createFromImage($tempOutput);
+                }
             }
-            if ($processedImage === false) {
-                $processedImage = $imageHandler->createFromImage($tempOutput);
-            }
-            if ($processedImage === false) {
-                throw new \Exception('Failed to load processed image');
+            if ($processedImage === false || $processedImage === null) {
+                $logger->info('Matting output not loaded, continuing with high-quality camera capture.');
+                $processedImage = $imageResource;
             }
 
             // Apply background if configured and wasn't already composited by microservice

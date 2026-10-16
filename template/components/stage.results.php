@@ -107,10 +107,10 @@ if ($config['ui']['result_buttons']) {
     }
 }
 
-// AI Cutout & Background Replace Button (Optional feature invoked from sidebar)
-if (!empty($config['rembg']['enabled'])) {
-    echo ComponentUtility::renderButton('rembg', $config['icons']['rembg'], 'rembgbtn');
-}
+// Commercial Photobooth: Background selection is done pre-capture; hide post-capture manual cutout button
+// if (!empty($config['rembg']['enabled'])) {
+//     echo ComponentUtility::renderButton('rembg', $config['icons']['rembg'], 'rembgbtn');
+// }
 
 // AI Beauty Retouch Button
 if (!empty($config['beauty']['enabled'])) {

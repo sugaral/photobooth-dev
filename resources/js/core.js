@@ -987,6 +987,9 @@ const photoBooth = (function () {
 
     api.callTakePicApi = async (data, retry = 0) => {
         startTime = new Date().getTime();
+        if (typeof api.stopFacePoseAlignmentLoop === 'function') {
+            api.stopFacePoseAlignmentLoop();
+        }
         $('#aiPoseGuide').hide();
         photoboothTools.console.logDev('Capture image.');
         photoboothTools
@@ -2540,6 +2543,20 @@ const photoBooth = (function () {
             }
         }
 
+        // Restore custom countdown preference
+        const savedCntdwn = localStorage.getItem('photobooth_custom_countdown');
+        if (savedCntdwn) {
+            const parsedVal = parseInt(savedCntdwn, 10);
+            if (parsedVal >= 1 && parsedVal <= 10) {
+                $('#studioCountdownSelect').val(parsedVal);
+                config.picture = config.picture || {};
+                config.picture.cntdwn_time = parsedVal;
+            }
+        }
+
+        // Start real-time face orientation and alignment detection loop (Red/Green feedback)
+        api.startFacePoseAlignmentLoop();
+
         // Apply selected filter and real-time beauty to live preview
         api.applyStudioBeautyPreview();
     };
@@ -2548,8 +2565,9 @@ const photoBooth = (function () {
         studioPage.removeClass('stage--active');
         $('body').removeClass('mode--studio');
         startPage.addClass('stage--active');
+        api.stopFacePoseAlignmentLoop();
         $('#aiPoseGuide').hide();
-        $('#preview--video').css('filter', '');
+        $('#preview--video').css('filter', '').css('transform', '');
         window.photoboothMode = 'classic';
         window.sessionPhotoboothMode = null;
         if (!usesBackgroundPreview) {
@@ -2656,16 +2674,13 @@ const photoBooth = (function () {
         const vid = $('#preview--video');
         if (vid.length) {
             vid.css('filter', fullFilter);
-
-            // 6. Dynamic Visual Deformation for Eye & Slim (Subtle focal jawline taper & eye zoom)
-            const slimFactorX = (1.0 - (slim / 100) * 0.07).toFixed(3);
-            const eyeFactor = (1.0 + (eye / 100) * 0.05).toFixed(3);
-            const isFlipped = vid.hasClass('flip-horizontal');
-            const flipScale = isFlipped ? -1 : 1;
-            vid.css('transform', `scale(${flipScale * slimFactorX * eyeFactor}, ${eyeFactor})`);
+            // CRITICAL FIX: Do NOT set transform on video element.
+            // Horizontal mirror is handled by CSS .flip-horizontal (scale: -1 1).
+            // Setting transform: scale(-1) causes double-negative inversion bug.
+            vid.css('transform', '');
         }
 
-        // 7. Dynamic Pose Guide Oval Feedback for Eye & Slim
+        // 6. Dynamic Pose Guide Oval Feedback for Eye & Slim
         const guideOval = $('.ai-pose-oval');
         if (guideOval.length) {
             if (eye > 15 || slim > 15) {
@@ -2673,8 +2688,114 @@ const photoBooth = (function () {
             } else {
                 guideOval.removeClass('ai-pose-oval--beauty-glow');
             }
-            const ovalTaper = (1.0 - (slim / 100) * 0.12).toFixed(2);
+            const ovalTaper = (1.0 - (slim / 100) * 0.10).toFixed(2);
             guideOval.css('transform', `scaleX(${ovalTaper})`);
+        }
+    };
+
+    // Stage 3.7: Real-Time Face Orientation & Pose Alignment Loop (Red / Green Detection)
+    let faceAlignmentTimer = null;
+    let faceDetector = null;
+    if (window.FaceDetector) {
+        try {
+            faceDetector = new window.FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+        } catch (e) {
+            faceDetector = null;
+        }
+    }
+    let alignmentCanvas = null;
+    let alignmentCtx = null;
+
+    api.startFacePoseAlignmentLoop = function () {
+        api.stopFacePoseAlignmentLoop();
+        $('#aiPoseGuide').show();
+
+        const guideOval = $('.ai-pose-oval');
+        const guideBadge = $('.ai-pose-badge');
+
+        faceAlignmentTimer = setInterval(async () => {
+            const vid = document.getElementById('preview--video');
+            if (!vid || vid.paused || vid.ended || !vid.videoWidth || !vid.videoHeight) {
+                return;
+            }
+
+            let isAligned = false;
+
+            // 1. Try Native Browser FaceDetector API (Chromium / WebView)
+            if (faceDetector) {
+                try {
+                    const faces = await faceDetector.detect(vid);
+                    if (faces && faces.length > 0) {
+                        const box = faces[0].boundingBox;
+                        const vidW = vid.videoWidth;
+                        const vidH = vid.videoHeight;
+                        const faceCenterX = (box.x + box.width / 2) / vidW;
+                        const faceCenterY = (box.y + box.height / 2) / vidH;
+                        const faceHeightRatio = box.height / vidH;
+
+                        // Face is well-centered horizontally and vertically with proper framing distance
+                        const isCenteredX = Math.abs(faceCenterX - 0.5) < 0.15;
+                        const isCenteredY = Math.abs(faceCenterY - 0.45) < 0.18;
+                        const isGoodDistance = faceHeightRatio >= 0.22 && faceHeightRatio <= 0.75;
+
+                        isAligned = (isCenteredX && isCenteredY && isGoodDistance);
+                    }
+                } catch (err) {
+                    faceDetector = null;
+                }
+            }
+
+            // 2. High-speed Fallback: Real-time Center Symmetry & Skin Luminescence Balance
+            if (!faceDetector) {
+                if (!alignmentCanvas) {
+                    alignmentCanvas = document.createElement('canvas');
+                    alignmentCanvas.width = 64;
+                    alignmentCanvas.height = 64;
+                    alignmentCtx = alignmentCanvas.getContext('2d', { willReadFrequently: true });
+                }
+                try {
+                    alignmentCtx.drawImage(vid, 0, 0, 64, 64);
+                    const imgData = alignmentCtx.getImageData(16, 12, 32, 40).data;
+                    let leftWeight = 0;
+                    let rightWeight = 0;
+                    let totalLuma = 0;
+                    for (let y = 0; y < 40; y++) {
+                        for (let x = 0; x < 32; x++) {
+                            const idx = (y * 32 + x) * 4;
+                            const r = imgData[idx];
+                            const g = imgData[idx + 1];
+                            const b = imgData[idx + 2];
+                            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+                            totalLuma += luma;
+                            if (x < 15) leftWeight += luma;
+                            else if (x > 16) rightWeight += luma;
+                        }
+                    }
+                    const symmetry = Math.abs(leftWeight - rightWeight) / (leftWeight + rightWeight + 1e-4);
+                    const hasFaceLuma = (totalLuma / (32 * 40)) > 42;
+                    isAligned = (hasFaceLuma && symmetry < 0.085);
+                } catch (e) {
+                    isAligned = true;
+                }
+            }
+
+            // Update Real-Time Red / Green UI Feedback
+            if (isAligned) {
+                guideOval.removeClass('is-unaligned').addClass('is-aligned');
+                guideBadge.removeClass('is-unaligned').addClass('is-aligned')
+                    .html('<i class="fa fa-circle-check"></i> 正脸已对正 · 可以拍照');
+            } else {
+                guideOval.removeClass('is-aligned').addClass('is-unaligned');
+                guideBadge.removeClass('is-aligned').addClass('is-unaligned')
+                    .html('<i class="fa fa-triangle-exclamation"></i> 请正对镜头 · 保持端正');
+            }
+        }, 180);
+    };
+
+    api.stopFacePoseAlignmentLoop = function () {
+        if (faceAlignmentTimer) {
+            clearInterval(faceAlignmentTimer);
+            faceAlignmentTimer = null;
         }
     };
 
@@ -2790,20 +2911,58 @@ const photoBooth = (function () {
         api.applyStudioBeautyPreview();
     });
 
-    // Studio AI Template Category Filter
+    // Stage 3.6: Custom Countdown Dropdown Handler
+    $(document).on('change', '#studioCountdownSelect', function () {
+        const val = parseInt($(this).val(), 10) || 3;
+        config.picture = config.picture || {};
+        config.picture.cntdwn_time = val;
+        localStorage.setItem('photobooth_custom_countdown', val);
+        photoboothTools.console.logDev('Studio Custom Countdown set to: ' + val + 's');
+    });
+
+    // Stage 3.5: Studio AI Template Gender and Category Cascade Filtering
+    api.filterStudioAiTemplates = function (sex, cat) {
+        sex = sex || 'all';
+        cat = cat || 'all';
+
+        $('#studioAiTplGrid .wb-tpl-card').each(function () {
+            const cardSex = $(this).data('sex') || 'unisex';
+            const cardCat = $(this).data('cat') || '';
+
+            const matchSex = (sex === 'all' || cardSex === sex || cardSex === 'unisex');
+            const matchCat = (cat === 'all' || cardCat === cat);
+
+            $(this).toggle(matchSex && matchCat);
+        });
+
+        // Ensure active card is visible, else activate first visible card
+        const currentActive = $('#studioAiTplGrid .wb-tpl-card.active:visible');
+        if (!currentActive.length) {
+            const firstVisible = $('#studioAiTplGrid .wb-tpl-card:visible').first();
+            if (firstVisible.length) {
+                firstVisible.trigger('click');
+            }
+        }
+    };
+
+    $(document).on('click', '#studioAiGenderPills .wb-gender-pill', function (e) {
+        e.preventDefault();
+        $('#studioAiGenderPills .wb-gender-pill').removeClass('active');
+        $(this).addClass('active');
+
+        const selectedSex = $(this).data('sex') || 'all';
+        const selectedCat = $('#studioAiCatPills .wb-pill.active').data('cat') || 'all';
+        api.filterStudioAiTemplates(selectedSex, selectedCat);
+    });
+
     $(document).on('click', '#studioAiCatPills .wb-pill', function (e) {
         e.preventDefault();
         $('#studioAiCatPills .wb-pill').removeClass('active');
         $(this).addClass('active');
 
-        const cat = $(this).data('cat');
-        if (cat === 'all') {
-            $('#studioAiTplGrid .wb-tpl-card').show();
-        } else {
-            $('#studioAiTplGrid .wb-tpl-card').each(function () {
-                $(this).toggle($(this).data('cat') === cat);
-            });
-        }
+        const selectedCat = $(this).data('cat') || 'all';
+        const selectedSex = $('#studioAiGenderPills .wb-gender-pill.active').data('sex') || 'all';
+        api.filterStudioAiTemplates(selectedSex, selectedCat);
     });
 
     // Studio AI Template Card Selection
