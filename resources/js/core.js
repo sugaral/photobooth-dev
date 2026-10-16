@@ -2730,7 +2730,17 @@ const photoBooth = (function () {
         }
     });
 
-    // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer
+    // Dynamic Face Tracking State for Real-Time Face-Locked Beauty (人脸动态追踪锁定，杜绝死板中央框)
+    const trackedFace = {
+        detected: false,
+        x: 0.50,
+        y: 0.48,
+        w: 0.28,
+        h: 0.38,
+        lastSeen: 0
+    };
+
+    // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer (实时跟脸美颜渲染器)
     api.applyStudioBeautyPreview = function () {
         const smooth = parseInt($('#studioSmoothSlider').val() || 30, 10);
         const white = parseInt($('#studioWhiteSlider').val() || 25, 10);
@@ -2748,26 +2758,26 @@ const photoBooth = (function () {
         config.beauty.default_eye = eye;
         config.beauty.default_slim = slim;
 
-        // 1. Crystal Whitening & Luminance (S-Curve & Shadow Protection)
-        const brightness = (1.0 + (white / 100) * 0.22).toFixed(3);
-        const whiteContrast = (1.0 + (white / 100) * 0.04).toFixed(3);
+        // 1. Crystal Whitening & Luminance (自然透亮提亮，杜绝高光过曝)
+        const brightness = (1.0 + (white / 100) * 0.28).toFixed(3);
+        const whiteContrast = (1.0 + (white / 100) * 0.08).toFixed(3);
 
-        // 2. Natural Rosy Blush (Warm peach / pink saturation boost)
-        const rosySat = (1.0 + (rosy / 100) * 0.28).toFixed(3);
-        const rosyHue = (rosy > 0) ? `hue-rotate(${-((rosy / 100) * 4.5).toFixed(1)}deg)` : '';
+        // 2. Natural Rosy Blush (蜜桃气色微红与红润度)
+        const rosySat = (1.0 + (rosy / 100) * 0.40).toFixed(3);
+        const rosyHue = (rosy > 0) ? `hue-rotate(${-((rosy / 100) * 5.0).toFixed(1)}deg)` : '';
 
-        // 3. High-Definition Clarity (Micro-contrast enhancement)
-        const clarityContrast = (1.0 + (clarity / 100) * 0.16).toFixed(3);
+        // 3. High-Definition Clarity (微反差增强，保留原生睫毛与毛发细节)
+        const clarityContrast = (1.0 + (clarity / 100) * 0.18).toFixed(3);
 
-        // 4. Fine Skin Smoothing (Soft-focus skin diffusion, delicate & prevents blur fog)
+        // 4. Fine Skin Smoothing (柔焦磨皮，细腻平滑，0~1.8px)
         let smoothFilter = '';
         if (smooth > 0) {
-            const blurPx = ((smooth / 100) * 0.65).toFixed(2);
+            const blurPx = ((smooth / 100) * 1.8).toFixed(2);
             smoothFilter = `blur(${blurPx}px)`;
         }
 
         // Combined color and beauty filter
-        const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.02)).toFixed(3);
+        const netContrast = (parseFloat(whiteContrast) * parseFloat(clarityContrast) * (1.0 - (smooth / 100) * 0.025)).toFixed(3);
         const beautyFilterStr = `brightness(${brightness}) contrast(${netContrast}) saturate(${rosySat}) ${rosyHue} ${smoothFilter}`.trim();
 
         // 5. Background Video maintains base artistic filter (do NOT wash out background scenery)
@@ -2781,7 +2791,7 @@ const photoBooth = (function () {
             vid.css('transform', '');
         }
 
-        // 6. Dedicated Real-Time Face Beauty Video Layer
+        // 6. Dedicated Real-Time Face Beauty Video Layer (人脸跟随动态美颜层)
         const faceBeautyVid = $('#preview--face-beauty-video');
         const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
         if (faceBeautyVid.length) {
@@ -2801,25 +2811,51 @@ const photoBooth = (function () {
                 faceBeautyVid.removeClass('flip-horizontal');
             }
 
-            if (hasBeauty) {
-                const curMode = window.sessionPhotoboothMode || window.photoboothMode;
-                // In AI Swap mode: focus beauty on center alignment oval; in Classic photobooth: apply seamless full-frame beauty
-                const maskStyle = (curMode === 'ai_swap')
-                    ? 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)'
-                    : 'none';
+            const curMode = window.sessionPhotoboothMode || window.photoboothMode;
+            const isAiMode = (curMode === 'ai_swap');
+
+            // 核心解决色块问题：
+            // 在 AI 相机模式下：美颜定死在人脸上；若画面中没有人脸（trackedFace.detected === false），美颜图层 100% 隐藏，绝对无固定色块！
+            // 在 经典大头贴模式下：应用全画面无缝美颜。
+            const shouldShowBeauty = hasBeauty && (!isAiMode || trackedFace.detected);
+
+            if (shouldShowBeauty) {
+                let maskStyle = 'none';
+                let faceTransform = '';
+
+                if (isAiMode && trackedFace.detected) {
+                    const cx = (trackedFace.x * 100).toFixed(1);
+                    const cy = (trackedFace.y * 100).toFixed(1);
+                    const rx = Math.max(16, (trackedFace.w * 72)).toFixed(1);
+                    const ry = Math.max(22, (trackedFace.h * 84)).toFixed(1);
+
+                    // 动态紧跟人脸中心位置的边缘羽化径向蒙版（人动美颜动）
+                    maskStyle = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.65) 68%, rgba(0,0,0,0) 90%)`;
+
+                    // 实时大眼（纵向提拉）与精致瘦脸（横向收紧微缩放）
+                    const scaleX = (1.0 - (slim / 100) * 0.06).toFixed(3);
+                    const scaleY = (1.0 + (eye / 100) * 0.035).toFixed(3);
+                    faceTransform = `scale(${scaleX}, ${scaleY})`;
+                    faceBeautyVid.css('transform-origin', `${cx}% ${cy}%`);
+                } else {
+                    faceBeautyVid.css('transform-origin', '50% 50%');
+                }
 
                 faceBeautyVid.css({
                     'filter': beautyFilterStr,
                     '-webkit-filter': beautyFilterStr,
+                    'transform': faceTransform,
                     'opacity': '1',
                     'display': 'block',
                     '-webkit-mask-image': maskStyle,
                     'mask-image': maskStyle
                 });
             } else {
+                // 无人脸或无美颜时：完全静默并隐藏，杜绝任何背景补丁和色差！
                 faceBeautyVid.css({
                     'filter': 'none',
                     '-webkit-filter': 'none',
+                    'transform': '',
                     'opacity': '0',
                     'display': 'none'
                 });
@@ -2933,6 +2969,23 @@ const photoBooth = (function () {
                 if (resp.ok) {
                     const result = await resp.json();
                     if (result.status === 'ok') {
+                        if (result.detected && result.center && result.size) {
+                            trackedFace.detected = true;
+                            trackedFace.lastSeen = Date.now();
+                            const alpha = 0.45;
+                            trackedFace.x = trackedFace.x * (1 - alpha) + result.center[0] * alpha;
+                            trackedFace.y = trackedFace.y * (1 - alpha) + result.center[1] * alpha;
+                            trackedFace.w = trackedFace.w * (1 - alpha) + result.size[0] * alpha;
+                            trackedFace.h = trackedFace.h * (1 - alpha) + result.size[1] * alpha;
+                        } else {
+                            if (Date.now() - trackedFace.lastSeen > 650) {
+                                trackedFace.detected = false;
+                            }
+                        }
+
+                        // 每次检测更新均毫秒级同步美颜位置（人动美颜动）
+                        api.applyStudioBeautyPreview();
+
                         if (result.detected && result.aligned) {
                             guideOval.removeClass('is-unaligned').addClass('is-aligned');
                             guideBadge.removeClass('is-unaligned').addClass('is-aligned')
@@ -2957,7 +3010,7 @@ const photoBooth = (function () {
             } finally {
                 isAlignmentChecking = false;
             }
-        }, 220);
+        }, 200);
     };
 
     api.stopFacePoseAlignmentLoop = function () {
@@ -2966,7 +3019,9 @@ const photoBooth = (function () {
             faceAlignmentTimer = null;
         }
         isAlignmentChecking = false;
+        trackedFace.detected = false;
         $('#aiPoseGuide').hide();
+        api.applyStudioBeautyPreview();
     };
 
     // Beauty Presets Click
@@ -3090,19 +3145,29 @@ const photoBooth = (function () {
         photoboothTools.console.logDev('Studio Custom Countdown set to: ' + val + 's');
     });
 
-    // Stage 3.5: Studio AI Template Gender and Category Cascade Filtering
-    api.filterStudioAiTemplates = function (sex, cat) {
-        sex = sex || 'all';
-        cat = cat || 'all';
+    // Stage 3.5: Studio AI Template Unified Single-Row Filtering (精简单排分类，杜绝双排冗余)
+    api.filterStudioAiTemplates = function (filter) {
+        filter = filter || 'all';
 
         $('#studioAiTplGrid .wb-tpl-card').each(function () {
             const cardSex = $(this).data('sex') || 'unisex';
             const cardCat = $(this).data('cat') || '';
+            const isCustom = $(this).data('custom') == 1 || cardCat === 'custom' || $(this).hasClass('wb-tpl-card--custom');
 
-            const matchSex = (sex === 'all' || cardSex === sex || cardSex === 'unisex');
-            const matchCat = (cat === 'all' || cardCat === cat);
+            let match = false;
+            if (filter === 'all') {
+                match = true;
+            } else if (filter === 'female') {
+                match = (cardSex === 'female' || cardSex === '女性');
+            } else if (filter === 'male') {
+                match = (cardSex === 'male' || cardSex === '男性');
+            } else if (filter === 'custom') {
+                match = isCustom;
+            } else {
+                match = (cardCat === filter);
+            }
 
-            $(this).toggle(matchSex && matchCat);
+            $(this).toggle(match);
         });
 
         // Ensure active card is visible, else activate first visible card
@@ -3115,24 +3180,13 @@ const photoBooth = (function () {
         }
     };
 
-    $(document).on('click', '#studioAiGenderPills .wb-gender-pill', function (e) {
+    $(document).on('click', '#studioAiFilterPills .wb-pill', function (e) {
         e.preventDefault();
-        $('#studioAiGenderPills .wb-gender-pill').removeClass('active');
+        $('#studioAiFilterPills .wb-pill').removeClass('active');
         $(this).addClass('active');
 
-        const selectedSex = $(this).data('sex') || 'all';
-        const selectedCat = $('#studioAiCatPills .wb-pill.active').data('cat') || 'all';
-        api.filterStudioAiTemplates(selectedSex, selectedCat);
-    });
-
-    $(document).on('click', '#studioAiCatPills .wb-pill', function (e) {
-        e.preventDefault();
-        $('#studioAiCatPills .wb-pill').removeClass('active');
-        $(this).addClass('active');
-
-        const selectedCat = $(this).data('cat') || 'all';
-        const selectedSex = $('#studioAiGenderPills .wb-gender-pill.active').data('sex') || 'all';
-        api.filterStudioAiTemplates(selectedSex, selectedCat);
+        const selectedFilter = $(this).data('filter') || 'all';
+        api.filterStudioAiTemplates(selectedFilter);
     });
 
     // Studio AI Template Card Selection
@@ -3158,6 +3212,39 @@ const photoBooth = (function () {
         }
     });
 
+    // Delete Custom AI Template
+    $(document).on('click', '.wb-tpl-del-btn', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const btn = $(this);
+        const tplId = btn.data('id');
+        const card = btn.closest('.wb-tpl-card');
+
+        if (!confirm('确定要删除此自定义写真模板吗？')) {
+            return;
+        }
+
+        photoboothTools.ajaxWithCsrf({
+            url: environment.publicFolders.api + '/deleteAiTemplate.php',
+            type: 'POST',
+            data: { id: tplId }
+        }).done((res) => {
+            if (res && res.success) {
+                const wasActive = card.hasClass('active');
+                card.fadeOut(200, function () {
+                    $(this).remove();
+                    if (wasActive) {
+                        $('#studioAiTplGrid .wb-tpl-card:visible').first().trigger('click');
+                    }
+                });
+            } else {
+                alert(res.error || '删除模板失败');
+            }
+        }).fail(() => {
+            alert('网络异常，删除失败');
+        });
+    });
+
     // Studio Upload Custom AI Template
     $(document).on('click', '#btnStudioUploadAiTemplate', function (e) {
         e.preventDefault();
@@ -3172,6 +3259,9 @@ const photoBooth = (function () {
         const formData = new FormData();
         formData.append('template', file);
 
+        const uploadBtn = $('#btnStudioUploadAiTemplate');
+        uploadBtn.prop('disabled', true).addClass('loading').find('span').text('AI正脸质检中...');
+
         photoboothTools.ajaxWithCsrf({
             url: environment.publicFolders.api + '/uploadAiTemplate.php',
             type: 'POST',
@@ -3179,13 +3269,17 @@ const photoBooth = (function () {
             processData: false,
             contentType: false
         }).done((res) => {
+            uploadBtn.prop('disabled', false).removeClass('loading').find('span').text('上传写真');
             if (res && res.success) {
                 const newCard = $(`
-                    <div class="wb-tpl-card active" data-id="${res.id}" data-cat="custom" data-title="${res.title}" data-image="${res.path}" role="button" tabindex="0">
+                    <div class="wb-tpl-card active wb-tpl-card--custom" data-id="${res.id}" data-cat="custom" data-sex="unisex" data-custom="1" data-title="${res.title}" data-image="${res.path}" role="button" tabindex="0">
                         <div class="wb-tpl-thumb-box">
                             <img src="${res.path}" alt="${res.title}" class="wb-tpl-img">
-                            <span class="wb-tpl-chip" style="background:#8B5CF6;color:#fff;">自定义</span>
+                            <span class="wb-tpl-chip" style="background:#8B5CF6;color:#fff;">我的写真</span>
                             <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
+                            <button type="button" class="wb-tpl-del-btn" data-id="${res.id}" title="删除该自定义模板" onclick="event.stopPropagation();">
+                                <i class="fa fa-trash-can"></i>
+                            </button>
                         </div>
                         <div class="wb-tpl-meta">
                             <div class="wb-tpl-title">${res.title}</div>
@@ -3203,11 +3297,13 @@ const photoBooth = (function () {
                 };
                 $('#studioCurrentTplName').text(res.title);
                 $('#studioCurrentTplThumb').attr('src', res.path).show();
-                $('[data-cat="all"]').trigger('click');
+                // Ensure all or custom shows the new card
+                $('#studioAiFilterPills .wb-pill[data-filter="all"]').trigger('click');
             } else {
-                alert(res.error || '上传模板失败，请检查图片格式');
+                alert(res.error || '上传模板失败，请检查是否为五官清晰的正脸写真');
             }
         }).fail(() => {
+            uploadBtn.prop('disabled', false).removeClass('loading').find('span').text('上传写真');
             alert('网络异常，上传模板失败');
         });
     });

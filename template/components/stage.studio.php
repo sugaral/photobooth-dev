@@ -150,6 +150,23 @@ $aiTemplates = [
     ],
 ];
 
+// 动态合并商户与用户自定义写真模板 (data/ai_templates_custom.json)
+$customTplFile = __DIR__ . '/../../data/ai_templates_custom.json';
+if (file_exists($customTplFile)) {
+    $customTpls = json_decode(file_get_contents($customTplFile), true) ?: [];
+    if (!empty($customTpls)) {
+        foreach ($customTpls as &$cTpl) {
+            $cTpl['is_custom'] = true;
+            if (empty($cTpl['category'])) $cTpl['category'] = 'custom';
+            if (empty($cTpl['tag'])) $cTpl['tag'] = '自定义写真';
+            if (empty($cTpl['sex'])) $cTpl['sex'] = '自定义';
+            if (empty($cTpl['sex_code'])) $cTpl['sex_code'] = 'unisex';
+        }
+        unset($cTpl);
+        $aiTemplates = array_merge($customTpls, $aiTemplates);
+    }
+}
+
 $classicTemplates = [
     [
         'id' => 'none',
@@ -413,57 +430,54 @@ $classicTemplates = [
             <div class="wb-tab-pane" id="paneTemplates">
                 <!-- AI 相机模板模式 -->
                 <div class="wb-tpl-container" id="studioAiTplContainer">
-                    <!-- 分类与性别过滤器与上传按钮 -->
-                    <div class="wb-tpl-toolbar">
-                        <!-- 性别分类筛选 (一级筛选) -->
-                        <div class="wb-gender-filter-bar" id="studioAiGenderPills">
-                            <span class="wb-filter-group-label"><i class="fa fa-venus-mars"></i> 性别分类:</span>
-                            <button type="button" class="wb-gender-pill active" data-sex="all">全部性别</button>
-                            <button type="button" class="wb-gender-pill" data-sex="female"><i class="fa fa-venus"></i> 👩 女士模板</button>
-                            <button type="button" class="wb-gender-pill" data-sex="male"><i class="fa fa-mars"></i> 👨 男士模板</button>
-                            <button type="button" class="wb-gender-pill" data-sex="unisex"><i class="fa fa-wand-magic-sparkles"></i> ✨ 通用/机甲</button>
+                    <!-- 精简单排分类过滤器与上传写真按钮（彻底消除冗余重复框） -->
+                    <div class="wb-tpl-toolbar wb-tpl-toolbar--unified">
+                        <div class="wb-tpl-pills" id="studioAiFilterPills">
+                            <button type="button" class="wb-pill active" data-filter="all"><i class="fa fa-sparkles"></i> 全部推荐</button>
+                            <button type="button" class="wb-pill" data-filter="female"><i class="fa fa-venus"></i> 👩 女生精选</button>
+                            <button type="button" class="wb-pill" data-filter="male"><i class="fa fa-mars"></i> 👨 男生写真</button>
+                            <button type="button" class="wb-pill" data-filter="hanfu">🌸 汉服古风</button>
+                            <button type="button" class="wb-pill" data-filter="wedding">💍 唯美婚纱</button>
+                            <button type="button" class="wb-pill" data-filter="school">🎓 青春校园</button>
+                            <button type="button" class="wb-pill" data-filter="cyberpunk">🤖 机甲赛博</button>
+                            <button type="button" class="wb-pill" data-filter="business">👔 商务名片</button>
+                            <button type="button" class="wb-pill" data-filter="vintage">🎞️ 港风复古</button>
+                            <button type="button" class="wb-pill" data-filter="custom">⭐ 我的上传</button>
                         </div>
-
-                        <!-- 风格分类筛选 (二级筛选) 与 上传 -->
-                        <div class="wb-tpl-cat-row">
-                            <div class="wb-tpl-pills" id="studioAiCatPills">
-                                <button type="button" class="wb-pill active" data-cat="all">全部风格</button>
-                                <button type="button" class="wb-pill" data-cat="hanfu">🌸 汉服古风</button>
-                                <button type="button" class="wb-pill" data-cat="wedding">💍 唯美婚纱</button>
-                                <button type="button" class="wb-pill" data-cat="school">🎓 青春校园</button>
-                                <button type="button" class="wb-pill" data-cat="cyberpunk">🤖 机甲/赛博</button>
-                                <button type="button" class="wb-pill" data-cat="business">👔 商务名片</button>
-                                <button type="button" class="wb-pill" data-cat="vintage">🎞️ 港风复古</button>
-                                <button type="button" class="wb-pill" data-cat="custom">⭐ 我的上传</button>
-                            </div>
-                            <button type="button" class="wb-upload-btn" id="btnStudioUploadAiTemplate" title="上传您喜爱的任意写真图片作为换脸模板">
-                                <i class="fa fa-cloud-arrow-up"></i>
-                                <span>上传模板</span>
-                            </button>
-                            <input type="file" id="studioAiTemplateUploadInput" accept="image/jpeg,image/png,image/webp,image/jpg" style="display: none;" />
-                        </div>
+                        <button type="button" class="wb-upload-btn" id="btnStudioUploadAiTemplate" title="上传您喜爱的任意写真图片作为换脸模板">
+                            <i class="fa fa-cloud-arrow-up"></i>
+                            <span>上传写真</span>
+                        </button>
+                        <input type="file" id="studioAiTemplateUploadInput" accept="image/jpeg,image/png,image/webp,image/jpg" style="display: none;" />
                     </div>
 
                     <!-- AI 模板网格卡片 -->
                     <div class="wb-tpl-grid" id="studioAiTplGrid">
                         <?php foreach ($aiTemplates as $idx => $tpl): ?>
-                            <div class="wb-tpl-card <?= $idx === 0 ? 'active' : '' ?>"
+                            <?php $isCustom = !empty($tpl['is_custom']) || (isset($tpl['category']) && $tpl['category'] === 'custom'); ?>
+                            <div class="wb-tpl-card <?= $idx === 0 ? 'active' : '' ?> <?= $isCustom ? 'wb-tpl-card--custom' : '' ?>"
                                  data-id="<?= $tpl['id'] ?>"
                                  data-cat="<?= $tpl['category'] ?>"
                                  data-sex="<?= $tpl['sex_code'] ?? 'unisex' ?>"
                                  data-title="<?= htmlspecialchars($tpl['title']) ?>"
                                  data-image="<?= $tpl['thumb'] ?>"
+                                 <?= $isCustom ? 'data-custom="1"' : '' ?>
                                  role="button" tabindex="0">
                                 <div class="wb-tpl-thumb-box">
                                     <img src="<?= $tpl['thumb'] ?>" alt="<?= htmlspecialchars($tpl['title']) ?>" class="wb-tpl-img" loading="lazy">
-                                    <span class="wb-tpl-chip"><?= $tpl['tag'] ?></span>
+                                    <span class="wb-tpl-chip"><?= htmlspecialchars($tpl['tag']) ?></span>
                                     <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
+                                    <?php if ($isCustom): ?>
+                                        <button type="button" class="wb-tpl-del-btn" data-id="<?= $tpl['id'] ?>" title="删除该自定义模板" onclick="event.stopPropagation();">
+                                            <i class="fa fa-trash-can"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="wb-tpl-meta">
                                     <div class="wb-tpl-title"><?= htmlspecialchars($tpl['title']) ?></div>
                                     <div class="wb-tpl-tags">
-                                        <span class="tag-sex"><?= $tpl['sex'] ?></span>
-                                        <span class="tag-feat">超清免扣</span>
+                                        <span class="tag-sex"><?= htmlspecialchars($tpl['sex']) ?></span>
+                                        <span class="tag-feat"><?= $isCustom ? '自定义' : '超清免扣' ?></span>
                                     </div>
                                 </div>
                             </div>
