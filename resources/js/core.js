@@ -853,19 +853,29 @@ const photoBooth = (function () {
             api.photoStyle = photoStyle;
             photoboothTools.console.log('PhotoStyle: ' + api.photoStyle);
 
+            // Priority: Explicit Studio countdown select > localStorage > config
+            const studioSelectVal = $('#studioCountdownSelect').val();
+            const storedCountdown = localStorage.getItem('photobooth_custom_countdown');
+            const customSec = parseInt(studioSelectVal || storedCountdown, 10);
+
             let countdownTime;
-            switch (api.photoStyle) {
-                case PhotoStyle.VIDEO:
-                    countdownTime = config.video.cntdwn_time;
-                    break;
-                case PhotoStyle.CUSTOM:
-                    countdownTime = config.custom.cntdwn_time;
-                    break;
-                case PhotoStyle.PHOTO:
-                default:
-                    countdownTime = config.picture.cntdwn_time;
-                    break;
+            if (customSec && customSec >= 1 && customSec <= 10) {
+                countdownTime = customSec;
+            } else {
+                switch (api.photoStyle) {
+                    case PhotoStyle.VIDEO:
+                        countdownTime = parseInt(config.video.cntdwn_time, 10) || 3;
+                        break;
+                    case PhotoStyle.CUSTOM:
+                        countdownTime = parseInt(config.custom.cntdwn_time, 10) || 3;
+                        break;
+                    case PhotoStyle.PHOTO:
+                    default:
+                        countdownTime = parseInt(config.picture.cntdwn_time, 10) || 3;
+                        break;
+                }
             }
+            photoboothTools.console.log('Resolved countdownTime: ' + countdownTime + ' seconds.');
 
             let maxGetMediaRetry = Math.max(countdownTime - 1, 0);
             if (config.commands.preview_kill && maxGetMediaRetry > 0) {
@@ -3117,6 +3127,14 @@ const photoBooth = (function () {
     // Studio "完成 · 开始拍照" Done & Capture Button
     $(document).on('click', '#btnStudioDoneCapture', function (e) {
         e.preventDefault();
+
+        // Synchronize selected countdown time
+        const customSec = parseInt($('#studioCountdownSelect').val() || localStorage.getItem('photobooth_custom_countdown') || 3, 10);
+        if (customSec >= 1 && customSec <= 10) {
+            config.picture = config.picture || {};
+            config.picture.cntdwn_time = customSec;
+            localStorage.setItem('photobooth_custom_countdown', customSec);
+        }
 
         if (window.photoboothMode === 'classic' && window.studioClassicLayout === 'burst') {
             studioPage.removeClass('stage--active');

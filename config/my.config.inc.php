@@ -29,6 +29,7 @@ return [
     ],
     'picture' => [
         'cheese_time' => 0,
+        'cntdwn_time' => 3,
     ],
     'gallery' => [
         'enabled' => false,
