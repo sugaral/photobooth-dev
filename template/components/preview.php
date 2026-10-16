@@ -44,6 +44,7 @@ echo '<div class="preview">';
 echo '<div id="preview-container" style="aspect-ratio: ' . $comp . '">';
 echo '<div id="preview--video-container" style="position:relative;width:100%;height:100%;">';
 echo '<video id="preview--video" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" autoplay playsinline></video>';
+echo '<video id="preview--face-beauty-video" style="' . $composed_style . '; position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:2; opacity:0; transition:opacity 0.2s ease, filter 0.15s ease;" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" autoplay playsinline muted></video>';
 echo '<div id="preview--ipcam" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '"></div>';
 echo '<div id="preview--none">' . $languageService->translate('no_preview') . '</div>';
 

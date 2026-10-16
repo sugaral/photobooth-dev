@@ -150,10 +150,12 @@ class RembgHandler(BaseHTTPRequestHandler):
                     if FACESWAP_ENGINE is None:
                         result = {"success": False, "error": "AI 换脸引擎组件未就绪"}
                     else:
+                        fidelity = float(data.get("fidelity", 0.70))
                         result = FACESWAP_ENGINE.swap(
                             source_path=data.get("source") or data.get("input"),
                             target_path=data.get("target") or data.get("template"),
-                            output_path=data.get("output")
+                            output_path=data.get("output"),
+                            fidelity=fidelity
                         )
                 self._json(result, 200 if result.get("success") else 500)
             except Exception as exc:

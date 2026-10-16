@@ -140,6 +140,11 @@ var photoboothPreview = function () {
         if (video && video.length) {
           video.get(0).srcObject = stream;
         }
+        var beautyVideo = document.getElementById('preview--face-beauty-video');
+        if (beautyVideo) {
+          beautyVideo.srcObject = stream;
+          beautyVideo.play().catch(function () {});
+        }
         var miniVideo = document.getElementById('settingCameraMiniVideo');
         if (miniVideo) {
           miniVideo.srcObject = stream;
@@ -384,7 +389,7 @@ var photoboothPreview = function () {
   };
 
   api.setFlip = function (isFlipped) {
-    var videoEl = $('#preview--video, #previewframe--picture, #settingCameraMiniVideo');
+    var videoEl = $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video');
     if (isFlipped) {
       videoEl.addClass('flip-horizontal');
       localStorage.setItem('photobooth_camera_flip', 'true');

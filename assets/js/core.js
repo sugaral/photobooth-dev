@@ -2781,10 +2781,38 @@ const photoBooth = (function () {
             vid.css('transform', '');
         }
 
-        // 6. Dedicated Face-Localized Beauty Lens (ONLY beautifies facial area, background is 100% untouched)
+        // 6. Dedicated Face-Localized Beauty Video Layer (ONLY beautifies facial area, background is 100% untouched)
+        const faceBeautyVid = $('#preview--face-beauty-video');
+        const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
+        if (faceBeautyVid.length) {
+            const beautyEl = faceBeautyVid.get(0);
+            if (window.photoboothPreview && window.photoboothPreview.stream && beautyEl.srcObject !== window.photoboothPreview.stream) {
+                try {
+                    beautyEl.srcObject = window.photoboothPreview.stream;
+                    beautyEl.play().catch(function () {});
+                } catch (e) {}
+            }
+            if (hasBeauty) {
+                faceBeautyVid.css({
+                    'filter': beautyFilterStr,
+                    '-webkit-filter': beautyFilterStr,
+                    'opacity': '1',
+                    'display': 'block',
+                    '-webkit-mask-image': 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)',
+                    'mask-image': 'radial-gradient(ellipse 26% 38% at 50% 48%, rgba(0,0,0,1) 40%, rgba(0,0,0,0.60) 65%, rgba(0,0,0,0) 88%)'
+                });
+            } else {
+                faceBeautyVid.css({
+                    'filter': 'none',
+                    '-webkit-filter': 'none',
+                    'opacity': '0',
+                    'display': 'none'
+                });
+            }
+        }
+
         const faceLens = $('#studioFaceBeautyLens');
         if (faceLens.length) {
-            const hasBeauty = (smooth > 0 || white > 0 || rosy > 0 || clarity > 0 || eye > 0 || slim > 0);
             if (hasBeauty) {
                 faceLens.css({
                     'backdrop-filter': beautyFilterStr,

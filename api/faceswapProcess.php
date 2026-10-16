@@ -152,11 +152,13 @@ if ($daemonScript) {
     }
 }
 
+$fidelity = isset($_REQUEST['fidelity']) ? floatval($_REQUEST['fidelity']) : 0.70;
 $serviceUrl = 'http://127.0.0.1:8001/faceswap';
 $postData = json_encode([
     'source' => $swapSource,
     'target' => $templatePath,
     'output' => $outputPath,
+    'fidelity' => $fidelity,
 ], JSON_UNESCAPED_UNICODE);
 
 $resultJson = null;
@@ -193,8 +195,9 @@ if ($returnCode !== 0 && (!isset($resultJson['error']) || strpos($resultJson['er
     $script = realpath(__DIR__ . '/../bin/faceswap_core.py');
     if ($script) {
         $cmd = sprintf(
-            'python -X utf8 -c "import sys, json; sys.path.insert(0, %s); from bin.faceswap_core import FaceSwapEngine; e=FaceSwapEngine(); r=e.swap(sys.argv[1], sys.argv[2], sys.argv[3]); print(json.dumps(r, ensure_ascii=False))" %s %s %s',
+            'python -X utf8 -c "import sys, json; sys.path.insert(0, %s); from bin.faceswap_core import FaceSwapEngine; e=FaceSwapEngine(); r=e.swap(sys.argv[1], sys.argv[2], sys.argv[3], fidelity=%s); print(json.dumps(r, ensure_ascii=False))" %s %s %s',
             var_export($projectRoot, true),
+            var_export($fidelity, true),
             escapeshellarg($sourceInput),
             escapeshellarg($templatePath),
             escapeshellarg($outputPath)

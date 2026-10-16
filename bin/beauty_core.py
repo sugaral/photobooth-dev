@@ -90,8 +90,24 @@ class BeautyEngine:
     def __init__(self, model_path=None):
         self.model_path = model_path or find_model_path()
         self.detector = None
+        self.bisenet_sess = None
         self._landmarks_cache = {}  # key -> list of normalized landmark arrays
         self._init_detector()
+        self._init_bisenet()
+
+    def _init_bisenet(self):
+        bisenet_path = os.path.expanduser(r"~/.insightface/models/bisenet_resnet_34.onnx")
+        if not os.path.exists(bisenet_path):
+            return
+        try:
+            import onnxruntime as ort
+            providers = ["DmlExecutionProvider", "CPUExecutionProvider"] if "DmlExecutionProvider" in ort.get_available_providers() else ["CPUExecutionProvider"]
+            opts = ort.SessionOptions()
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+            self.bisenet_sess = ort.InferenceSession(bisenet_path, sess_options=opts, providers=providers)
+            print("[BeautyEngine] BiSeNet ResNet34 19-class semantic face parsing initialized")
+        except Exception as exc:
+            print(f"[BeautyEngine] BiSeNet init note: {exc}")
 
     def _init_detector(self):
         if not vision or not self.model_path or not os.path.isfile(self.model_path):
@@ -290,48 +306,67 @@ class BeautyEngine:
             smoothed_textured = whitened
 
         # Step 4: Aligned Skin Mask & Additive Delta Blending
-        # 4.1 Skin color detection in YCrCb
-        ycrcb = cv2.cvtColor(warped, cv2.COLOR_BGR2YCrCb)
-        cr = ycrcb[:, :, 1]
-        cb = ycrcb[:, :, 2]
-        is_skin_color = (cr >= 130) & (cr <= 175) & (cb >= 75) & (cb <= 130)
+        skin_mask = None
+        if self.bisenet_sess is not None and has_faces:
+            try:
+                # BiSeNet ResNet-34 19-class semantic face segmentation
+                b_in = cv2.resize(warped, (512, 512))
+                b_rgb = cv2.cvtColor(b_in, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+                mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+                std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+                b_blob = np.transpose((b_rgb - mean) / std, (2, 0, 1))[None, ...]
+                res = self.bisenet_sess.run(None, {'input': b_blob})[0]
+                parsed = np.argmax(res[0], axis=0).astype(np.uint8)
+                # Class 1: face skin, Class 14: neck skin. Exclude hair (17), eyes (4, 5), lips (11, 12, 13)
+                skin_mask_512 = ((parsed == 1) | (parsed == 14)).astype(np.float32)
+                skin_mask_full = cv2.resize(skin_mask_512, (w, h))
+                k_blur = max(9, int(min(h, w) * 0.02) | 1)
+                skin_mask = cv2.GaussianBlur(skin_mask_full, (k_blur, k_blur), 0)
+            except Exception:
+                skin_mask = None
 
-        if has_faces:
-            contour_idxs = [
-                10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397,
-                365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58,
-                132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
-            ]
-            left_eye_idxs = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-            right_eye_idxs = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-            lips_idxs = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95]
-            left_brow_idxs = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
-            right_brow_idxs = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285]
+        if skin_mask is None:
+            # 4.1 Fallback: Skin color detection in YCrCb
+            ycrcb = cv2.cvtColor(warped, cv2.COLOR_BGR2YCrCb)
+            cr = ycrcb[:, :, 1]
+            cb = ycrcb[:, :, 2]
+            is_skin_color = (cr >= 130) & (cr <= 175) & (cb >= 75) & (cb <= 130)
 
-            face_poly_mask = np.zeros((h, w), dtype=np.uint8)
-            for norm_pts in faces_landmarks:
-                coords = norm_pts * np.array([w, h], dtype=np.float32)
-                # Shift mask coordinates by displacement field so mask 100% matches warped face!
-                valid_pts = []
-                for pt in coords:
-                    xp = int(np.clip(pt[0], 0, w - 1))
-                    yp = int(np.clip(pt[1], 0, h - 1))
-                    shift_x = disp_x[yp, xp] if disp_x is not None else 0.0
-                    shift_y = disp_y[yp, xp] if disp_y is not None else 0.0
-                    valid_pts.append([pt[0] + shift_x, pt[1] + shift_y])
-                valid_pts = np.array(valid_pts, dtype=np.int32)
+            if has_faces:
+                contour_idxs = [
+                    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397,
+                    365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58,
+                    132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+                ]
+                left_eye_idxs = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+                right_eye_idxs = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+                lips_idxs = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95]
+                left_brow_idxs = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
+                right_brow_idxs = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285]
 
-                cv2.fillPoly(face_poly_mask, [valid_pts[contour_idxs]], 255)
-                for feat in [left_eye_idxs, right_eye_idxs, lips_idxs, left_brow_idxs, right_brow_idxs]:
-                    cv2.fillPoly(face_poly_mask, [valid_pts[feat]], 0)
+                face_poly_mask = np.zeros((h, w), dtype=np.uint8)
+                for norm_pts in faces_landmarks:
+                    coords = norm_pts * np.array([w, h], dtype=np.float32)
+                    valid_pts = []
+                    for pt in coords:
+                        xp = int(np.clip(pt[0], 0, w - 1))
+                        yp = int(np.clip(pt[1], 0, h - 1))
+                        shift_x = disp_x[yp, xp] if disp_x is not None else 0.0
+                        shift_y = disp_y[yp, xp] if disp_y is not None else 0.0
+                        valid_pts.append([pt[0] + shift_x, pt[1] + shift_y])
+                    valid_pts = np.array(valid_pts, dtype=np.int32)
 
-            skin_candidate = (face_poly_mask > 0) & is_skin_color
-            skin_uint8 = (skin_candidate * 255).astype(np.uint8)
-            k_blur = max(7, int(min(h, w) * 0.02) | 1)
-            skin_mask = cv2.GaussianBlur(skin_uint8, (k_blur, k_blur), 0).astype(np.float32) / 255.0
-        else:
-            skin_uint8 = (is_skin_color * 255).astype(np.uint8)
-            skin_mask = cv2.GaussianBlur(skin_uint8, (15, 15), 0).astype(np.float32) / 255.0
+                    cv2.fillPoly(face_poly_mask, [valid_pts[contour_idxs]], 255)
+                    for feat in [left_eye_idxs, right_eye_idxs, lips_idxs, left_brow_idxs, right_brow_idxs]:
+                        cv2.fillPoly(face_poly_mask, [valid_pts[feat]], 0)
+
+                skin_candidate = (face_poly_mask > 0) & is_skin_color
+                skin_uint8 = (skin_candidate * 255).astype(np.uint8)
+                k_blur = max(7, int(min(h, w) * 0.02) | 1)
+                skin_mask = cv2.GaussianBlur(skin_uint8, (k_blur, k_blur), 0).astype(np.float32) / 255.0
+            else:
+                skin_uint8 = (is_skin_color * 255).astype(np.uint8)
+                skin_mask = cv2.GaussianBlur(skin_uint8, (15, 15), 0).astype(np.float32) / 255.0
 
         # 4.2 Additive Delta Blending: output = warped + (smoothed_textured - warped) * skin_mask
         delta = smoothed_textured.astype(np.float32) - warped.astype(np.float32)
