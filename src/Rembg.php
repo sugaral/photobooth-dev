@@ -39,10 +39,25 @@ class Rembg
 
             // Try high-speed resident GPU microservice on port 8001 first (DirectML GPU ~50ms)
             $fastServiceUrl = 'http://127.0.0.1:8001/process';
+            $targetTemplate = 'transparent';
+            if (!empty($rembgConfig['background']) && $rembgConfig['background'] !== 'none') {
+                $bgCandidate = PathUtility::getAbsolutePath($rembgConfig['background']);
+                if (!file_exists($bgCandidate)) {
+                    $cand = realpath(__DIR__ . '/../' . ltrim($rembgConfig['background'], '/\\'));
+                    if ($cand && file_exists($cand)) {
+                        $bgCandidate = $cand;
+                    }
+                }
+                if (file_exists($bgCandidate)) {
+                    $targetTemplate = $bgCandidate;
+                }
+            }
+
             $fastPost = json_encode([
                 'input' => $tempInput,
                 'output' => $tempOutput,
-                'template' => 'transparent'
+                'template' => $targetTemplate,
+                'engine' => $rembgConfig['engine'] ?? 'birefnet'
             ]);
 
             $fastSuccess = false;
@@ -143,13 +158,19 @@ class Rembg
             }
 
             // Load processed image
-            $processedImage = imagecreatefrompng($tempOutput);
+            $processedImage = @imagecreatefrompng($tempOutput);
+            if ($processedImage === false) {
+                $processedImage = @imagecreatefromjpeg($tempOutput);
+            }
+            if ($processedImage === false) {
+                $processedImage = $imageHandler->createFromImage($tempOutput);
+            }
             if ($processedImage === false) {
                 throw new \Exception('Failed to load processed image');
             }
 
-            // Apply background if configured
-            if (!empty($rembgConfig['background'])) {
+            // Apply background if configured and wasn't already composited by microservice
+            if (!empty($rembgConfig['background']) && $targetTemplate === 'transparent') {
                 $backgroundPath = PathUtility::getAbsolutePath($rembgConfig['background']);
                 if (file_exists($backgroundPath)) {
                     $backgroundContent = file_get_contents($backgroundPath);

@@ -127,3 +127,20 @@
   - [x] **跨环境持久化与 Label 模糊回溯**：新建 `api/cameraConfig.php` 服务端存储接口与 `api/settings.php` 注入机制，支持持久化 `{ id, label }`。通过 `resolveTargetDeviceId` 智能比对设备 Label（如 "Integrated Camera"），突破 Chrome/Edge Kiosk 独立数据沙箱 (`--user-data-dir`) 下 deviceId 动态加盐哈希不一致的壁垒
 - [x] **8.3 双端同步与生产交付**：
   - [x] 核心代码、前端编译脚本与配置接口 100% 同步至 `c:\Users\WS\Desktop\photobooth-dev` 与 `c:\Users\WS\Desktop\photobooth美颜版`
+
+---
+
+## 阶段九：AI相机换脸流转修复、美颜实时WebRTC预览与大头照模板合成闭环 (✅ 已完成)
+
+- [x] **9.1 AI 相机换脸触发与结果界面修复**：
+  - [x] **消除模式自毁冲刷**：移除 `api.reset()` 中强制覆盖 `window.photoboothMode = 'classic'` 的硬编码；在 `api.thrill` 拍照入口固化 `window.sessionPhotoboothMode`，确保抓拍后 100% 触发 `faceswapProcess.php`
+  - [x] **结果页专属界面定制**：换脸完成后展示原图对比与一键更换模板浮动工具条，并在侧边栏自动隐藏无关的经典抠图抽屉按钮（`.rembgbtn`）与美颜按钮，彻底杜绝界面混淆
+- [x] **9.2 摄像头取景器实时 WebRTC 美颜渲染器 (`applyStudioBeautyPreview`)**：
+  - [x] 实时动态计算美白提亮（`brightness`、`contrast`、`saturate`）与磨皮柔焦（`drop-shadow` 柔肤微光 + 高斯羽化），与风格滤镜级联并即时渲染到 `#preview--video`
+  - [x] 拖动磨皮、美白、大眼、瘦脸滑块即刻获得 60fps 所见即所得实时视觉反馈；人脸对齐框联动动态光晕呼吸动效
+- [x] **9.3 经典大头贴「美颜精修 + 发丝抠图背景合成」端到端闭环**：
+  - [x] 在 `stage.studio.php` 模板库加入「实景原生 (不抠图)」与「极简摄影棚」等精选背景，支持自由挑选与自定义上传
+  - [x] 在 `api/applyEffects.php` 接入 Studio 传递的 `template`、`smooth`、`white`、`eye`、`slim` 动态参数；在 `src/Rembg.php` 中直通本地 GPU 微服务高保真背景合成；在 `src/Beauty.php` 中注入 CLI 容灾备用
+  - [x] 拍照后自动呈现“大头贴美颜精修中...”动态加载动效，输出美颜完毕且融入背景模板的高清成片
+- [x] **9.4 双端同步与生产交付**：
+  - [x] 所有改动代码 100% 同步至 `c:\Users\WS\Desktop\photobooth-dev` 与 `c:\Users\WS\Desktop\photobooth美颜版`

@@ -5639,3 +5639,19 @@ body.mode--studio #aiPoseGuide {
   25%, 100% { left: 180%; }
 }
 
+/* AI Pose Oval Beauty Glow Indicator */
+.ai-pose-oval--beauty-glow {
+  box-shadow: 0 0 25px rgba(244, 114, 182, 0.65), inset 0 0 15px rgba(244, 114, 182, 0.45) !important;
+  border-color: #F472B6 !important;
+  animation: beautyGlowPulse 1.8s infinite ease-in-out !important;
+}
+
+@keyframes beautyGlowPulse {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(244, 114, 182, 0.5), inset 0 0 10px rgba(244, 114, 182, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(244, 114, 182, 0.85), inset 0 0 20px rgba(244, 114, 182, 0.6);
+  }
+}
+

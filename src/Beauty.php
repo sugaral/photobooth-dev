@@ -65,6 +65,26 @@ class Beauty
                 }
             }
 
+            if (!$fastSuccess) {
+                $script = realpath(__DIR__ . '/../bin/beauty_core.py');
+                if ($script) {
+                    $cmd = sprintf(
+                        'python -X utf8 %s --input %s --output %s --eye %f --slim %f --smooth %f --white %f',
+                        escapeshellarg($script),
+                        escapeshellarg($tempInput),
+                        escapeshellarg($tempOutput),
+                        (float)($beautyConfig['default_eye'] ?? 15),
+                        (float)($beautyConfig['default_slim'] ?? 15),
+                        (float)($beautyConfig['default_smooth'] ?? 20),
+                        (float)($beautyConfig['default_white'] ?? 15)
+                    );
+                    @exec($cmd);
+                    if (file_exists($tempOutput) && filesize($tempOutput) > 0) {
+                        $fastSuccess = true;
+                    }
+                }
+            }
+
             if ($fastSuccess && file_exists($tempOutput)) {
                 $retouchedResource = $imageHandler->createFromImage($tempOutput);
                 if ($retouchedResource instanceof \GdImage) {

@@ -76,6 +76,12 @@ $aiTemplates = [
 
 $classicTemplates = [
     [
+        'id' => 'none',
+        'title' => '实景原生 (不换景)',
+        'tag' => '实景原生',
+        'thumb' => 'resources/img/templates/transparent.png',
+    ],
+    [
         'id' => 'studio_light',
         'title' => '极简摄影棚',
         'tag' => '经典纯色',
@@ -350,7 +356,8 @@ $classicTemplates = [
                     <!-- 经典背景模板网格 -->
                     <div class="wb-tpl-grid" id="studioClassicTplGrid">
                         <?php foreach ($classicTemplates as $cidx => $ctpl): ?>
-                            <div class="wb-classic-card <?= $cidx === 0 ? 'active' : '' ?>"
+                            <?php $isClassicAct = ($ctpl['id'] === 'studio_light'); ?>
+                            <div class="wb-classic-card <?= $isClassicAct ? 'active' : '' ?>"
                                  data-id="<?= $ctpl['id'] ?>"
                                  data-title="<?= htmlspecialchars($ctpl['title']) ?>"
                                  data-image="<?= $ctpl['thumb'] ?>"

@@ -154,7 +154,6 @@ const photoBooth = (function () {
             $('#beautyModal').removeClass('active sidenav--open').hide();
         }
 
-        window.photoboothMode = 'classic';
         window.burstModeActive = false;
         $('#aiTemplateModal').hide();
         $('#aiPoseGuide').hide();
@@ -826,9 +825,13 @@ const photoBooth = (function () {
             return;
         }
 
+        const savedMode = window.photoboothMode || 'classic';
+        window.sessionPhotoboothMode = savedMode;
+
         try {
             api.navbar.close();
             api.reset();
+            window.photoboothMode = savedMode;
             api.closeGallery();
             api.clearLoaderImage();
 
@@ -869,7 +872,7 @@ const photoBooth = (function () {
                 maxGetMediaRetry = Math.max(countdownTime - parseInt(config.preview.stop_time, 10), 0);
             }
             photoboothPreview.startVideo(CameraDisplayMode.COUNTDOWN, retry, maxGetMediaRetry);
-            if (window.photoboothMode === 'ai_swap') {
+            if ((window.sessionPhotoboothMode || window.photoboothMode) === 'ai_swap') {
                 $('#aiPoseGuide').fadeIn(200);
             } else {
                 $('#aiPoseGuide').hide();
@@ -1205,8 +1208,10 @@ const photoBooth = (function () {
             return;
         }
 
-        // Stage 3.4: Dual Mode AI FaceSwap Pipeline
-        if (window.photoboothMode === 'ai_swap') {
+        // Stage 3.4: Dual Mode Post-Processing Pipeline
+        const activeCaptureMode = window.sessionPhotoboothMode || window.photoboothMode || 'classic';
+
+        if (activeCaptureMode === 'ai_swap') {
             $('#aiShuttleOverlay').show();
             const shuttleSteps = [
                 '✨ 正在定位面部 5 维几何关键点...',
@@ -1273,9 +1278,28 @@ const photoBooth = (function () {
             return;
         }
 
-        loaderMessage.html(
-            '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busy')
-        );
+        // Classic Photobooth Pipeline: Beauty Retouching + Background Template Matting
+        const classicTpl = (window.selectedClassicTemplate && window.selectedClassicTemplate.id && window.selectedClassicTemplate.id !== 'none')
+            ? (window.selectedClassicTemplate.image || window.selectedClassicTemplate.path || '')
+            : '';
+        const bSmooth = (config.beauty && config.beauty.default_smooth !== undefined) ? config.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10);
+        const bWhite = (config.beauty && config.beauty.default_white !== undefined) ? config.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10);
+        const bEye = (config.beauty && config.beauty.default_eye !== undefined) ? config.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10);
+        const bSlim = (config.beauty && config.beauty.default_slim !== undefined) ? config.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10);
+
+        if (classicTpl || bSmooth > 0 || bWhite > 0 || bEye > 0 || bSlim > 0) {
+            loaderMessage.html(
+                '<div style="text-align:center;padding:1.5rem;">' +
+                '<i class="fa fa-wand-magic-sparkles fa-spin" style="font-size:3rem;color:#F472B6;margin-bottom:1rem;display:inline-block;"></i>' +
+                '<h2 style="font-size:1.8rem;color:#FFF;margin-bottom:0.5rem;font-weight:800;">大头贴美颜精修中...</h2>' +
+                '<p style="font-size:1.1rem;color:#CBD5E1;">正在进行发丝抠图、智能美肤与背景模板合成</p>' +
+                '</div>'
+            );
+        } else {
+            loaderMessage.html(
+                '<i class="' + config.icons.spinner + '"></i><br>' + photoboothTools.getTranslation('busy')
+            );
+        }
 
         if (
             (api.photoStyle === PhotoStyle.PHOTO || api.photoStyle === PhotoStyle.CUSTOM) &&
@@ -1290,15 +1314,22 @@ const photoBooth = (function () {
             preloadImage.src = tempImageUrl;
         }
 
+        const applyData = {
+            file: result.file,
+            filter: imgFilter,
+            style: api.photoStyle,
+            template: classicTpl,
+            smooth: bSmooth,
+            white: bWhite,
+            eye: bEye,
+            slim: bSlim
+        };
+
         photoboothTools
             .ajaxWithCsrf({
                 method: 'POST',
                 url: environment.publicFolders.api + '/applyEffects.php',
-                data: {
-                    file: result.file,
-                    filter: imgFilter,
-                    style: api.photoStyle
-                }
+                data: applyData
             })
             .done((data) => {
                 try {
@@ -1684,6 +1715,15 @@ const photoBooth = (function () {
             }
             resultPage.attr('data-img', filename);
             resultPage.addClass('stage--active');
+
+            const currentActiveMode = window.sessionPhotoboothMode || window.photoboothMode;
+            if (currentActiveMode === 'ai_swap') {
+                $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').hide();
+                $('#aiResultControlBar').show();
+            } else {
+                $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').show();
+                $('#aiResultControlBar').hide();
+            }
 
             loader.removeClass('stage--active showBackgroundImage');
             loader.css('background-image', '');
@@ -2468,12 +2508,8 @@ const photoBooth = (function () {
             }
         }
 
-        // Apply selected filter to live preview
-        const curFilter = imgFilter || 'plain';
-        const filterVal = (typeof curFilter === 'object' && curFilter !== null && curFilter.value) ? curFilter.value : curFilter;
-        $('#preview--video').removeClass(function (index, className) {
-            return (className.match(/(^|\s)filter-preview-\S+/g) || []).join(' ');
-        }).addClass('filter-preview-' + filterVal);
+        // Apply selected filter and real-time beauty to live preview
+        api.applyStudioBeautyPreview();
     };
 
     api.exitStudio = function () {
@@ -2481,6 +2517,9 @@ const photoBooth = (function () {
         $('body').removeClass('mode--studio');
         startPage.addClass('stage--active');
         $('#aiPoseGuide').hide();
+        $('#preview--video').css('filter', '');
+        window.photoboothMode = 'classic';
+        window.sessionPhotoboothMode = null;
         if (!usesBackgroundPreview) {
             photoboothPreview.stopPreview();
         }
@@ -2544,12 +2583,58 @@ const photoBooth = (function () {
         }
     });
 
+    // Studio Live Real-Time WebRTC Beauty & Filter Preview Renderer
+    api.applyStudioBeautyPreview = function () {
+        const smooth = parseInt($('#studioSmoothSlider').val() || 20, 10);
+        const white = parseInt($('#studioWhiteSlider').val() || 15, 10);
+        const eye = parseInt($('#studioEyeSlider').val() || 15, 10);
+        const slim = parseInt($('#studioSlimSlider').val() || 15, 10);
+
+        // 1. Calculate color & lighting enhancements (Skin Whitening)
+        const brightness = (1 + (white / 100) * 0.22).toFixed(3);
+        const contrast = (1 - (white / 100) * 0.05).toFixed(3);
+        const saturate = (1 + (white / 100) * 0.08).toFixed(3);
+
+        // 2. Calculate soft-focus skin smoothing (Micro-diffusion)
+        let smoothFilter = '';
+        if (smooth > 0) {
+            const blurPx = (smooth * 0.012).toFixed(2);
+            const glowPx = (smooth * 0.08).toFixed(1);
+            smoothFilter = `drop-shadow(0 0 ${glowPx}px rgba(255, 245, 248, 0.45)) blur(${blurPx}px)`;
+        }
+
+        const beautyFilterStr = `brightness(${brightness}) contrast(${contrast}) saturate(${saturate}) ${smoothFilter}`.trim();
+
+        // 3. Combine with current artistic color filter
+        const activeFilter = imgFilter || 'plain';
+        const filterVal = (typeof activeFilter === 'object' && activeFilter !== null && activeFilter.value) ? activeFilter.value : activeFilter;
+        const baseColorFilter = (filterCssMap && filterCssMap[filterVal] && filterCssMap[filterVal] !== 'none') ? filterCssMap[filterVal] : '';
+
+        const fullFilter = (baseColorFilter + ' ' + beautyFilterStr).trim();
+
+        const vid = $('#preview--video');
+        if (vid.length) {
+            vid.css('filter', fullFilter);
+        }
+
+        // 4. Subtle guide indicator pulse for Eye & Slim
+        const guideOval = $('.ai-pose-oval');
+        if (guideOval.length) {
+            if (eye > 20 || slim > 20) {
+                guideOval.addClass('ai-pose-oval--beauty-glow');
+            } else {
+                guideOval.removeClass('ai-pose-oval--beauty-glow');
+            }
+        }
+    };
+
     // Studio Beauty Sliders Live Input
     $(document).on('input', '#studioSmoothSlider', function () {
         const val = $(this).val();
         $('#valStudioSmooth').text(val + '%');
         config.beauty = config.beauty || {};
         config.beauty.default_smooth = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
     });
 
     $(document).on('input', '#studioWhiteSlider', function () {
@@ -2557,6 +2642,7 @@ const photoBooth = (function () {
         $('#valStudioWhite').text(val + '%');
         config.beauty = config.beauty || {};
         config.beauty.default_white = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
     });
 
     $(document).on('input', '#studioEyeSlider', function () {
@@ -2564,6 +2650,7 @@ const photoBooth = (function () {
         $('#valStudioEye').text(val + '%');
         config.beauty = config.beauty || {};
         config.beauty.default_eye = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
     });
 
     $(document).on('input', '#studioSlimSlider', function () {
@@ -2571,6 +2658,7 @@ const photoBooth = (function () {
         $('#valStudioSlim').text(val + '%');
         config.beauty = config.beauty || {};
         config.beauty.default_slim = parseInt(val, 10);
+        api.applyStudioBeautyPreview();
     });
 
     $(document).on('click', '#btnResetStudioBeauty', function (e) {
@@ -2579,6 +2667,7 @@ const photoBooth = (function () {
         $('#studioWhiteSlider').val(15).trigger('input');
         $('#studioEyeSlider').val(15).trigger('input');
         $('#studioSlimSlider').val(15).trigger('input');
+        api.applyStudioBeautyPreview();
     });
 
     // Studio Filter Item Click -> Real-Time WYSIWYG Camera Preview
@@ -2589,13 +2678,7 @@ const photoBooth = (function () {
 
         const filter = $(this).data('filter') || 'plain';
         imgFilter = filter;
-
-        // Apply live CSS filter directly on preview video
-        const vid = $('#preview--video');
-        vid.removeClass(function (index, className) {
-            return (className.match(/(^|\s)filter-preview-\S+/g) || []).join(' ');
-        });
-        vid.addClass('filter-preview-' + filter);
+        api.applyStudioBeautyPreview();
     });
 
     // Studio AI Template Category Filter
