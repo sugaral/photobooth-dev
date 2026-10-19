@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Sajjad Hussain M"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/modern-businessman-in-india.jpg?exif=0&iptc=0",
+    "description": "Thinking man ponders toward the camera.",
+    "name": "Modern Businessman In India",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/modern-businessman-in-india",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/modern-businessman-in-india.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Sajjad Hussain M",
+    "creator": {
+      "@type": "Person",
+      "name": "Sajjad Hussain M"
+    },
+    "creditText": "Photo by Sajjad Hussain M"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/modern-businessman-in-india?c=man",
+  "source_page_sha256": "d696bf58b0a70e23b725969c2be8a3f213f929dcad573d40cfa72d916bcb25d0",
+  "retrieved_at": "2026-10-18T12:38:31.247220+00:00",
+  "terms_sha256": "3747599a88a231d837759a270e137ae5c37d6f4fa3376a4847687e712422074f",
+  "license_page_sha256": "231357b23badff4556513aeedc9023a4483eeefa12e053ba3185dbfa41011556"
+}

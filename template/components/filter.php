@@ -67,7 +67,7 @@ $filterLabels = [
                 >
                     <div class="filter-card-thumb">
                         <img
-                            src=""
+                            src="resources/img/filter_model_thumb.jpg"
                             alt="<?= $fName ?>"
                             class="filter-preview-img filter-effect-<?= $fVal ?>"
                             loading="lazy"

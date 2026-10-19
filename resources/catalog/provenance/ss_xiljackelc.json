@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Matt Moloney",
+    "creator": {
+      "@type": "Person",
+      "name": "Matt Moloney"
+    },
+    "copyrightNotice": "Matt Moloney",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/girl-outdoor_XILJACKELC.jpg",
+    "name": "Free photo of girl outdoor",
+    "creditText": "Free photo of girl outdoor downloaded from https://stocksnap.io/photo/girl-outdoor-XILJACKELC",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/girl-outdoor-XILJACKELC",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/girl-outdoor_XILJACKELC.jpg"
+    },
+    "description": "Free stock photo of girl outdoor on StockSnap.",
+    "caption": "Download free stock photo of girl outdoor on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/girl-outdoor-XILJACKELC",
+  "retrieved_at": "2026-10-18T09:32:20.151053+00:00"
+}

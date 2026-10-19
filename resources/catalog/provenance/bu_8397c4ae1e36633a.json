@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/male-dentist.jpg?exif=0&iptc=0",
+    "description": "A male dentist smiling with his arms crossed.",
+    "name": "Male Dentist",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/male-dentist",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/male-dentist.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Matthew Henry",
+    "creator": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "creditText": "Photo by Matthew Henry"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/male-dentist?c=portraits",
+  "source_page_sha256": "11a51625363aa392edb77de35c4c9d866b2c4fdd4d5ad2961ce8d3c34d866854",
+  "retrieved_at": "2026-10-18T11:20:15.046762+00:00",
+  "terms_sha256": "9d6ab0105de678332be48124f2afd4c41beede42a062024ebe5f682fe8e5dad0",
+  "license_page_sha256": "4a093f5af2b91a80b8c00cce3a9e67b1ed62da7e7bd32b9003f790d57d056b69"
+}

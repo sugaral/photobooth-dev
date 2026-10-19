@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Matt Moloney",
+    "creator": {
+      "@type": "Person",
+      "name": "Matt Moloney"
+    },
+    "copyrightNotice": "Matt Moloney",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/woman-portrait_B2W1ZBFGPQ.jpg",
+    "name": "Free photo of woman portrait",
+    "creditText": "Free photo of woman portrait downloaded from https://stocksnap.io/photo/woman-portrait-B2W1ZBFGPQ",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/woman-portrait-B2W1ZBFGPQ",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/woman-portrait_B2W1ZBFGPQ.jpg"
+    },
+    "description": "Free stock photo of woman portrait on StockSnap.",
+    "caption": "Download free stock photo of woman portrait on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/woman-portrait-B2W1ZBFGPQ",
+  "retrieved_at": "2026-10-18T09:32:17.150752+00:00"
+}

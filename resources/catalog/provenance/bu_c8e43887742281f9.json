@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Pegleess Barrios"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/woman-in-grey-sweater-smiles-and-leans-against-a-railing.jpg?exif=0&iptc=0",
+    "description": "A woman in a salt and pepper sweater beams as she leans against a railing.",
+    "name": "Woman In Grey Sweater Smiles And Leans Against A Railing",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/woman-in-grey-sweater-smiles-and-leans-against-a-railing",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/woman-in-grey-sweater-smiles-and-leans-against-a-railing.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Pegleess Barrios",
+    "creator": {
+      "@type": "Person",
+      "name": "Pegleess Barrios"
+    },
+    "creditText": "Photo by Pegleess Barrios"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/woman-in-grey-sweater-smiles-and-leans-against-a-railing?c=woman",
+  "source_page_sha256": "6c51f98b9d851c7fcac50389d559f74fd0b7542603f6d1449765c091119e5091",
+  "retrieved_at": "2026-10-18T12:44:37.385481+00:00",
+  "terms_sha256": "3747599a88a231d837759a270e137ae5c37d6f4fa3376a4847687e712422074f",
+  "license_page_sha256": "231357b23badff4556513aeedc9023a4483eeefa12e053ba3185dbfa41011556"
+}

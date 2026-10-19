@@ -63,10 +63,13 @@ class ConfigurationService
     {
         $default_font  = 'resources/fonts/GreatVibes-Regular.ttf';
         $default_frame = 'resources/img/frames/frame.png';
-        $random_frame  = 'api/randomImg.php?dir=demoframes';
+
+        if (!isset($config['picture']['take_frame'])) {
+            $config['picture']['take_frame'] = false;
+        }
 
         if (empty($config['picture']['frame'])) {
-            $config['picture']['frame'] = $random_frame;
+            $config['picture']['frame'] = '';
         }
 
         if (empty($config['textonpicture']['font'])) {

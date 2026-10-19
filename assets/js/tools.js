@@ -180,8 +180,8 @@ const photoboothTools = (function () {
         };
 
         const deferred = $.Deferred();
-
-        $.ajax(requestOptions)
+        let cancelled = false;
+        let activeRequest = $.ajax(requestOptions)
             .done((data, textStatus, jqXHR) => {
                 deferred.resolve(data, textStatus, jqXHR);
             })
@@ -189,13 +189,16 @@ const photoboothTools = (function () {
                 if (retryOnCsrf && api.isCsrfErrorResponse(xhr)) {
                     api.refreshCsrfToken()
                         .then((refreshed) => {
+                            if (cancelled) {
+                                return;
+                            }
                             if (!refreshed) {
                                 api.handleCsrfMismatch(requestOptions.url || 'unknown');
                                 deferred.reject(xhr, textStatus, errorThrown);
                                 return;
                             }
 
-                            api.ajaxWithCsrf(ajaxOptions, false)
+                            activeRequest = api.ajaxWithCsrf(ajaxOptions, false)
                                 .done((retryData, retryStatus, retryXhr) => {
                                     deferred.resolve(retryData, retryStatus, retryXhr);
                                 })
@@ -207,6 +210,9 @@ const photoboothTools = (function () {
                                 });
                         })
                         .catch(() => {
+                            if (cancelled) {
+                                return;
+                            }
                             api.handleCsrfMismatch(requestOptions.url || 'unknown');
                             deferred.reject(xhr, textStatus, errorThrown);
                         });
@@ -216,7 +222,13 @@ const photoboothTools = (function () {
                 deferred.reject(xhr, textStatus, errorThrown);
             });
 
-        return deferred.promise();
+        return deferred.promise({
+            abort() {
+                cancelled = true;
+                activeRequest.abort();
+                deferred.reject(activeRequest, 'abort', 'abort');
+            }
+        });
     };
 
     api.initialize = async function () {
@@ -401,7 +413,45 @@ const photoboothTools = (function () {
                 api.modal.element.remove();
                 api.modal.element = null;
             }
+        },
+        empty: () => {
+            if (api.modal.element !== null) {
+                const body = api.modal.element.querySelector('.modal-body');
+                if (body) {
+                    body.innerHTML = '';
+                }
+            }
+        },
+        append: (content) => {
+            if (api.modal.element !== null) {
+                const body = api.modal.element.querySelector('.modal-body');
+                if (body) {
+                    if (typeof content === 'string') {
+                        body.insertAdjacentHTML('beforeend', content);
+                    } else if (content instanceof HTMLElement) {
+                        body.appendChild(content);
+                    } else if (window.jQuery && content instanceof window.jQuery) {
+                        $(body).append(content);
+                    }
+                }
+            }
         }
+    };
+
+    let notificationTimer;
+    api.showNotification = function (type, message) {
+        let element = document.getElementById('photobooth-notification');
+        if (!element) {
+            element = document.createElement('div');
+            element.id = 'photobooth-notification';
+            element.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100000;max-width:80vw;padding:14px 22px;border-radius:12px;background:#172033;color:white;box-shadow:0 4px 24px #0008;text-align:center;pointer-events:none;';
+            document.body.appendChild(element);
+        }
+        clearTimeout(notificationTimer);
+        element.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        element.textContent = String(message);
+        element.hidden = false;
+        notificationTimer = setTimeout(() => { element.hidden = true; }, type === 'error' ? 7000 : 3500);
     };
 
     api.confirm = async (confirmationText) => {
@@ -637,6 +687,8 @@ const photoboothTools = (function () {
 
     return api;
 })();
+
+window.photoboothTools = photoboothTools;
 
 // Init on domready
 $(function () {

@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Matt Moloney",
+    "creator": {
+      "@type": "Person",
+      "name": "Matt Moloney"
+    },
+    "copyrightNotice": "Matt Moloney",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/confident-business_ZMIFYSYFK8.jpg",
+    "name": "Free photo of confident business",
+    "creditText": "Free photo of confident business downloaded from https://stocksnap.io/photo/confident-business-ZMIFYSYFK8",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/confident-business-ZMIFYSYFK8",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/confident-business_ZMIFYSYFK8.jpg"
+    },
+    "description": "Free stock photo of confident business on StockSnap.",
+    "caption": "Download free stock photo of confident business on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/confident-business-ZMIFYSYFK8",
+  "retrieved_at": "2026-10-18T09:40:52.704726+00:00"
+}

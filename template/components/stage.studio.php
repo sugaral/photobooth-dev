@@ -5,12 +5,27 @@ use Photobooth\Utility\PathUtility;
 $defaultFilter = $config['filters']['defaults'] ?? 'plain';
 $defFilterVal = is_object($defaultFilter) && isset($defaultFilter->value) ? $defaultFilter->value : (string)$defaultFilter;
 
-$bEye = (int)($config['beauty']['default_eye'] ?? 15);
-$bSlim = (int)($config['beauty']['default_slim'] ?? 15);
-$bSmooth = (int)($config['beauty']['default_smooth'] ?? 30);
-$bWhite = (int)($config['beauty']['default_white'] ?? 25);
-$bRosy = (int)($config['beauty']['default_rosy'] ?? 20);
-$bClarity = (int)($config['beauty']['default_clarity'] ?? 15);
+$beautyEnabled = !isset($config['beauty']['enabled']) || !empty($config['beauty']['enabled']);
+$beautyAuto = $beautyEnabled && (!isset($config['beauty']['auto_apply']) || !empty($config['beauty']['auto_apply']));
+
+$bEye = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_eye'] ?? 15) : 0;
+$bSlim = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_slim'] ?? 15) : 0;
+$bSmooth = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_smooth'] ?? 30) : 0;
+$bWhite = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_white'] ?? 25) : 0;
+$bRosy = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_rosy'] ?? 20) : 0;
+$bClarity = ($beautyEnabled && $beautyAuto) ? (int)($config['beauty']['default_clarity'] ?? 15) : 0;
+
+$isAllZero = ($bEye === 0 && $bSlim === 0 && $bSmooth === 0 && $bWhite === 0 && $bRosy === 0 && $bClarity === 0);
+$activePreset = 'natural';
+if (!$beautyEnabled || $isAllZero) {
+    $activePreset = 'raw';
+} elseif ($bSmooth === 45 && $bWhite === 30 && $bRosy === 45 && $bClarity === 10 && $bEye === 25 && $bSlim === 20) {
+    $activePreset = 'rosy';
+} elseif ($bSmooth === 40 && $bWhite === 45 && $bRosy === 10 && $bClarity === 30 && $bEye === 15 && $bSlim === 25) {
+    $activePreset = 'cool';
+} elseif ($bSmooth === 35 && $bWhite === 25 && $bRosy === 20 && $bClarity === 15 && $bEye === 15 && $bSlim === 15) {
+    $activePreset = 'natural';
+}
 
 $filterPresets = [
     ['id' => 'plain', 'name' => '自然原图', 'tag' => 'RAW'],
@@ -25,147 +40,7 @@ $filterPresets = [
     ['id' => 'blue', 'name' => '夜色幽蓝', 'tag' => 'Night'],
 ];
 
-$aiTemplates = [
-    // --- 女士风格 (Female Styles) ---
-    [
-        'id' => 'hanfu_female_01',
-        'category' => 'hanfu',
-        'title' => '盛唐绮梦 · 汉服仙子',
-        'tag' => '盛唐华服',
-        'sex' => '女性',
-        'sex_code' => 'female',
-        'thumb' => 'resources/img/templates_ai/hanfu_female_01.jpg',
-    ],
-    [
-        'id' => 'wedding_female_01',
-        'category' => 'wedding',
-        'title' => '纯白花嫁 · 法式轻婚纱',
-        'tag' => '浪漫婚纱',
-        'sex' => '女性',
-        'sex_code' => 'female',
-        'thumb' => 'resources/img/templates_ai/wedding_female_01.jpg',
-    ],
-    [
-        'id' => 'school_female_01',
-        'category' => 'school',
-        'title' => '甜酷学院 · 韩系制服',
-        'tag' => '青春校园',
-        'sex' => '女性',
-        'sex_code' => 'female',
-        'thumb' => 'resources/img/templates_ai/school_female_01.jpg',
-    ],
-    [
-        'id' => 'dunhuang_female_01',
-        'category' => 'hanfu',
-        'title' => '梦幻飞天 · 敦煌神女',
-        'tag' => '国风神仙',
-        'sex' => '女性',
-        'sex_code' => 'female',
-        'thumb' => 'resources/img/templates_ai/dunhuang_female_01.jpg',
-    ],
-    [
-        'id' => 'business_female_01',
-        'category' => 'business',
-        'title' => '精英名媛 · 高定西装',
-        'tag' => '棚拍高管',
-        'sex' => '女性',
-        'sex_code' => 'female',
-        'thumb' => 'resources/img/templates_ai/business_female_01.jpg',
-    ],
-
-    // --- 男士风格 (Male Styles) ---
-    [
-        'id' => 'hanfu_male_01',
-        'category' => 'hanfu',
-        'title' => '青衫折扇 · 古风书生',
-        'tag' => '儒雅古风',
-        'sex' => '男性',
-        'sex_code' => 'male',
-        'thumb' => 'resources/img/templates_ai/hanfu_male_01.jpg',
-    ],
-    [
-        'id' => 'business_01',
-        'category' => 'business',
-        'title' => '商务精英 · 经典西装',
-        'tag' => '棚拍商务',
-        'sex' => '男性',
-        'sex_code' => 'male',
-        'thumb' => 'resources/img/templates_ai/business_01.jpg',
-    ],
-    [
-        'id' => 'school_male_01',
-        'category' => 'school',
-        'title' => '初见少年 · 日系白衬衫',
-        'tag' => '阳光校草',
-        'sex' => '男性',
-        'sex_code' => 'male',
-        'thumb' => 'resources/img/templates_ai/school_male_01.jpg',
-    ],
-    [
-        'id' => 'agent_male_01',
-        'category' => 'cyberpunk',
-        'title' => '暗夜特工 · 冷光机车',
-        'tag' => '机车特工',
-        'sex' => '男性',
-        'sex_code' => 'male',
-        'thumb' => 'resources/img/templates_ai/agent_male_01.jpg',
-    ],
-    [
-        'id' => 'street_male_01',
-        'category' => 'cyberpunk',
-        'title' => '潮流街头 · 银发机甲',
-        'tag' => '银发潮人',
-        'sex' => '男性',
-        'sex_code' => 'male',
-        'thumb' => 'resources/img/templates_ai/street_male_01.jpg',
-    ],
-
-    // --- 通用/中性风格 (Unisex Styles) ---
-    [
-        'id' => 'mecha_01',
-        'category' => 'cyberpunk',
-        'title' => '未来战警 · 量子机甲',
-        'tag' => '量子机甲',
-        'sex' => '通用',
-        'sex_code' => 'unisex',
-        'thumb' => 'resources/img/templates_ai/mecha_01.jpg',
-    ],
-    [
-        'id' => 'cyber_01',
-        'category' => 'cyberpunk',
-        'title' => '霓虹夜市 · 赛博黑客',
-        'tag' => '赛博霓虹',
-        'sex' => '通用',
-        'sex_code' => 'unisex',
-        'thumb' => 'resources/img/templates_ai/cyber_01.jpg',
-    ],
-    [
-        'id' => 'vintage_01',
-        'category' => 'vintage',
-        'title' => '旺角雨夜 · 港风胶片',
-        'tag' => '90s港风',
-        'sex' => '通用',
-        'sex_code' => 'unisex',
-        'thumb' => 'resources/img/templates_ai/vintage_01.jpg',
-    ],
-];
-
-// 动态合并商户与用户自定义写真模板 (data/ai_templates_custom.json)
-$customTplFile = __DIR__ . '/../../data/ai_templates_custom.json';
-if (file_exists($customTplFile)) {
-    $customTpls = json_decode(file_get_contents($customTplFile), true) ?: [];
-    if (!empty($customTpls)) {
-        foreach ($customTpls as &$cTpl) {
-            $cTpl['is_custom'] = true;
-            if (empty($cTpl['category'])) $cTpl['category'] = 'custom';
-            if (empty($cTpl['tag'])) $cTpl['tag'] = '自定义写真';
-            if (empty($cTpl['sex'])) $cTpl['sex'] = '自定义';
-            if (empty($cTpl['sex_code'])) $cTpl['sex_code'] = 'unisex';
-        }
-        unset($cTpl);
-        $aiTemplates = array_merge($customTpls, $aiTemplates);
-    }
-}
+$aiTemplates = (new \Photobooth\Service\AiTemplateCatalogService())->all();
 
 $classicTemplates = [
     [
@@ -265,9 +140,29 @@ $classicTemplates = [
             <div class="studio-corner studio-corner--tr"></div>
             <div class="studio-corner studio-corner--bl"></div>
             <div class="studio-corner studio-corner--br"></div>
-            <div class="studio-center-cross"></div>
-            <!-- 专属面部局部实时美颜透镜 (仅作用于面部，绝不改变周围背景环境与取景) -->
-            <div class="studio-face-beauty-lens" id="studioFaceBeautyLens"></div>
+        </div>
+
+        <!-- 实时相纸版式规格辅助体型框线 (Physical Paper Layout Guides) -->
+        <div class="studio-paper-guide" id="studioPaperGuide" style="display:none;" aria-hidden="true">
+            <div class="studio-paper-guide-badge" id="studioPaperGuideBadge">
+                <i class="fa fa-print"></i> <span id="studioPaperGuideText">6寸标准相纸 (4"×6")</span>
+            </div>
+            <div class="studio-guide-2x2" id="studioGuide2x2" style="display:none;">
+                <div class="guide-cross-v"></div>
+                <div class="guide-cross-h"></div>
+                <div class="guide-cell-badge cb-1">1</div>
+                <div class="guide-cell-badge cb-2">2</div>
+                <div class="guide-cell-badge cb-3">3</div>
+                <div class="guide-cell-badge cb-4">4</div>
+            </div>
+            <div class="studio-guide-strip" id="studioGuideStrip" style="display:none;">
+                <div class="guide-strip-column">
+                    <div class="strip-cell"><span>#1</span></div>
+                    <div class="strip-cell"><span>#2</span></div>
+                    <div class="strip-cell"><span>#3</span></div>
+                    <div class="strip-cell"><span>#4</span></div>
+                </div>
+            </div>
         </div>
 
         <!-- 倒计时覆盖层 (在取景框中直接倒计时) -->
@@ -304,7 +199,7 @@ $classicTemplates = [
             </div>
             <div class="workbench-header-text">
                 <h2 class="workbench-title" id="workbenchTitle">AI 魔法变身工作室</h2>
-                <p class="workbench-subtitle" id="workbenchSubtitle">实时微调美颜滤镜 · 精挑模板一秒穿越</p>
+                <p class="workbench-subtitle" id="workbenchSubtitle">保留本人五官 · 实时滤镜与写真模板</p>
             </div>
         </div>
 
@@ -325,23 +220,26 @@ $classicTemplates = [
             <!-- ===================== 标签页 1：滤镜与美颜 ===================== -->
             <div class="wb-tab-pane active" id="paneFilters">
                 <!-- 1. 美颜实时微调模块 -->
-                <div class="wb-section wb-section--beauty">
+                <div class="wb-section wb-section--beauty <?= $beautyEnabled ? '' : 'is-disabled' ?>">
                     <div class="wb-section-header">
                         <div class="wb-section-title">
                             <i class="fa fa-wand-magic-sparkles"></i>
                             <span>AI 智能人像美颜微调</span>
+                            <?php if (!$beautyEnabled): ?>
+                                <span id="badgeBeautyDisabled" class="wb-beauty-disabled-badge"><i class="fa fa-ban"></i> 已停用</span>
+                            <?php endif; ?>
                         </div>
-                        <button type="button" class="wb-reset-btn" id="btnResetStudioBeauty" title="恢复默认微调参数">
+                        <button type="button" class="wb-reset-btn" id="btnResetStudioBeauty" title="恢复默认微调参数" <?= $beautyEnabled ? '' : 'disabled' ?>>
                             <i class="fa fa-rotate-left"></i> 重置初修
                         </button>
                     </div>
 
                     <!-- 美颜风格快速预设胶囊 -->
                     <div class="wb-beauty-presets" id="studioBeautyPresets">
-                        <button type="button" class="wb-preset-pill active" data-preset="natural"><i class="fa fa-wand-magic-sparkles"></i> 自然清透</button>
-                        <button type="button" class="wb-preset-pill" data-preset="rosy"><i class="fa fa-heart"></i> 粉嫩元气</button>
-                        <button type="button" class="wb-preset-pill" data-preset="cool"><i class="fa fa-gem"></i> 高级冷白</button>
-                        <button type="button" class="wb-preset-pill" data-preset="raw"><i class="fa fa-camera"></i> 原生微修</button>
+                        <button type="button" class="wb-preset-pill <?= $activePreset === 'natural' ? 'active' : '' ?>" data-preset="natural" <?= $beautyEnabled ? '' : 'disabled' ?>><i class="fa fa-wand-magic-sparkles"></i> 自然清透</button>
+                        <button type="button" class="wb-preset-pill <?= $activePreset === 'rosy' ? 'active' : '' ?>" data-preset="rosy" <?= $beautyEnabled ? '' : 'disabled' ?>><i class="fa fa-heart"></i> 粉嫩元气</button>
+                        <button type="button" class="wb-preset-pill <?= $activePreset === 'cool' ? 'active' : '' ?>" data-preset="cool" <?= $beautyEnabled ? '' : 'disabled' ?>><i class="fa fa-gem"></i> 高级冷白</button>
+                        <button type="button" class="wb-preset-pill <?= $activePreset === 'raw' ? 'active' : '' ?>" data-preset="raw" <?= $beautyEnabled ? '' : 'disabled' ?>><i class="fa fa-camera"></i> 原生微修</button>
                     </div>
 
                     <div class="wb-beauty-grid">
@@ -351,7 +249,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-sparkles"></i> 自然磨皮</span>
                                 <span class="wb-slider-val" id="valStudioSmooth"><?= $bSmooth ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bSmooth ?>" class="wb-range-slider" id="studioSmoothSlider">
+                            <input type="range" min="0" max="100" value="<?= $bSmooth ?>" class="wb-range-slider" id="studioSmoothSlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
 
                         <!-- 美白 -->
@@ -360,7 +258,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-sun"></i> 晶透美白</span>
                                 <span class="wb-slider-val" id="valStudioWhite"><?= $bWhite ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bWhite ?>" class="wb-range-slider" id="studioWhiteSlider">
+                            <input type="range" min="0" max="100" value="<?= $bWhite ?>" class="wb-range-slider" id="studioWhiteSlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
 
                         <!-- 红润 -->
@@ -369,7 +267,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-droplet"></i> 元气红润</span>
                                 <span class="wb-slider-val" id="valStudioRosy"><?= $bRosy ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bRosy ?>" class="wb-range-slider" id="studioRosySlider">
+                            <input type="range" min="0" max="100" value="<?= $bRosy ?>" class="wb-range-slider" id="studioRosySlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
 
                         <!-- 立体修容 -->
@@ -378,7 +276,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-sliders"></i> 立体修容</span>
                                 <span class="wb-slider-val" id="valStudioClarity"><?= $bClarity ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bClarity ?>" class="wb-range-slider" id="studioClaritySlider">
+                            <input type="range" min="0" max="100" value="<?= $bClarity ?>" class="wb-range-slider" id="studioClaritySlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
 
                         <!-- 大眼 -->
@@ -387,7 +285,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-eye"></i> 灵动大眼</span>
                                 <span class="wb-slider-val" id="valStudioEye"><?= $bEye ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bEye ?>" class="wb-range-slider" id="studioEyeSlider">
+                            <input type="range" min="0" max="100" value="<?= $bEye ?>" class="wb-range-slider" id="studioEyeSlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
 
                         <!-- 瘦脸 -->
@@ -396,7 +294,7 @@ $classicTemplates = [
                                 <span class="wb-slider-label"><i class="fa fa-heart"></i> 精致小脸</span>
                                 <span class="wb-slider-val" id="valStudioSlim"><?= $bSlim ?>%</span>
                             </div>
-                            <input type="range" min="0" max="100" value="<?= $bSlim ?>" class="wb-range-slider" id="studioSlimSlider">
+                            <input type="range" min="0" max="100" value="<?= $bSlim ?>" class="wb-range-slider" id="studioSlimSlider" <?= $beautyEnabled ? '' : 'disabled' ?>>
                         </div>
                     </div>
                 </div>
@@ -432,17 +330,30 @@ $classicTemplates = [
                 <div class="wb-tpl-container" id="studioAiTplContainer">
                     <!-- 精简单排分类过滤器与上传写真按钮（彻底消除冗余重复框） -->
                     <div class="wb-tpl-toolbar wb-tpl-toolbar--unified">
-                        <div class="wb-tpl-pills" id="studioAiFilterPills">
-                            <button type="button" class="wb-pill active" data-filter="all"><i class="fa fa-sparkles"></i> 全部推荐</button>
-                            <button type="button" class="wb-pill" data-filter="female"><i class="fa fa-venus"></i> 👩 女生精选</button>
-                            <button type="button" class="wb-pill" data-filter="male"><i class="fa fa-mars"></i> 👨 男生写真</button>
-                            <button type="button" class="wb-pill" data-filter="hanfu">🌸 汉服古风</button>
-                            <button type="button" class="wb-pill" data-filter="wedding">💍 唯美婚纱</button>
-                            <button type="button" class="wb-pill" data-filter="school">🎓 青春校园</button>
-                            <button type="button" class="wb-pill" data-filter="cyberpunk">🤖 机甲赛博</button>
-                            <button type="button" class="wb-pill" data-filter="business">👔 商务名片</button>
-                            <button type="button" class="wb-pill" data-filter="vintage">🎞️ 港风复古</button>
-                            <button type="button" class="wb-pill" data-filter="custom">⭐ 我的上传</button>
+                        <div class="ai-catalog-controls">
+                            <label>性别<select id="aiSexFilter" class="ai-catalog-select"><option value="all">全部性别</option><option value="male">👔 男士专区 (Man)</option><option value="female">🌸 女士专区 (Woman)</option></select></label>
+                            <label>风格/分类<select id="aiCategoryFilter" class="ai-catalog-select"><option value="all">全部风格</option><option value="man">👔 男士专区 (全部)</option><option value="woman">🌸 女士专区 (全部)</option><?php 
+                                $catLabels = [
+                                    'hanfu' => '🌸 汉服古风',
+                                    'wedding' => '💍 浪漫婚纱',
+                                    'cyberpunk' => '🤖 赛博机甲',
+                                    'school' => '🎒 青春校园',
+                                    'vintage' => '🎞️ 复古风华',
+                                    'cosplay' => '🎭 Cosplay动漫',
+                                    'business' => '👔 商务西装',
+                                    'street' => '🛹 街头潮流',
+                                    'agent' => '🕶️ 特工',
+                                    'formal' => '✨ 高级礼服',
+                                    'outdoor' => '🌲 户外旅行',
+                                    'creative' => '🎨 文艺写真',
+                                    'sport' => '⚽ 运动活力',
+                                    'studio' => '📸 摄影棚拍',
+                                    'custom' => '⭐ 我的上传'
+                                ];
+                                $activeCats = array_filter(array_unique(array_column($aiTemplates, 'category')), fn($c) => !in_array($c, ['man', 'woman'], true));
+                                foreach ($activeCats as $category): ?><option value="<?=htmlspecialchars($category)?>"><?=htmlspecialchars($catLabels[$category] ?? $category)?></option><?php endforeach; ?></select></label>
+                            <label>年龄段<select id="aiAgeFilter" class="ai-catalog-select"><option value="all">全部年龄</option><option value="18-29">青年 (18–29 岁)</option><option value="30-44">成熟 (30–44 岁)</option></select></label>
+                            <span id="aiTemplateCount"><?=count($aiTemplates)?> 张模板</span>
                         </div>
                         <button type="button" class="wb-upload-btn" id="btnStudioUploadAiTemplate" title="上传您喜爱的任意写真图片作为换脸模板">
                             <i class="fa fa-cloud-arrow-up"></i>
@@ -456,11 +367,12 @@ $classicTemplates = [
                         <?php foreach ($aiTemplates as $idx => $tpl): ?>
                             <?php $isCustom = !empty($tpl['is_custom']) || (isset($tpl['category']) && $tpl['category'] === 'custom'); ?>
                             <div class="wb-tpl-card <?= $idx === 0 ? 'active' : '' ?> <?= $isCustom ? 'wb-tpl-card--custom' : '' ?>"
-                                 data-id="<?= $tpl['id'] ?>"
-                                 data-cat="<?= $tpl['category'] ?>"
+                                 data-id="<?= htmlspecialchars($tpl['id']) ?>"
+                                 data-cat="<?= htmlspecialchars($tpl['category']) ?>"
+                                 data-age="<?= htmlspecialchars($tpl['age_band'] ?? 'unspecified') ?>"
                                  data-sex="<?= $tpl['sex_code'] ?? 'unisex' ?>"
                                  data-title="<?= htmlspecialchars($tpl['title']) ?>"
-                                 data-image="<?= $tpl['thumb'] ?>"
+                                 data-image="<?= htmlspecialchars($tpl['image']) ?>"
                                  <?= $isCustom ? 'data-custom="1"' : '' ?>
                                  role="button" tabindex="0">
                                 <div class="wb-tpl-thumb-box">
@@ -468,21 +380,22 @@ $classicTemplates = [
                                     <span class="wb-tpl-chip"><?= htmlspecialchars($tpl['tag']) ?></span>
                                     <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
                                     <?php if ($isCustom): ?>
-                                        <button type="button" class="wb-tpl-del-btn" data-id="<?= $tpl['id'] ?>" title="删除该自定义模板" onclick="event.stopPropagation();">
-                                            <i class="fa fa-trash-can"></i>
+                                        <button type="button" class="wb-tpl-del-btn" data-id="<?= htmlspecialchars($tpl['id']) ?>" title="删除该自定义模板">
+                                             <i class="fa fa-trash-can"></i>
                                         </button>
                                     <?php endif; ?>
                                 </div>
                                 <div class="wb-tpl-meta">
                                     <div class="wb-tpl-title"><?= htmlspecialchars($tpl['title']) ?></div>
                                     <div class="wb-tpl-tags">
-                                        <span class="tag-sex"><?= htmlspecialchars($tpl['sex']) ?></span>
-                                        <span class="tag-feat"><?= $isCustom ? '自定义' : '超清免扣' ?></span>
+                                        <span class="tag-sex <?= ($tpl['sex_code'] ?? '') === 'male' ? 'tag-sex--male' : (($tpl['sex_code'] ?? '') === 'female' ? 'tag-sex--female' : '') ?>"><i class="fa <?= ($tpl['sex_code'] ?? '') === 'male' ? 'fa-mars' : (($tpl['sex_code'] ?? '') === 'female' ? 'fa-venus' : 'fa-user') ?>"></i> <?= htmlspecialchars($tpl['sex']) ?></span>
+                                        <span class="tag-feat"><?= $isCustom ? '自定义' : '写真模板' ?></span>
                                     </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <p id="aiTemplateEmpty" hidden>没有符合当前条件的模板，请调整分类。</p>
                 </div>
 
                 <!-- 经典大头照模板模式 -->
@@ -553,10 +466,10 @@ $classicTemplates = [
         <div class="workbench-footer">
             <div class="wb-footer-status">
                 <div class="wb-selected-chip">
-                    <img id="studioCurrentTplThumb" src="resources/img/templates_ai/hanfu_female_01.jpg" alt="已选目标" onerror="this.style.display='none';">
+                    <img id="studioCurrentTplThumb" alt="已选目标" style="display:none;" onerror="this.style.display='none';">
                     <div class="wb-selected-texts">
                         <span class="wb-selected-label">当前选定：</span>
-                        <strong class="wb-selected-name" id="studioCurrentTplName">盛唐绮梦 · 汉服仙子</strong>
+                        <strong class="wb-selected-name" id="studioCurrentTplName">请选择写真模板</strong>
                     </div>
                 </div>
             </div>

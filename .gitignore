@@ -12,6 +12,7 @@ node_modules/
 private/*
 !private/README.md
 !private/overrides.css
+!private/editor-upgrade.css
 scratch/
 *.err
 stats
@@ -54,6 +55,7 @@ tools/*/vendor
 # rembg virtual environment
 scripts/rembg_venv/
 /.venv
+/.venv-ai/
 /site
 /.envrc
 __pycache__/
@@ -66,3 +68,6 @@ models/
 
 *.log
 *.out
+
+*.whl
+packages/*.whl

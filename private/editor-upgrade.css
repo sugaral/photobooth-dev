@@ -1,0 +1,167 @@
+/* Shared drawer layout; intentionally scoped to the result editor. */
+#classicFilterQuickBar, .editor-drawer, #signatureModal, #stickerModal, #textModal {
+    position:fixed!important; inset:20px 20px 20px auto!important; transform:none!important;
+    width:min(390px,calc(100vw - 32px))!important; max-height:calc(100dvh - 40px)!important;
+    padding:20px!important; border:1px solid #d6dbe5; border-radius:24px; background:#fff!important;
+    box-shadow:0 16px 60px #18233c40; z-index:10050; overflow-y:auto; color:#20293d;
+}
+#signatureModal, #stickerModal, #textModal {height:auto!important;box-sizing:border-box;}
+#signatureModal .signature-drawer-header, #signatureModal .signature-drawer-footer,
+#stickerModal .sticker-drawer-header, #stickerModal .sticker-drawer-footer,
+#stickerModal .sticker-drawer-tabs, #textModal .signature-drawer-header, #textModal .signature-drawer-footer {background:transparent;color:#20293d;border-color:#d6dbe5;padding:12px 0;}
+#signatureModal .signature-drawer-body, #stickerModal .sticker-drawer-body, #textModal .text-drawer-body {padding:12px 0;color:#20293d;}
+#signatureModal .signature-drawer-body p {color:#50566a;line-height:1.6;}
+#signatureModal .signature-drawer-title, #stickerModal .sticker-drawer-title, #textModal .signature-drawer-title {color:#20293d;}
+#signatureModal .signature-drawer-close-btn, #stickerModal .sticker-drawer-close-btn, #textModal .signature-drawer-close-btn {width:44px;height:44px;background:#eef1f7;color:#20293d;border-radius:12px;}
+#signatureModal .signature-drawer-footer {flex-wrap:wrap;gap:8px;}
+#signatureModal .pen-grid label {display:flex;align-items:center;gap:6px;color:#20293d;}
+#classicFilterQuickBar {display:block;}
+.editor-drawer-heading {display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;}
+.editor-drawer-heading h2 {font-size:20px;margin:0;}
+.editor-drawer-heading button {min-width:44px;min-height:44px;border:0;border-radius:12px;font-size:26px;background:#eef1f7;color:#20293d;cursor:pointer;}
+.editor-filter-grid,.editor-frame-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+.editor-filter-grid .classic-qfilter-chip,.editor-frame-grid button,#studioFiltersGallery .wb-filter-item {display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;width:auto!important;height:auto!important;padding:6px;border:2px solid transparent;border-radius:12px;background:#f0f3f8;color:#20293d;font-size:13px;cursor:pointer;}
+.editor-filter-grid img,#studioFiltersGallery .wb-filter-item img {width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;}
+.editor-frame-grid img {width:100%;aspect-ratio:4/3;background:#596476;border-radius:6px;}
+.editor-filter-grid .active,.editor-frame-grid .active,#studioFiltersGallery .active {border-color:#7555cd!important;background:#eee8ff!important;}
+#studioFiltersGallery {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;max-height:55vh;overflow:auto;}
+.wb-identity-note {display:flex;align-items:flex-start;gap:12px;padding:16px!important;background:#f1efff!important;border:1px solid #dad4ff;border-radius:14px;color:#30304a;}
+.wb-identity-note[hidden] {display:none!important;}
+.wb-identity-note>i {font-size:22px;color:#6753bd;margin-top:2px;}
+.wb-identity-note>div {display:grid;gap:5px;}
+.wb-identity-note strong {font-size:15px;}
+.wb-identity-note span {font-size:13px;line-height:1.55;color:#50566a;}
+#stickerModal .sticker-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+#stickerModal .sticker-item {min-width:0;width:100%;height:auto;aspect-ratio:1;padding:6px;}
+#stickerModal .sticker-item img {width:100%;height:100%;object-fit:contain;pointer-events:none;}
+#stickerModal select,.ai-catalog-select {padding:10px;border:1px solid #ccd2df;border-radius:10px;background:#fff;color:#20293d;min-height:44px;}
+.placed-sticker.placed-sticker--image {padding:0!important;line-height:1!important;background:none!important;border:0!important;}
+/* Empty photo space must not intercept the sidebar on small screens. */
+body .stage--result .sticker-canvas-overlay {pointer-events:none!important;}
+body .stage--result .sticker-canvas-overlay .placed-sticker {pointer-events:auto;}
+.placed-sticker--image .placed-sticker-content {display:block;line-height:1!important;text-shadow:none!important;}
+.placed-sticker--image .placed-sticker-content img {display:block;width:100%;height:100%;pointer-events:none;user-select:none;}
+#btnClassicUndo,#btnClassicRedo {background:#f1f4fa!important;color:#34415c!important;border:1px solid #b9c3d5!important;}
+#btnClassicUndo:disabled,#btnClassicRedo:disabled {opacity:.45!important;cursor:not-allowed;}
+#btnClassicUndo .button--label,#btnClassicRedo .button--label {display:block!important;font-size:14px!important;}
+.pen-grid {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
+.pen-grid label {padding:16px 10px;border:1px solid #ccd3e3;border-radius:12px;cursor:pointer;}
+.pen-grid label:has(input:checked) {background:#ebe5ff;border-color:#7254c0;}
+.ink-color-label {display:flex;align-items:center;gap:16px;}
+.ink-color-label input {height:44px;width:80px;}
+#handwritingStage {position:fixed;inset:0;z-index:2147483000;background:#111622;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 16px 50px;box-sizing:border-box;}
+#handwritingStage[hidden] {display:none!important;}
+.ink-toolbar {position:absolute;inset:12px 16px auto;display:flex;gap:10px;}
+.ink-toolbar button {min-height:48px;padding:10px 18px;border:0;border-radius:12px;background:#e9eefa;color:#26324d;font-size:16px;cursor:pointer;}
+.ink-toolbar button:disabled {opacity:.4;}
+#inkDone {margin-left:auto;background:#875de3;color:#fff;}
+.ink-photo {position:relative;flex:none;max-width:100%;max-height:100%;}
+#inkPhoto {display:block;width:100%;height:100%;object-fit:contain;}
+#inkCanvas {position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+.ink-help {position:absolute;bottom:12px;margin:0 12px;color:#dce2f1;font-size:13px;}
+.ai-catalog-controls {display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+.ai-catalog-controls label {display:flex;align-items:center;gap:6px;}
+#aiTemplateCount {font-size:13px;color:#677189;}
+
+/* Artistic Text Sticker Styling */
+.placed-sticker.placed-sticker--text {
+    padding: 6px 14px!important;
+    border-radius: 8px!important;
+    background: transparent!important;
+    border: 1.5px dashed transparent!important;
+    cursor: move;
+    user-select: none;
+}
+.placed-sticker.placed-sticker--text.is-active {
+    border-color: rgba(117, 85, 205, 0.85)!important;
+    background: rgba(117, 85, 205, 0.12)!important;
+    box-shadow: 0 0 16px rgba(117, 85, 205, 0.35)!important;
+}
+.placed-sticker--text .placed-sticker-content {
+    white-space: pre-wrap;
+    line-height: 1.25;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.9);
+    word-break: break-word;
+}
+
+/* Font Preview Cards */
+.font-preview-card {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.font-preview-card:hover {
+    border-color: #a78bfa;
+    background: #fbf9ff;
+}
+.font-preview-card.active {
+    border-color: #7555cd!important;
+    background: #f3efff!important;
+    box-shadow: 0 2px 8px rgba(117, 85, 205, 0.22);
+}
+.font-card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+    font-size: 11px;
+    color: #64748b;
+}
+.font-card-meta .font-card-title {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 12px;
+}
+.font-card-meta .font-card-tag {
+    background: #e2e8f0;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+}
+.font-card-sample {
+    font-size: 19px;
+    line-height: 1.35;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.text-font-tab.active {
+    background: #7555cd!important;
+    color: #fff!important;
+    border-color: #7555cd!important;
+}
+.text-swatch.active {
+    outline: 2px solid #7555cd!important;
+    outline-offset: 2px!important;
+}
+
+/* Stage handwriting toolbar enhancements */
+.stage-pen-pill {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.stage-pen-pill.active {
+    background: #7555cd!important;
+    border-color: #a78bfa!important;
+    color: #fff!important;
+    box-shadow: 0 0 10px rgba(167, 139, 250, 0.45);
+}
+
+@media (max-width:600px) {
+    .ink-toolbar {gap:4px;inset:8px;} 
+    .ink-toolbar button {font-size:13px;padding:8px 12px;} 
+    #studioFiltersGallery {grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+

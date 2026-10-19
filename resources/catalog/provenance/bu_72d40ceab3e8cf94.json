@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Shopify Photos"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/weight-lifting-man.jpg?exif=0&iptc=0",
+    "description": "A man performing a tricep press.",
+    "name": "Weight Lifting Man",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/weight-lifting-man",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/weight-lifting-man.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Shopify Photos",
+    "creator": {
+      "@type": "Person",
+      "name": "Shopify Photos"
+    },
+    "creditText": "Photo by Shopify Photos"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/weight-lifting-man?c=man",
+  "source_page_sha256": "947b0909969d559963b404f7cfad118ba1141101c7b6dd74dda3d1e22dac1adf",
+  "retrieved_at": "2026-10-18T12:42:15.277226+00:00",
+  "terms_sha256": "3747599a88a231d837759a270e137ae5c37d6f4fa3376a4847687e712422074f",
+  "license_page_sha256": "231357b23badff4556513aeedc9023a4483eeefa12e053ba3185dbfa41011556"
+}

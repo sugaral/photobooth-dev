@@ -44,34 +44,9 @@ echo '<div class="preview">';
 echo '<div id="preview-container" style="aspect-ratio: ' . $comp . '">';
 echo '<div id="preview--video-container" style="position:relative;width:100%;height:100%;">';
 echo '<video id="preview--video" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" autoplay playsinline></video>';
-echo '<video id="preview--face-beauty-video" style="' . $composed_style . '; position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:2; opacity:0; transition:opacity 0.2s ease, filter 0.15s ease;" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" autoplay playsinline muted></video>';
+echo '<canvas id="preview--beauty-canvas" style="' . $composed_style . '; position:absolute; pointer-events:none; z-index:2; opacity:0; display:block; object-fit:cover;" class="' . $previewFlipClass . ' ' . $previewStyleClass . '" aria-hidden="true"></canvas>';
 echo '<div id="preview--ipcam" style="' . $composed_style . '" class="' . $previewFlipClass . ' ' . $previewStyleClass . '"></div>';
 echo '<div id="preview--none">' . $languageService->translate('no_preview') . '</div>';
-
-echo '
-<!-- High-Performance GPU Beauty Filters Definition -->
-<svg style="position:absolute; width:0; height:0; pointer-events:none; overflow:hidden;" aria-hidden="true">
-  <defs>
-    <!-- Commercial High-Pass Skin Smoothing & Soft Focus Filter -->
-    <filter id="beautyPorcelainSkinFilter" x="-10%" y="-10%" width="120%" height="120%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="softBlur" id="beautySvgBlur"></feGaussianBlur>
-      <feColorMatrix in="softBlur" type="matrix" values="
-        1.06 0    0    0  0.02
-        0    1.04 0    0  0.02
-        0    0    1.02 0  0.01
-        0    0    0    1  0" result="warmGlow"></feColorMatrix>
-      <feBlend in="SourceGraphic" in2="warmGlow" mode="soft-light" result="skinBlend"></feBlend>
-      <feComposite in="SourceGraphic" in2="skinBlend" operator="arithmetic" k1="0" k2="0.40" k3="0.65" k4="0"></feComposite>
-    </filter>
-
-    <!-- Real-time 60FPS Big Eyes & Face Slimming Liquid Displacement Filter -->
-    <filter id="beautyDisplacementFilter" x="-5%" y="-5%" width="110%" height="110%">
-      <feImage id="beautyDisplaceFeImg" xlink:href="" href="" result="dispMap"></feImage>
-      <feDisplacementMap in="SourceGraphic" in2="dispMap" scale="0" xChannelSelector="R" yChannelSelector="G" id="beautyFeDisplace"></feDisplacementMap>
-    </filter>
-  </defs>
-</svg>
-';
 
 echo '</div>';
 echo '</div></div>';

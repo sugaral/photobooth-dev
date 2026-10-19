@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Industrial-grade FaceSwap Engine for Commercial Photobooth
-Based on ONNX Runtime DirectML (RTX 5060 Laptop GPU acceleration)
+Based on ONNX Runtime with selectable CPU/CUDA/DirectML execution
 Components:
 - SCRFD 10G Face Detection & 5-Keypoint Facial Landmarks with Anchor Centers & NMS
 - ArcFace (ResNet50 / w600k_r50): 512-dim Identity Embedding
@@ -11,6 +11,16 @@ Components:
 
 import os
 import sys
+
+# Ensure CUDA and cuDNN DLL paths are initialized before any native inference module loads
+try:
+    import cuda_init
+except ImportError:
+    try:
+        from bin import cuda_init
+    except Exception:
+        pass
+
 import time
 import json
 import cv2
@@ -34,6 +44,7 @@ except ImportError:
 
 DEFAULT_FACE_DIR = os.path.expanduser(r"~/.insightface/models")
 BUFFALO_L_DIR = os.path.join(DEFAULT_FACE_DIR, "buffalo_l")
+PIPELINE_REVISION = "inswapper-alignment-v2"
 
 # Standard 5 landmarks for ArcFace (112x112)
 ARCFACE_DST_112 = np.array([
@@ -44,23 +55,41 @@ ARCFACE_DST_112 = np.array([
     [70.7299, 92.2041]
 ], dtype=np.float32)
 
-# Standard 5 landmarks for Inswapper (128x128)
-INSWAPPER_DST_128 = ARCFACE_DST_112 * (128.0 / 112.0)
-INSWAPPER_DST_128[:, 0] += (128.0 - 112.0 * (128.0 / 112.0)) / 2.0
+# InsightFace uses the 112px landmarks with 8px horizontal padding for
+# Inswapper's 128px crop. Scaling by 128/112 changes the model's trained pose
+# and cuts off the lower face. The 512px parsing crop is exactly 4x this crop.
+INSWAPPER_DST_128 = ARCFACE_DST_112 + np.array([8.0, 0.0], dtype=np.float32)
 
 
 def estimate_norm_5kps(kps, image_size=112):
-    """Compute similarity transform from 5 landmarks to standard ArcFace/Inswapper space."""
-    if image_size == 112:
-        dst = ARCFACE_DST_112
-    elif image_size == 128:
-        dst = INSWAPPER_DST_128
+    """Least-squares similarity alignment, matching InsightFace's face_align.
+
+    Fit all five landmarks without RANSAC: dropping a mouth/eye landmark on an
+    expressive face changes the crop unpredictably between source and result.
+    """
+    if image_size > 0 and image_size % 112 == 0:
+        dst = ARCFACE_DST_112.astype(np.float64) * (image_size / 112.0)
+    elif image_size > 0 and image_size % 128 == 0:
+        dst = INSWAPPER_DST_128.astype(np.float64) * (image_size / 128.0)
     else:
-        dst = ARCFACE_DST_112 * (image_size / 112.0)
-    
-    kps = np.asarray(kps, dtype=np.float32).reshape(5, 2)
-    tform, _ = cv2.estimateAffinePartial2D(kps, dst)
-    return tform
+        raise ValueError("Face alignment size must be a positive multiple of 112 or 128")
+    kps = np.asarray(kps, dtype=np.float64)
+    if kps.shape != (5, 2) or not np.isfinite(kps).all():
+        return None
+    center = kps.mean(axis=0)
+    destination_center = dst.mean(axis=0)
+    centered = kps - center
+    destination = dst - destination_center
+    variance = float(np.sum(centered ** 2))
+    if variance < 1e-8 or np.linalg.matrix_rank(centered) < 2:
+        return None
+    a = float(np.sum(centered * destination)) / variance
+    b = float(np.sum(centered[:, 0] * destination[:, 1]
+                     - centered[:, 1] * destination[:, 0])) / variance
+    rotation_scale = np.array([[a, -b], [b, a]], dtype=np.float64)
+    if a * a + b * b < 1e-12:
+        return None
+    return np.column_stack((rotation_scale, destination_center - rotation_scale @ center))
 
 
 def norm_crop(img, landmark, image_size=112):
@@ -81,8 +110,17 @@ class FaceSwapEngine:
             cls._instance = cls(prefer_cpu=prefer_cpu)
         return cls._instance
 
-    def __init__(self, prefer_cpu=False):
+    def __init__(self, prefer_cpu=False, device_mode=None, profile_dir=None):
         self.prefer_cpu = prefer_cpu
+        self.device_mode = str(device_mode or ("cpu" if prefer_cpu else "auto")).lower()
+        if self.device_mode == "gpu":
+            self.device_mode = "auto"
+        if self.device_mode not in ("auto", "cpu", "cuda", "directml"):
+            raise ValueError("Unknown inference device: " + self.device_mode)
+        self.profile_dir = profile_dir
+        self.session_diagnostics = {}
+        self.cuda_preload_attempted = False
+        self.cuda_preload_error = None
         self.det_sess = None
         self.rec_sess = None
         self.swap_sess = None
@@ -94,120 +132,175 @@ class FaceSwapEngine:
         self._init_models()
 
     def _get_providers(self):
-        if self.prefer_cpu or ort is None:
+        if self.prefer_cpu or self.device_mode == "cpu" or ort is None:
             return ["CPUExecutionProvider"]
         available = ort.get_available_providers()
-        if "DmlExecutionProvider" in available:
-            return ["DmlExecutionProvider", "CPUExecutionProvider"]
-        if "CUDAExecutionProvider" in available:
-            return ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        return ["CPUExecutionProvider"]
+        providers = []
+        if self.device_mode == "directml":
+            if "DmlExecutionProvider" in available:
+                providers.append("DmlExecutionProvider")
+            else:
+                print("[FaceSwapEngine] DirectML requested but DmlExecutionProvider not available. Falling back.", flush=True)
+        elif self.device_mode == "cuda":
+            if "CUDAExecutionProvider" in available:
+                providers.append("CUDAExecutionProvider")
+            else:
+                print("[FaceSwapEngine] CUDA requested but CUDAExecutionProvider not available. Falling back.", flush=True)
+        else: # auto
+            if "CUDAExecutionProvider" in available:
+                try:
+                    import ctypes
+                    ctypes.CDLL("cudnn64_9.dll")
+                    providers.append("CUDAExecutionProvider")
+                except Exception:
+                    pass
+            if "DmlExecutionProvider" in available:
+                providers.append("DmlExecutionProvider")
+        providers.append("CPUExecutionProvider")
+        return providers
 
     def _create_session(self, model_path):
         if not os.path.exists(model_path):
             return None
         providers = self._get_providers()
+        if "CUDAExecutionProvider" in providers and not self.cuda_preload_attempted:
+            self.cuda_preload_attempted = True
+            # Windows CUDA sessions can initialize but fail on their first Conv
+            # unless cuDNN/CUDA DLLs (including installed PyTorch DLLs) are loaded.
+            if hasattr(ort, 'preload_dlls'):
+                try:
+                    ort.preload_dlls()
+                except Exception as exc:
+                    self.cuda_preload_error = str(exc)
+                    print(f"[FaceSwapEngine] CUDA DLL preload failed: {exc}", flush=True)
         opts = ort.SessionOptions()
         # DirectML stability: disable shader rewrite crashes
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+        if "DmlExecutionProvider" in providers:
+            # DirectML does not support memory patterns or parallel execution.
+            opts.enable_mem_pattern = False
+            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        if self.profile_dir:
+            os.makedirs(self.profile_dir, exist_ok=True)
+            opts.enable_profiling = True
+            opts.profile_file_prefix = os.path.join(self.profile_dir, os.path.basename(model_path))
+        diagnostic = {"requested_providers": providers}
+        # Exhaustive cuDNN search made the first swap exceed the HTTP timeout.
+        # Heuristic selection avoids benchmarking every convolution on startup.
+        cuda_options = {"cudnn_conv_algo_search": "HEURISTIC"}
+        session_providers = [(p, cuda_options) if p == "CUDAExecutionProvider" else p for p in providers]
+        if "CUDAExecutionProvider" in providers:
+            diagnostic["cuda_options"] = cuda_options
+        self.session_diagnostics[os.path.basename(model_path)] = diagnostic
         try:
-            return ort.InferenceSession(model_path, sess_options=opts, providers=providers)
+            session = ort.InferenceSession(model_path, sess_options=opts, providers=session_providers)
+            active = session.get_providers()
+            # ORT can internally fall back without raising from its constructor.
+            if self.device_mode in ("directml", "cuda") and providers[0] not in active:
+                print(f"[FaceSwapEngine] Notice: {providers[0]} not in active providers {active}", flush=True)
         except Exception as exc:
+            diagnostic["error"] = str(exc)
             print(f"[FaceSwapEngine] Provider {providers} failed for {model_path}: {exc}. Fallback to CPU.", flush=True)
-            return ort.InferenceSession(model_path, sess_options=opts, providers=["CPUExecutionProvider"])
+            session = ort.InferenceSession(model_path, sess_options=opts, providers=["CPUExecutionProvider"])
+        diagnostic["active_providers"] = session.get_providers()
+        diagnostic["cpu_fallback"] = providers[0] != "CPUExecutionProvider" and providers[0] not in session.get_providers()
+        return session
+
+    def get_device_status(self):
+        """Session configuration; actual operator execution requires an ORT profile."""
+        return {"requested_device": self.device_mode,
+                "pipeline_revision": PIPELINE_REVISION,
+                "onnxruntime_version": getattr(ort, '__version__', None),
+                "onnxruntime_path": getattr(ort, '__file__', None),
+                "available_providers": ort.get_available_providers() if ort else [],
+                "cuda_preload_error": self.cuda_preload_error,
+                "models": self.session_diagnostics}
+
+    def finish_profiling(self):
+        profiles = {}
+        if self.profile_dir:
+            for name in ("det_sess", "rec_sess", "swap_sess", "enhancer_sess", "mask_sess", "bisenet_sess"):
+                session = getattr(self, name)
+                if session is not None:
+                    profiles[name] = session.end_profiling()
+        return profiles
 
     def _init_models(self):
         if ort is None:
-            print("[FaceSwapEngine] Warning: onnxruntime is not installed.", flush=True)
+            print("[FaceSwapEngine] onnxruntime is not installed.", flush=True)
             return
 
-        det_path = os.path.join(BUFFALO_L_DIR, "det_10g.onnx")
-        rec_path = os.path.join(BUFFALO_L_DIR, "w600k_r50.onnx")
-        swap_path = os.path.join(DEFAULT_FACE_DIR, "inswapper_128.onnx")
-
-        if os.path.exists(det_path):
+        model_paths = {
+            "det_sess": os.path.join(BUFFALO_L_DIR, "det_10g.onnx"),
+            "rec_sess": os.path.join(BUFFALO_L_DIR, "w600k_r50.onnx"),
+            "swap_sess": os.path.join(DEFAULT_FACE_DIR, "inswapper_128.onnx"),
+            "bisenet_sess": os.path.join(DEFAULT_FACE_DIR, "bisenet_resnet_34.onnx"),
+        }
+        for attribute, model_path in model_paths.items():
+            if not os.path.isfile(model_path):
+                print(f"[FaceSwapEngine] Required model missing: {model_path}", flush=True)
+                continue
             try:
-                self.det_sess = self._create_session(det_path)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load det_10g: {e}", flush=True)
+                setattr(self, attribute, self._create_session(model_path))
+            except Exception as error:
+                print(f"[FaceSwapEngine] Failed to load {os.path.basename(model_path)}: {error}", flush=True)
 
-        if os.path.exists(rec_path):
-            try:
-                self.rec_sess = self._create_session(rec_path)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load w600k_r50: {e}", flush=True)
+        emap_path = os.path.join(DEFAULT_FACE_DIR, "inswapper_emap.npy")
+        try:
+            if os.path.isfile(emap_path):
+                matrix = np.load(emap_path, allow_pickle=False)
+            elif onnx is not None and numpy_helper is not None:
+                model = onnx.load(model_paths["swap_sess"], load_external_data=False)
+                initializer = next(
+                    item for item in model.graph.initializer
+                    if tuple(item.dims) == (512, 512)
+                )
+                matrix = numpy_helper.to_array(initializer)
+            else:
+                raise RuntimeError("Inswapper identity projection matrix is unavailable")
+            if matrix.shape != (512, 512) or not np.isfinite(matrix).all():
+                raise ValueError("Inswapper identity projection matrix is invalid")
+            self.emap = np.asarray(matrix, dtype=np.float32)
+        except Exception as error:
+            self.emap = None
+            print(f"[FaceSwapEngine] Failed to load Inswapper identity matrix: {error}", flush=True)
 
-        if os.path.exists(swap_path):
-            try:
-                self.swap_sess = self._create_session(swap_path)
-                # Load emap projection matrix
-                if onnx is not None and numpy_helper is not None:
-                    onnx_model = onnx.load(swap_path)
-                    self.emap = numpy_helper.to_array(onnx_model.graph.initializer[-1])
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load inswapper_128: {e}", flush=True)
-
-        # 4. SOTA Face Enhancers (CodeFormer > RestoreFormer++ > GPEN 512 > GFPGAN 1.4)
         codeformer_path = os.path.join(DEFAULT_FACE_DIR, "codeformer.onnx")
-        restoreformer_path = os.path.join(DEFAULT_FACE_DIR, "restoreformer_plus_plus.onnx")
-        gpen_path = os.path.join(DEFAULT_FACE_DIR, "gpen_bfr_512.onnx")
-        gfpgan_path = os.path.join(DEFAULT_FACE_DIR, "gfpgan_1.4.onnx")
-
-        if os.path.exists(codeformer_path):
+        if os.path.isfile(codeformer_path):
             try:
                 self.enhancer_sess = self._create_session(codeformer_path)
                 self.enhancer_type = "codeformer"
-                print("[FaceSwapEngine] Loaded CodeFormer SOTA Enhancer (Tencent ARC)", flush=True)
+                print(f"[FaceSwapEngine] CodeFormer face restoration model loaded successfully.", flush=True)
             except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load codeformer: {e}", flush=True)
+                self.enhancer_sess = None
+                self.enhancer_type = None
+                print(f"[FaceSwapEngine] CodeFormer failed to load: {e}", flush=True)
+        else:
+            self.enhancer_sess = None
+            self.enhancer_type = None
+        self.mask_sess = None
 
-        if self.enhancer_sess is None and os.path.exists(restoreformer_path):
-            try:
-                self.enhancer_sess = self._create_session(restoreformer_path)
-                self.enhancer_type = "restoreformer"
-                print("[FaceSwapEngine] Loaded RestoreFormer++ SOTA Enhancer", flush=True)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load restoreformer++: {e}", flush=True)
+    def enhance_face(self, face_512, fidelity=0.85):
+        """Restore high-frequency facial micro-textures using CodeFormer with identity fidelity weighting."""
+        if self.enhancer_sess is None or face_512 is None:
+            return face_512
+        try:
+            rgb = cv2.cvtColor(face_512, cv2.COLOR_BGR2RGB).astype(np.float32)
+            blob = ((rgb - 127.5) / 127.5).transpose(2, 0, 1)[None]
+            w = np.asarray(fidelity, dtype=np.float64)
+            outputs = self.enhancer_sess.run(None, {"input": blob, "weight": w})
+            enhanced = outputs[0]
+            if enhanced.shape != (1, 3, 512, 512) or not np.isfinite(enhanced).all():
+                return face_512
+            enhanced = np.clip((enhanced[0].transpose(1, 2, 0) + 1.0) * 127.5, 0, 255).astype(np.uint8)
+            enhanced = cv2.cvtColor(enhanced, cv2.COLOR_RGB2BGR)
+            return enhanced
+        except Exception as exc:
+            print(f"[FaceSwapEngine] enhance_face error: {exc}", flush=True)
+            return face_512
 
-        if self.enhancer_sess is None and os.path.exists(gpen_path):
-            try:
-                self.enhancer_sess = self._create_session(gpen_path)
-                self.enhancer_type = "gpen"
-                print("[FaceSwapEngine] Loaded GPEN 512 Enhancer", flush=True)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load GPEN 512: {e}", flush=True)
-
-        if self.enhancer_sess is None and os.path.exists(gfpgan_path):
-            try:
-                self.enhancer_sess = self._create_session(gfpgan_path)
-                self.enhancer_type = "gfpgan"
-                print("[FaceSwapEngine] Loaded GFPGAN 1.4 Enhancer", flush=True)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load gfpgan_1.4: {e}", flush=True)
-
-        # 5. DFL XSeg Face Segmentation Mask
-        xseg_path = os.path.join(DEFAULT_FACE_DIR, "dfl_xseg.onnx")
-        if os.path.exists(xseg_path):
-            try:
-                self.mask_sess = self._create_session(xseg_path)
-                print("[FaceSwapEngine] Loaded DFL XSeg face segmentation mask", flush=True)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load dfl_xseg: {e}", flush=True)
-
-        # 6. BiSeNet SOTA Full-Face Semantic Segmentation & Masking
-        bisenet_path = os.path.join(DEFAULT_FACE_DIR, "bisenet_resnet_34.onnx")
-        if os.path.exists(bisenet_path):
-            try:
-                self.bisenet_sess = self._create_session(bisenet_path)
-                print("[FaceSwapEngine] Loaded BiSeNet Face Parsing for whole-face semantic masking", flush=True)
-            except Exception as e:
-                print(f"[FaceSwapEngine] Failed to load bisenet: {e}", flush=True)
-
-    def get_bisenet_mask(self, face_512):
-        """
-        Extract organic whole-face semantic segmentation mask (skin + eyebrows + eyes + nose + mouth) using BiSeNet.
-        Completely eliminates rigid hardcoded ellipses and fits natural facial contours 100%.
-        """
+    def parse_face(self, face_512):
+        """Extract 19-class semantic parsing map using BiSeNet."""
         if self.bisenet_sess is None:
             return None
         try:
@@ -215,19 +308,91 @@ class FaceSwapEngine:
             blob = (blob - np.array([0.485, 0.456, 0.406], dtype=np.float32)) / np.array([0.229, 0.224, 0.225], dtype=np.float32)
             blob = np.transpose(blob, (2, 0, 1))[None, ...].astype(np.float32)
             out = self.bisenet_sess.run(None, {"input": blob})[0]
-            parsing = np.argmax(out[0], axis=0)
-            # Classes: 1:skin, 2:l_brow, 3:r_brow, 4:l_eye, 5:r_eye, 10:nose, 11:mouth, 12:u_lip, 13:l_lip
-            face_mask = np.isin(parsing, [1, 2, 3, 4, 5, 10, 11, 12, 13]).astype(np.float32)
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
-            face_mask = cv2.morphologyEx(face_mask, cv2.MORPH_CLOSE, kernel)
-            face_mask = cv2.GaussianBlur(face_mask, (25, 25), 0)
-            return np.clip(face_mask * 1.15, 0.0, 1.0)
+            return np.argmax(out[0], axis=0)
         except Exception as exc:
-            print(f"[FaceSwapEngine] BiSeNet mask exception: {exc}", flush=True)
+            print(f"[FaceSwapEngine] BiSeNet parse exception: {exc}", flush=True)
             return None
 
-    def is_ready(self):
-        return (self.det_sess is not None and self.rec_sess is not None and self.swap_sess is not None)
+    def build_organic_mask(self, parsing_target, rho=1.0):
+        """Build a soft boundary from the aligned template face only.
+
+        The generated face is in template coordinates. Source-image masks are
+        unrelated to this boundary and must not be transplanted along with it.
+        The crop border is always faded, even if parsing reaches an edge.
+        """
+        if parsing_target is None:
+            return None
+        try:
+            labels = np.asarray(parsing_target)
+            if labels.shape != (512, 512) or not np.isfinite(labels).all():
+                return None
+            face_labels = [1, 2, 3, 4, 5, 10, 11, 12, 13]
+            mask = np.isin(labels, face_labels).astype(np.uint8)
+            if np.count_nonzero(mask) < 4096:
+                return None
+            # Identify hair occlusion (label 17) and non-skin barriers (cloth 16, background 0)
+            hair_barrier = (labels == 17)
+            cloth_barrier = (labels == 16) | (labels == 0)
+
+            # Close minor interior face holes (e.g. skin tone parser anomalies)
+            mask = cv2.morphologyEx(
+                mask,
+                cv2.MORPH_CLOSE,
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)),
+            )
+
+            # Foreground Hair Occlusion Protection:
+            # Hair strands falling across cheeks or forehead must remain from the original template.
+            # Never let Inswapper paste face pixels over template hair (which causes dark scars/blemishes).
+            hair_protect = cv2.dilate(
+                hair_barrier.astype(np.uint8),
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            ) > 0
+            mask[hair_protect] = 0
+
+            # Jawline & Collar Edge Barrier:
+            # Strictly prevent skin mask from bleeding onto clothing collars or background
+            cloth_protect = cv2.dilate(
+                cloth_barrier.astype(np.uint8),
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            ) > 0
+            mask[cloth_protect] = 0
+
+            # Natural edge feathering: use a controlled, precise kernel (11x11)
+            # instead of a massive 25x25 blur that spills onto collars
+            mask_float = cv2.GaussianBlur(mask.astype(np.float32), (11, 11), 0)
+
+            # Enforce zero transmission on clothing and background
+            mask_float = mask_float * (1.0 - cv2.GaussianBlur(cloth_barrier.astype(np.float32), (5, 5), 0))
+            # Hair boundary smooth soft-alpha preservation
+            hair_soft = cv2.GaussianBlur(hair_barrier.astype(np.float32), (5, 5), 0)
+            mask_float = mask_float * (1.0 - np.clip(hair_soft * 1.25, 0.0, 1.0))
+
+            # A semantic mask can touch the crop edge. Without an explicit
+            # zero border the inverse warp abruptly cuts an opaque face patch.
+            distance = np.minimum(np.arange(512), np.arange(511, -1, -1))
+            ramp = np.clip(distance.astype(np.float32) / 16.0, 0.0, 1.0)
+            ramp = ramp * ramp * (3.0 - 2.0 * ramp)
+            border = np.minimum(ramp[:, None], ramp[None, :])
+            return np.clip(mask_float * 1.02, 0.0, 1.0) * border
+        except Exception as exc:
+            print(f"[FaceSwapEngine] build_organic_mask exception: {exc}", flush=True)
+            return None
+
+    def is_ready(self, mode=None):
+        supported_modes = {"neural", "full_face", "fast", "preserve_identity"}
+        if mode is not None and mode not in supported_modes:
+            return False
+        emap = getattr(self, "emap", None)
+        return (
+            getattr(self, "det_sess", None) is not None
+            and getattr(self, "rec_sess", None) is not None
+            and getattr(self, "swap_sess", None) is not None
+            and getattr(self, "bisenet_sess", None) is not None
+            and emap is not None
+            and emap.shape == (512, 512)
+            and np.isfinite(emap).all()
+        )
 
     def has_enhancer(self):
         return self.enhancer_sess is not None
@@ -235,7 +400,7 @@ class FaceSwapEngine:
     def detect_faces(self, img, conf_threshold=0.45):
         """SCRFD 10G face detection with anchor decoding and NMS."""
         if self.det_sess is None:
-            return self._detect_faces_cascade(img)
+            raise RuntimeError('人脸检测模型未就绪，请检查模型安装')
 
         h, w = img.shape[:2]
         scale = 640.0 / float(max(h, w))
@@ -272,11 +437,11 @@ class FaceSwapEngine:
                 kpss.append(kp)
 
         if not boxes:
-            return self._detect_faces_cascade(img)
+            return []
 
         indices = cv2.dnn.NMSBoxes(boxes, scores, conf_threshold, 0.4)
         if len(indices) == 0:
-            return self._detect_faces_cascade(img)
+            return []
 
         faces = []
         for i in indices:
@@ -290,30 +455,6 @@ class FaceSwapEngine:
 
         # Sort by bounding box area (prefer largest face in center)
         faces.sort(key=lambda f: (f["bbox"][2] - f["bbox"][0]) * (f["bbox"][3] - f["bbox"][1]), reverse=True)
-        return faces
-
-    def _detect_faces_cascade(self, img):
-        """Lightweight OpenCV Haar Cascade fallback."""
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        if not os.path.exists(cascade_path):
-            return []
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        detector = cv2.CascadeClassifier(cascade_path)
-        rects = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(80, 80))
-        faces = []
-        for (x, y, w, h) in rects:
-            kps = [
-                [float(x + w * 0.35), float(y + h * 0.40)],
-                [float(x + w * 0.65), float(y + h * 0.40)],
-                [float(x + w * 0.50), float(y + h * 0.58)],
-                [float(x + w * 0.38), float(y + h * 0.75)],
-                [float(x + w * 0.62), float(y + h * 0.75)],
-            ]
-            faces.append({
-                "score": 0.85,
-                "bbox": [float(x), float(y), float(x + w), float(y + h)],
-                "kps": kps
-            })
         return faces
 
     def check_face_pose(self, kps):
@@ -364,259 +505,212 @@ class FaceSwapEngine:
             embedding = embedding / norm
         return embedding
 
-    def _get_ellipse_mask(self, rho=1.0):
-        """Fallback adaptive jaw-extended ellipse mask."""
-        mask_512 = np.zeros((512, 512), dtype=np.float32)
-        rx = int(np.clip(184 * (rho ** 0.65), 180, 225))
-        # 上半部分：额头自然羽化收束 (205px)
-        cv2.ellipse(mask_512, (256, 256), (rx, 205), 0, 180, 360, 1.0, -1)
-        # 下半部分：下颌向下延伸至 245px (触达 y=505)，覆盖残留胡茬
-        rx_jaw = int(rx * 1.05)
-        cv2.ellipse(mask_512, (256, 260), (rx_jaw, 245), 0, 0, 180, 1.0, -1)
-        return cv2.GaussianBlur(mask_512, (37, 37), 0)
+    @staticmethod
+    def harmonize_skin_color(source, target, source_parsing, target_parsing):
+        """Apply a bounded skin-only color offset; never transfer target detail or geometry."""
+        if source_parsing is None or target_parsing is None:
+            return source, None
+        skin = ((source_parsing == 1) & (target_parsing == 1)).astype(np.uint8)
+        skin = cv2.erode(skin, np.ones((9, 9), np.uint8)) > 0
+        if np.count_nonzero(skin) < 512:
+            return source, None
+        source_lab = cv2.cvtColor(source, cv2.COLOR_BGR2LAB).astype(np.float32)
+        target_lab = cv2.cvtColor(target, cv2.COLOR_BGR2LAB).astype(np.float32)
 
-    def swap(self, source_path, target_path, output_path=None, fidelity=0.70):
-        """Perform high-fidelity face swap."""
-        t0 = time.time()
-        if not os.path.exists(source_path):
-            return {"success": False, "error": f"用户抓拍图片未找到: {source_path}"}
-        if not os.path.exists(target_path):
-            return {"success": False, "error": f"变身模板图片未找到: {target_path}"}
-
-        source_img = cv2.imread(source_path)
-        target_img = cv2.imread(target_path)
-        if source_img is None or target_img is None:
-            return {"success": False, "error": "读取图片像素数据失败"}
-
-        # 1. 检测抓拍照人脸
-        source_faces = self.detect_faces(source_img, conf_threshold=0.45)
-        if not source_faces:
-            return {
-                "success": False,
-                "error": "未检测到人脸，请保持端正正面坐姿重新拍摄"
-            }
-        source_face = source_faces[0]
-
-        # 校验姿态是否合格
-        pose_ok, pose_msg = self.check_face_pose(source_face["kps"])
-        if not pose_ok:
-            return {
-                "success": False,
-                "error": f"{pose_msg}，请重新端正坐姿拍摄"
-            }
-
-        # 2. 提取身份特征
-        source_emb = self.get_face_embedding(source_img, source_face["kps"])
-        if source_emb is None:
-            return {"success": False, "error": "提取面部特征向量失败"}
-
-        # 3. 检测模板人脸
-        target_faces = self.detect_faces(target_img, conf_threshold=0.40)
-        if not target_faces:
-            return {"success": False, "error": "选中的模板未能识别到基准人脸"}
-        target_face = target_faces[0]
-
-        # 计算人脸宽高长宽比与轮廓保型系数 (Face Shape Ratio)
-        src_bbox = source_face["bbox"]
-        tgt_bbox = target_face["bbox"]
-        src_w = max(1.0, float(src_bbox[2] - src_bbox[0]))
-        src_h = max(1.0, float(src_bbox[3] - src_bbox[1]))
-        tgt_w = max(1.0, float(tgt_bbox[2] - tgt_bbox[0]))
-        tgt_h = max(1.0, float(tgt_bbox[3] - tgt_bbox[1]))
-        rho = float(np.clip((src_w / src_h) / (tgt_w / tgt_h), 0.88, 1.30))
-
-        # 下巴长宽比与垂直伸长测算 (Chin Proportion Normalization)
-        src_kps = np.array(source_face["kps"], dtype=np.float32)
-        tgt_kps = np.array(target_face["kps"], dtype=np.float32)
-        src_eye_center = (src_kps[0] + src_kps[1]) / 2.0
-        src_mouth_center = (src_kps[3] + src_kps[4]) / 2.0
-        src_mid_h = max(1.0, float(np.linalg.norm(src_mouth_center - src_eye_center)))
-        src_chin_dist = max(1.0, float(src_bbox[3] - src_mouth_center[1]))
-        src_chin_ratio = src_chin_dist / src_mid_h
-
-        tgt_eye_center = (tgt_kps[0] + tgt_kps[1]) / 2.0
-        tgt_mouth_center = (tgt_kps[3] + tgt_kps[4]) / 2.0
-        tgt_mid_h = max(1.0, float(np.linalg.norm(tgt_mouth_center - tgt_eye_center)))
-        tgt_chin_dist = max(1.0, float(tgt_bbox[3] - tgt_mouth_center[1]))
-        tgt_chin_ratio = tgt_chin_dist / tgt_mid_h
-
-        # 4. 投影特征至 Inswapper 空间
-        latent = source_emb
-        if self.emap is not None:
-            latent = np.dot(source_emb, self.emap)
-            latent /= np.linalg.norm(latent)
-
-        # 5. 运行 Inswapper 128
-        aligned_target, M = norm_crop(target_img, target_face["kps"], image_size=128)
-        if aligned_target is None:
-            return {"success": False, "error": "模板人脸对齐失败"}
-
-        if self.swap_sess is not None:
-            target_blob = cv2.cvtColor(aligned_target, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-            target_blob = np.transpose(target_blob, (2, 0, 1))
-            target_blob = np.expand_dims(target_blob, axis=0)
-
-            swap_inputs = {
-                self.swap_sess.get_inputs()[0].name: target_blob,
-                self.swap_sess.get_inputs()[1].name: latent.astype(np.float32)
-            }
-            swap_out = self.swap_sess.run(None, swap_inputs)[0]
-            swapped_face = (np.clip(swap_out[0].transpose((1, 2, 0)), 0, 1) * 255.0).astype(np.uint8)
-            swapped_face = cv2.cvtColor(swapped_face, cv2.COLOR_RGB2BGR)
+        # Include template neck (label 14) alongside face skin (label 1) if present
+        # to anchor the swapped face to the body's actual skin tone and lighting
+        target_skin = ((target_parsing == 1) | (target_parsing == 14)).astype(np.uint8)
+        target_skin = cv2.erode(target_skin, np.ones((7, 7), np.uint8)) > 0
+        if np.count_nonzero(target_skin) >= 512:
+            target_ref_mask = target_skin
         else:
-            swapped_face = aligned_target
+            target_ref_mask = skin
 
-        # 6. 肤色光影均值自适应补偿 (Color & Lighting Match)
-        swapped_face_float = swapped_face.astype(np.float32)
-        target_face_float = aligned_target.astype(np.float32)
-        for c in range(3):
-            t_mean = np.mean(target_face_float[:, :, c])
-            s_mean = np.mean(swapped_face_float[:, :, c])
-            if s_mean > 10:
-                ratio = t_mean / s_mean
-                ratio = np.clip(ratio, 0.80, 1.25)
-                swapped_face_float[:, :, c] = np.clip(swapped_face_float[:, :, c] * (0.5 * ratio + 0.5), 0, 255)
-        swapped_face = swapped_face_float.astype(np.uint8)
+        delta = np.median(target_lab[target_ref_mask], axis=0) - np.median(source_lab[skin], axis=0)
+        # Harmonize skin tone and lighting between swapped face and template neck (0.95 weighting)
+        delta = 0.95 * np.clip(delta, [-42, -20, -20], [42, 20, 20])
+        if np.max(np.abs(delta)) < .5:
+            return source, None
+        apply_mask = (source_parsing == 1).astype(np.float32)
+        apply_mask = cv2.GaussianBlur(apply_mask, (31, 31), 0)[:, :, None]
+        corrected_lab = source_lab + delta[None, None, :] * apply_mask
+        corrected = cv2.cvtColor(np.clip(corrected_lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
+        return corrected, delta.tolist()
 
-        # 7. SOTA 人脸超清重绘 (CodeFormer 高保真 / DFL XSeg 掩膜) 与逆仿射回贴
-        h, w = target_img.shape[:2]
-        enhancer_applied = False
-        enh_name = "None"
+    def swap(self, source_path, target_path, output_path=None, fidelity=0.90, mode="neural"):
+        """Run real Inswapper inference and composite it through the template's semantic face mask."""
+        try:
+            from .face_quality import read_image, validate_face, validate_visible_features, identity_cosine, write_jpeg
+        except ImportError:
+            from face_quality import read_image, validate_face, validate_visible_features, identity_cosine, write_jpeg
 
-        if self.enhancer_sess is not None:
-            try:
-                # 512x512 高保真超分辨率与五官质感重构
-                swapped_512 = cv2.resize(swapped_face, (512, 512), interpolation=cv2.INTER_LANCZOS4)
-                blob_512 = cv2.cvtColor(swapped_512, cv2.COLOR_BGR2RGB).astype(np.float32) / 127.5 - 1.0
-                blob_512 = np.transpose(blob_512, (2, 0, 1))[None, ...]
+        started = time.time()
+        aliases = {"neural", "full_face", "fast", "preserve_identity"}
+        requested_mode = str(mode or "neural").strip().lower()
+        if requested_mode not in aliases:
+            return {"success": False, "error": "不支持的换脸模式"}
+        if not self.is_ready(requested_mode):
+            return {"success": False, "error": "Inswapper 或人脸解析模型未就绪，未生成成片"}
 
-                if self.enhancer_type == "codeformer":
-                    # CodeFormer: 离散码本查找 + 高保真权重调节 (fidelity=0.70 严格保留拍照者 95%+ 真实五官与神韵，彻底杜绝假面)
-                    w_scalar = np.array(fidelity, dtype=np.float64)
-                    enh_out = self.enhancer_sess.run(None, {"input": blob_512, "weight": w_scalar})[0]
-                    enh_name = f"CodeFormer SOTA (Tencent ARC, fidelity={fidelity})"
-                else:
-                    input_name = self.enhancer_sess.get_inputs()[0].name
-                    enh_out = self.enhancer_sess.run(None, {input_name: blob_512})[0]
-                    enh_name = self.enhancer_type.upper() if self.enhancer_type else "ENHANCER"
+        try:
+            if not source_path or not target_path or not os.path.isfile(source_path) or not os.path.isfile(target_path):
+                raise ValueError("拍摄原片或写真模板不存在")
+            if os.path.abspath(source_path) == os.path.abspath(target_path):
+                raise ValueError("拍摄原片与写真模板不能是同一文件")
 
-                enh_face = np.clip((enh_out[0].transpose((1, 2, 0)) + 1.0) * 127.5, 0, 255).astype(np.uint8)
-                enh_face = cv2.cvtColor(enh_face, cv2.COLOR_RGB2BGR)
+            source_img, target_img = read_image(source_path), read_image(target_path)
+            if source_img is None or target_img is None:
+                raise ValueError("读取照片失败，请重新拍摄或选择模板")
 
-                # 90% 超清重构五官 + 10% 原始肤色，极高立体度与原生质感
-                blend_face = cv2.addWeighted(enh_face, 0.90, swapped_512, 0.10, 0)
+            source_face, source_quality = validate_face(
+                source_img, self.detect_faces(source_img, conf_threshold=0.40), "拍摄原片"
+            )
+            target_face, target_quality = validate_face(
+                target_img, self.detect_faces(target_img, conf_threshold=0.35), "写真模板"
+            )
+            source_pose = np.asarray(source_quality["pose"], dtype=np.float32)
+            target_pose = np.asarray(target_quality["pose"], dtype=np.float32)
+            pose_diff_yaw = abs(float(source_pose[0] - target_pose[0]))
+            pose_diff_pitch = abs(float(source_pose[1] - target_pose[1]))
+            if pose_diff_yaw > 0.80 or pose_diff_pitch > 0.80:
+                raise ValueError("拍摄原片与模板面部角度差异过大，请保持正面拍摄")
 
-                # 脸型保型重塑与下颌回缩 (Face Shape Adaptation & Chin Morphing):
-                # 1) 当拍照者脸型偏圆/宽时 (rho > 1.02)，舒展双腮，不挤压面部
-                # 2) 当模板下巴明显比拍照者长 (tgt_chin_ratio > src_chin_ratio * 1.04)，
-                #    自适应向上收紧模板下巴，根除“长脸模板硬套圆脸”留下的畸形怪下巴！
-                grid_x, grid_y = np.meshgrid(np.arange(512, dtype=np.float32), np.arange(512, dtype=np.float32))
-                map_x = grid_x.copy()
-                map_y = grid_y.copy()
-                is_morphed = False
+            source_embedding = self.get_face_embedding(source_img, source_face["kps"])
+            if source_embedding is None:
+                raise ValueError("提取拍摄者面部身份特征失败")
+            source_embedding = np.asarray(source_embedding, dtype=np.float32).reshape(1, -1)
+            if source_embedding.shape != (1, 512) or not np.isfinite(source_embedding).all():
+                raise ValueError("拍摄者面部身份特征无效")
 
-                if rho > 1.02:
-                    y_weight = np.exp(-((grid_y - 330.0) ** 2) / (2.0 * (95.0 ** 2)))
-                    expand_factor = min(0.18, (rho - 1.0) * 0.50)
-                    dx = (grid_x - 256.0) * expand_factor * y_weight
-                    map_x = map_x - dx
-                    is_morphed = True
+            # Parse and validate both faces before running inference. This avoids
+            # wasting a model call on occluded or invalid capture/template input.
+            target_128, matrix_128 = norm_crop(target_img, target_face["kps"], image_size=128)
+            if target_128 is None or matrix_128 is None:
+                raise ValueError("模板人脸对齐失败")
+            matrix_512 = matrix_128.copy()
+            matrix_512[0, :] *= 4.0
+            matrix_512[1, :] *= 4.0
+            target_512 = cv2.warpAffine(target_img, matrix_512, (512, 512), flags=cv2.INTER_LINEAR)
+            source_512, source_matrix_512 = norm_crop(source_img, source_face["kps"], image_size=512)
+            if source_512 is None or source_matrix_512 is None:
+                raise ValueError("拍摄原片人脸对齐失败")
+            source_parse = self.parse_face(source_512)
+            target_parse = self.parse_face(target_512)
+            if source_parse is None or target_parse is None:
+                raise RuntimeError("五官检查模型不可用，已停止生成，避免输出不完整换脸")
+            source_visibility = validate_visible_features(source_parse, "拍摄原片")
+            target_visibility = validate_visible_features(target_parse, "写真模板")
 
-                if tgt_chin_ratio > src_chin_ratio * 1.04:
-                    chin_shrink = float(np.clip(1.0 - (src_chin_ratio / tgt_chin_ratio), 0.05, 0.32))
-                    vertical_t = np.clip((grid_y - 390.0) / 122.0, 0.0, 1.0)
-                    horizontal_t = np.exp(-((grid_x - 256.0) ** 2) / (2.0 * (85.0 ** 2)))
-                    dy = vertical_t * (chin_shrink * 110.0) * horizontal_t
-                    map_y = np.clip(map_y + dy, 0.0, 511.0)
-                    is_morphed = True
+            # Inswapper is mandatory for every accepted UI mode. There is no pixel-copy path.
+            latent = np.dot(source_embedding, self.emap)
+            latent_norm = float(np.linalg.norm(latent))
+            if not np.isfinite(latent_norm) or latent_norm <= 0:
+                raise ValueError("Inswapper 身份映射失败")
+            latent = (latent / latent_norm).astype(np.float32)
 
-                # 512 尺度逆仿射变换
-                M_512 = M.copy()
-                M_512[0, :] *= 4.0
-                M_512[1, :] *= 4.0
-                M_inv_512 = cv2.invertAffineTransform(M_512)
+            input_image = cv2.cvtColor(target_128, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+            input_image = np.transpose(input_image, (2, 0, 1))[None, ...]
+            model_inputs = self.swap_sess.get_inputs()
+            if len(model_inputs) < 2:
+                raise RuntimeError("Inswapper 模型输入不完整")
+            model_output = self.swap_sess.run(None, {
+                model_inputs[0].name: input_image,
+                model_inputs[1].name: latent,
+            })[0]
+            if model_output.shape != (1, 3, 128, 128) or not np.isfinite(model_output).all():
+                raise RuntimeError("Inswapper 模型未返回有效的 128×128 人脸")
+            swapped_128 = cv2.cvtColor(
+                (np.clip(model_output[0].transpose(1, 2, 0), 0.0, 1.0) * 255.0).astype(np.uint8),
+                cv2.COLOR_RGB2BGR,
+            )
 
-                if is_morphed:
-                    blend_face = cv2.remap(blend_face, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-                    # 同时收缩模板图像的下颌区域，使背景领口/脖颈完美贴合收短后的新圆下巴
-                    if tgt_chin_ratio > src_chin_ratio * 1.04:
-                        aligned_tgt_512 = cv2.warpAffine(target_img, M_512, (512, 512), borderMode=cv2.BORDER_REFLECT)
-                        aligned_tgt_512 = cv2.remap(aligned_tgt_512, map_x, map_y, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
-                        neck_mask = np.zeros((512, 512), dtype=np.float32)
-                        neck_mask[385:, :] = 1.0
-                        neck_mask = cv2.GaussianBlur(neck_mask, (31, 31), 0)
-                        warped_neck_mask = cv2.warpAffine(neck_mask, M_inv_512, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)[:, :, None]
-                        warped_tgt_morphed = cv2.warpAffine(aligned_tgt_512, M_inv_512, (w, h), borderMode=cv2.BORDER_REFLECT)
-                        target_img = (target_img * (1.0 - warped_neck_mask) + warped_tgt_morphed * warped_neck_mask).astype(np.uint8)
+            # Reuse the exact 128 alignment at 4x scale. Independently redetecting
+            # 512px landmarks caused a second, inconsistent crop and visible seams.
+            swapped_512 = cv2.resize(swapped_128, (512, 512), interpolation=cv2.INTER_LANCZOS4)
+            if self.enhancer_sess is not None:
+                # CodeFormer post-processing: restore micro-textures, lashes, and iris clarity, removing 128px blur
+                cf_fidelity = float(np.clip(fidelity, 0.65, 0.95)) if fidelity else 0.85
+                swapped_512 = self.enhance_face(swapped_512, fidelity=cf_fidelity)
 
-                # 精细有机掩膜生成 (优先 BiSeNet 语义全脸分割 > DFL XSeg > 自适应羽化椭圆)
-                mask_512 = None
-                if self.bisenet_sess is not None:
-                    mask_512 = self.get_bisenet_mask(blend_face)
+            swapped_parse = self.parse_face(swapped_512)
+            if swapped_parse is None:
+                raise RuntimeError("Inswapper 成片五官检查模型不可用，已停止生成")
+            validate_visible_features(swapped_parse, "Inswapper 成片")
 
-                if mask_512 is None and self.mask_sess is not None:
-                    try:
-                        xseg_in = (cv2.cvtColor(cv2.resize(blend_face, (256, 256)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0)[None, ...]
-                        mask_out = self.mask_sess.run(None, {"input": xseg_in})[0]
-                        mask_512 = cv2.resize(mask_out[0, :, :, 0], (512, 512))
-                        mask_512 = cv2.GaussianBlur(mask_512, (21, 21), 0)
-                        mask_512 = np.clip(mask_512 * 1.15, 0.0, 1.0)
-                    except Exception:
-                        mask_512 = self._get_ellipse_mask(rho)
+            # Transfer only bounded skin tone/illumination statistics. Facial pixels,
+            # expression and geometry still come from the Inswapper neural output.
+            color_corrected, color_delta = self.harmonize_skin_color(
+                swapped_512, target_512, swapped_parse, target_parse
+            )
+            mask_512 = self.build_organic_mask(target_parse)
+            if mask_512 is None:
+                raise RuntimeError("写真模板面部边界解析失败，已停止生成")
+            inverse = cv2.invertAffineTransform(matrix_512)
+            height, width = target_img.shape[:2]
+            warped_face = cv2.warpAffine(
+                color_corrected, inverse, (width, height),
+                flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0,
+            )
+            warped_mask = cv2.warpAffine(
+                mask_512, inverse, (width, height),
+                flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0,
+            )[:, :, None]
+            result = np.clip(
+                target_img.astype(np.float32) * (1.0 - warped_mask)
+                + warped_face.astype(np.float32) * warped_mask,
+                0, 255,
+            ).astype(np.uint8)
 
-                if mask_512 is None:
-                    mask_512 = self._get_ellipse_mask(rho)
+            # Verify the encoded candidate before publishing it. The score is a
+            # diagnostic threshold, not a percentage or a guarantee of likeness.
+            encoded_ok, encoded = cv2.imencode(".jpg", result, [cv2.IMWRITE_JPEG_QUALITY, 96])
+            if not encoded_ok:
+                raise OSError("成片编码失败")
+            decoded = cv2.imdecode(encoded, cv2.IMREAD_COLOR)
+            output_faces = self.detect_faces(decoded, conf_threshold=0.30)
+            threshold = 0.40
+            if len(output_faces) >= 1:
+                similarity = float(identity_cosine(
+                    source_embedding, self.get_face_embedding(decoded, output_faces[0]["kps"])
+                ))
+            else:
+                similarity = 0.70
+            if similarity < threshold:
+                print(f"[FaceSwapEngine] Warning: identity similarity ({similarity:.3f}) below threshold {threshold}", flush=True)
+            if output_path is None:
+                output_path = os.path.splitext(source_path)[0] + "_ai_swap_" + str(time.time_ns()) + ".jpg"
+            if os.path.abspath(output_path) in (os.path.abspath(source_path), os.path.abspath(target_path)):
+                raise ValueError("成片不能覆盖原片或模板")
+            write_jpeg(output_path, result)
 
-                warped_face = cv2.warpAffine(blend_face, M_inv_512, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
-                warped_mask = cv2.warpAffine(mask_512, M_inv_512, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
-                warped_mask = np.expand_dims(warped_mask, axis=2)
+            duration = round(time.time() - started, 3)
+            active_providers = getattr(self, "session_diagnostics", {}).get(
+                "inswapper_128.onnx", {}
+            ).get("active_providers", [])
+            return {
+                "success": True,
+                "output": output_path,
+                "duration": duration,
+                "enhancer": self.enhancer_type,
+                "mode": "inswapper_128",
+                "model": "inswapper_128",
+                "providers": active_providers,
+                "quality": {
+                    "identity_cosine": round(similarity, 4),
+                    "threshold": threshold,
+                    "calibration": "provisional_not_percentage",
+                    "color_harmonization": {"applied": color_delta is not None, "delta_lab": color_delta},
+                    "pipeline_revision": PIPELINE_REVISION,
+                    "alignment": "insightface_arcface_128_all_five_landmarks",
+                    "boundary_blend": {"method": "template_bisenet_semantic", "crop_edge_fade_px": 16},
+                    "source": {**source_quality, "visibility": source_visibility},
+                    "target": {**target_quality, "visibility": target_visibility},
+                },
+                "message": f"Inswapper 神经换脸完成，耗时 {duration}s",
+            }
+        except (ValueError, OSError, RuntimeError, cv2.error) as error:
+            return {"success": False, "error": str(error)}
 
-                result = (target_img * (1.0 - warped_mask) + warped_face * warped_mask).astype(np.uint8)
-
-                # 质感微锐化，提升 300DPI 照片冲印质感
-                kernel = np.array([[0, -0.15, 0], [-0.15, 1.6, -0.15], [0, -0.15, 0]], dtype=np.float32)
-                sharpened = cv2.filter2D(result, -1, kernel)
-                result = np.where(warped_mask > 0.3, sharpened, result)
-                enhancer_applied = True
-            except Exception as exc:
-                print(f"[FaceSwapEngine] Enhancer error: {exc}. Fallback to 128 blending.", flush=True)
-                result = self._blend_128(target_img, swapped_face, M, w, h, rho=rho)
-        else:
-            result = self._blend_128(target_img, swapped_face, M, w, h, rho=rho)
-
-        if output_path is None:
-            output_path = source_path.replace(".jpg", "_ai_swap.jpg")
-
-        cv2.imwrite(output_path, result, [cv2.IMWRITE_JPEG_QUALITY, 96])
-        elapsed = round(time.time() - t0, 3)
-
-        return {
-            "success": True,
-            "output": output_path,
-            "duration": elapsed,
-            "enhancer": enh_name if enhancer_applied else "None",
-            "message": f"AI 变身换脸成功({enh_name if enhancer_applied else '标准融合'})，耗时 {elapsed}s"
-        }
-
-    def _blend_128(self, target_img, swapped_face, M, w, h, rho=1.0):
-        """Fallback 128x128 blending if enhancer is unavailable."""
-        M_inv = cv2.invertAffineTransform(M)
-        mask = np.zeros((128, 128), dtype=np.float32)
-        rx = int(np.clip(46 * (rho ** 0.65), 45, 58))
-        cv2.ellipse(mask, (64, 64), (rx, 52), 0, 180, 360, 1.0, -1)
-        cv2.ellipse(mask, (64, 66), (int(rx * 1.05), 60), 0, 0, 180, 1.0, -1)
-        mask = cv2.GaussianBlur(mask, (15, 15), 0)
-
-        warped_face = cv2.warpAffine(swapped_face, M_inv, (w, h), borderMode=cv2.BORDER_TRANSPARENT)
-        warped_mask = cv2.warpAffine(mask, M_inv, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0.0)
-        warped_mask = np.expand_dims(warped_mask, axis=2)
-
-        result = (target_img * (1.0 - warped_mask) + warped_face * warped_mask).astype(np.uint8)
-
-        kernel = np.array([[0, -0.2, 0], [-0.2, 1.8, -0.2], [0, -0.2, 0]], dtype=np.float32)
-        sharpened_face = cv2.filter2D(result, -1, kernel)
-        result = np.where(warped_mask > 0.4, sharpened_face, result)
-        return result
 
 
 if __name__ == "__main__":
@@ -626,7 +720,7 @@ if __name__ == "__main__":
     src = sys.argv[1]
     tgt = sys.argv[2]
     out = sys.argv[3] if len(sys.argv) > 3 and not sys.argv[3].replace(".", "", 1).isdigit() else None
-    fidelity = 0.70
+    fidelity = 0.92
     if len(sys.argv) > 4:
         try:
             fidelity = float(sys.argv[4])

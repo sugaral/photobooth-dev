@@ -119,12 +119,12 @@ class ImageUtility
     {
         switch ($filter) {
             case ImageFilterEnum::ANTIQUE:
-                imagefilter($image, IMG_FILTER_BRIGHTNESS, 0);
-                imagefilter($image, IMG_FILTER_CONTRAST, -30);
-                imagefilter($image, IMG_FILTER_COLORIZE, 75, 50, 25);
+                imagefilter($image, IMG_FILTER_BRIGHTNESS, 4);
+                imagefilter($image, IMG_FILTER_CONTRAST, -8);
+                imagefilter($image, IMG_FILTER_COLORIZE, 75, 48, 22, 18);
                 break;
             case ImageFilterEnum::AQUA:
-                imagefilter($image, IMG_FILTER_COLORIZE, 0, 70, 0, 30);
+                imagefilter($image, IMG_FILTER_COLORIZE, 0, 70, 100, 16);
                 break;
             case ImageFilterEnum::BLUE:
                 imagefilter($image, IMG_FILTER_COLORIZE, 0, 0, 100);
@@ -140,11 +140,11 @@ class ImageUtility
                 }
                 break;
             case ImageFilterEnum::COLOR:
-                imagefilter($image, IMG_FILTER_CONTRAST, -40);
+                imagefilter($image, IMG_FILTER_CONTRAST, -18);
                 break;
             case ImageFilterEnum::COOL:
-                imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
-                imagefilter($image, IMG_FILTER_CONTRAST, -50);
+                imagefilter($image, IMG_FILTER_COLORIZE, 10, 35, 90, 12);
+                imagefilter($image, IMG_FILTER_CONTRAST, -10);
                 break;
             case ImageFilterEnum::EDGE:
                 $emboss = [[1, 1, 1], [1, -7, 1], [1, 1, 1]];
@@ -163,7 +163,7 @@ class ImageUtility
                 imagefilter($image, IMG_FILTER_GRAYSCALE);
                 break;
             case ImageFilterEnum::GREEN:
-                imagefilter($image, IMG_FILTER_COLORIZE, 0, 100, 0);
+                imagefilter($image, IMG_FILTER_COLORIZE, 20, 100, 35, 14);
                 break;
             case ImageFilterEnum::MEAN:
                 imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
@@ -172,21 +172,22 @@ class ImageUtility
                 imagefilter($image, IMG_FILTER_NEGATE);
                 break;
             case ImageFilterEnum::PINK:
-                imagefilter($image, IMG_FILTER_COLORIZE, 50, -50, 50);
+                imagefilter($image, IMG_FILTER_COLORIZE, 100, 35, 70, 12);
                 break;
             case ImageFilterEnum::PIXELATE:
                 imagefilter($image, IMG_FILTER_PIXELATE, 20);
                 break;
             case ImageFilterEnum::RED:
-                imagefilter($image, IMG_FILTER_COLORIZE, 100, 0, 0);
+                imagefilter($image, IMG_FILTER_COLORIZE, 100, 18, 12, 16);
                 break;
             case ImageFilterEnum::RETRO:
-                imagefilter($image, IMG_FILTER_GRAYSCALE);
-                imagefilter($image, IMG_FILTER_COLORIZE, 100, 25, 25, 50);
+                imagefilter($image, IMG_FILTER_BRIGHTNESS, -2);
+                imagefilter($image, IMG_FILTER_CONTRAST, -12);
+                imagefilter($image, IMG_FILTER_COLORIZE, 90, 45, 25, 18);
                 break;
             case ImageFilterEnum::SELECTIVE_BLUR:
-                $blur = 5;
-                for ($i = 0; $i <= $blur; $i++) {
+                $blur = 2;
+                for ($i = 0; $i < $blur; $i++) {
                     imagefilter($image, IMG_FILTER_SELECTIVE_BLUR);
                 }
                 break;
@@ -209,19 +210,17 @@ class ImageUtility
                 imagefilter($image, IMG_FILTER_NEGATE);
                 break;
             case ImageFilterEnum::VINTAGE:
-                imagefilter($image, IMG_FILTER_BRIGHTNESS, 10);
-                imagefilter($image, IMG_FILTER_GRAYSCALE);
-                imagefilter($image, IMG_FILTER_COLORIZE, 40, 10, -15);
+                imagefilter($image, IMG_FILTER_BRIGHTNESS, 2);
+                imagefilter($image, IMG_FILTER_CONTRAST, -8);
+                imagefilter($image, IMG_FILTER_COLORIZE, 82, 48, 28, 15);
                 break;
             case ImageFilterEnum::WASHED:
-                imagefilter($image, IMG_FILTER_BRIGHTNESS, 30);
-                imagefilter($image, IMG_FILTER_NEGATE);
-                imagefilter($image, IMG_FILTER_COLORIZE, -50, 0, 20, 50);
-                imagefilter($image, IMG_FILTER_NEGATE);
-                imagefilter($image, IMG_FILTER_BRIGHTNESS, 10);
+                imagefilter($image, IMG_FILTER_BRIGHTNESS, 14);
+                imagefilter($image, IMG_FILTER_CONTRAST, 12);
+                imagefilter($image, IMG_FILTER_COLORIZE, 255, 245, 230, 8);
                 break;
             case ImageFilterEnum::YELLOW:
-                imagefilter($image, IMG_FILTER_COLORIZE, 100, 100, -100);
+                imagefilter($image, IMG_FILTER_COLORIZE, 100, 90, 20, 12);
                 break;
             default:
                 break;

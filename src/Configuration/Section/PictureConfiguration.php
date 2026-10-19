@@ -102,7 +102,7 @@ final class PictureConfiguration
                         })
                         ->end()
                     ->end()
-                ->booleanNode('take_frame')->defaultValue(true)->end()
+                ->booleanNode('take_frame')->defaultValue(false)->end()
                 ->scalarNode('frame')->defaultValue('')->end()
                 ->booleanNode('extend_by_frame')->defaultValue(true)->end()
                 ->integerNode('frame_left_percentage')

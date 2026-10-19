@@ -52,5 +52,17 @@
     "rembg_cancel": "取消返回",
     "rembg_select_template": "选择背景模板",
     "rembg_success": "抠图换景成功！",
-    "beauty": "AI美颜"
+    "beauty": "AI美颜",
+    "beauty_enabled": "启用美颜功能",
+    "beauty_auto_apply": "拍照后自动应用默认美颜参数",
+    "beauty_default_eye": "默认大眼程度",
+    "beauty_default_slim": "默认瘦脸程度",
+    "beauty_default_smooth": "默认磨皮程度",
+    "beauty_default_white": "默认美白程度",
+    "beauty:beauty_enabled": "启用美颜功能",
+    "beauty:beauty_auto_apply": "拍照后自动应用默认美颜参数",
+    "beauty:beauty_default_eye": "默认大眼程度",
+    "beauty:beauty_default_slim": "默认瘦脸程度",
+    "beauty:beauty_default_smooth": "默认磨皮程度",
+    "beauty:beauty_default_white": "默认美白程度"
 }

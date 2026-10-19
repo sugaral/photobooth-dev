@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/modern-business-woman-portrait.jpg?exif=0&iptc=0",
+    "description": "Portrait view of a modern businesswoman. She is intelligent and powerful. Obviously.",
+    "name": "Modern businesswoman Portrait",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/modern-businesswoman-portrait",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/modern-business-woman-portrait.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Matthew Henry",
+    "creator": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "creditText": "Photo by Matthew Henry"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/modern-businesswoman-portrait?c=portraits",
+  "source_page_sha256": "6ea094531cf0c2bf6035d97184989b5f9b1d1f4821ed99d376e89533c0ba97b0",
+  "retrieved_at": "2026-10-18T11:19:46.314576+00:00",
+  "terms_sha256": "9d6ab0105de678332be48124f2afd4c41beede42a062024ebe5f682fe8e5dad0",
+  "license_page_sha256": "4a093f5af2b91a80b8c00cce3a9e67b1ed62da7e7bd32b9003f790d57d056b69"
+}

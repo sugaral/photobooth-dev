@@ -16,6 +16,7 @@ import urllib.request
 import subprocess
 import threading
 import shutil
+import json
 
 if sys.platform == "win32":
     try:
@@ -48,6 +49,32 @@ def check_http_alive(url, timeout=1.5):
         return False
 
 
+def check_ai_alive(timeout=1.5):
+    """Probe liveness without waiting for model initialization or inference."""
+    try:
+        request = urllib.request.Request("http://127.0.0.1:8001/ready")
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=timeout) as response:
+            report = json.loads(response.read(16384))
+            return (response.status == 200 and isinstance(report, dict)
+                    and report.get("status") == "ok"
+                    and report.get("service") == "photobooth-ai"
+                    and os.path.normcase(os.path.realpath(report.get("project_root", "")))
+                    == os.path.normcase(os.path.realpath(ROOT_DIR)))
+    except Exception:
+        return False
+
+
+def ai_python_executable():
+    environment = os.path.join(ROOT_DIR, ".venv-ai")
+    if os.path.isfile(os.path.join(environment, "photobooth-runtime.ready")):
+        executable = os.path.join(environment, "Scripts", "python.exe") if os.name == "nt" else os.path.join(environment, "bin", "python")
+        if not os.path.isfile(executable):
+            raise RuntimeError("Project AI runtime is enabled but missing: " + executable)
+        return executable
+    return sys.executable
+
+
 def find_php_executable():
     candidate = shutil.which("php")
     if candidate:
@@ -60,8 +87,14 @@ def find_php_executable():
 
 def start_php_service():
     global php_process
+    if php_process is not None and php_process.poll() is None:
+        return
     if check_http_alive("http://127.0.0.1:8000/"):
         print("[Watchdog] PHP Web Server is already online on port 8000.")
+        return
+
+    if is_port_in_use(8000):
+        print("[Watchdog] Port 8000 is occupied; waiting without starting a duplicate server.")
         return
 
     print("[Watchdog] Starting PHP Web Server on port 8000 (hidden background)...")
@@ -89,15 +122,21 @@ def start_php_service():
 
 def start_ai_service():
     global ai_process
-    if check_http_alive("http://127.0.0.1:8001/health"):
+    if ai_process is not None and ai_process.poll() is None:
+        return
+    if check_ai_alive():
         print("[Watchdog] Python AI Service is already online on port 8001.")
+        return
+
+    if is_port_in_use(8001):
+        print("[Watchdog] Port 8001 is occupied; waiting without starting a duplicate AI service.")
         return
 
     print("[Watchdog] Starting Python AI Microservice on port 8001 (hidden background)...")
     service_script = os.path.join(ROOT_DIR, "bin", "rembg_service.py")
-    cmd = [sys.executable, service_script]
     flags = 0x08000000 if sys.platform == "win32" else 0
     try:
+        cmd = [ai_python_executable(), service_script]
         ai_process = subprocess.Popen(
             cmd,
             cwd=ROOT_DIR,
@@ -178,8 +217,8 @@ def watchdog_guardian_loop():
             start_php_service()
 
         # 2. Health check AI Microservice
-        if not check_http_alive("http://127.0.0.1:8001/health"):
-            print("[Watchdog] [ALERT] Port 8001 AI Microservice died! Self-healing restarting in 1s...")
+        if not check_ai_alive():
+            print("[Watchdog] AI readiness unavailable; checking process and port before recovery...")
             start_ai_service()
 
         # 3. Health check Kiosk Browser Shell
@@ -204,12 +243,17 @@ def main():
     start_ai_service()
 
     # Wait for services ready
+    services_ready = False
     for _ in range(25):
-        if check_http_alive("http://127.0.0.1:8000/") and check_http_alive("http://127.0.0.1:8001/health"):
+        if check_http_alive("http://127.0.0.1:8000/") and check_ai_alive():
+            services_ready = True
             break
         time.sleep(0.3)
 
-    print("[Watchdog] All core services verified online (Port 8000 & 8001)!")
+    if services_ready:
+        print("[Watchdog] All core services verified online (Port 8000 & 8001)!")
+    else:
+        print("[Watchdog] Services are not ready yet; the guardian will continue monitoring startup.")
 
     # 2. Launch Kiosk Browser
     launch_kiosk_browser()

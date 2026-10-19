@@ -74,7 +74,9 @@ if (file_exists($cameraConfigFile)) {
     }
 }
 
-echo 'const config = ' . json_encode($config) . ';';
-echo 'const environment = ' . json_encode(new Environment()) . ';';
+echo 'window.config = ' . json_encode($config) . ';';
+echo 'const config = window.config;';
+echo 'window.environment = ' . json_encode(new Environment()) . ';';
+echo 'const environment = window.environment;';
 echo 'const csrf = { key: "csrf", token: "' . $_SESSION['csrf'] . '" };';
 echo 'const photoboothServerCamera = ' . json_encode($serverCamera) . ';';

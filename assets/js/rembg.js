@@ -1,4 +1,5 @@
 /* Photobooth AI Cutout, 60FPS Contour Flow, Click-to-Composite & Custom Template Resizer */
+/* globals photoboothTools */
 (function ($) {
     'use strict';
 
@@ -83,6 +84,10 @@
     let cutoutRequestId = 0;
     let cutoutState = 'idle';
     let isProcessingTemplate = false;
+    let compositeRequestId = 0;
+    let compositeRequest = null;
+    let compositeDirty = false;
+    let finalizeRequested = false;
     let selectedEngine = 'birefnet';
 
     // Custom template transform parameters
@@ -505,9 +510,11 @@
                 cutoutState = 'animating';
 
                 personImg.off('load error').on('load', function () {
+                    if (requestId !== cutoutRequestId) return;
                     setMattingLoadingState(false);
                     runContourFlowAndPopDrawer(this);
                 }).on('error', function () {
+                    if (requestId !== cutoutRequestId) return;
                     cutoutState = 'error';
                     setMattingLoadingState(false);
                     resultPage.removeClass('cutout-mode-active');
@@ -525,12 +532,14 @@
 
         // Run 60FPS contour trace flow, then lift person, then slide in right drawer
         function runContourFlowAndPopDrawer(imgElem) {
+            const requestId = cutoutRequestId;
             setMattingLoadingState(false);
             const resultPage = $('.stage[data-stage="result"]');
             cutoutViewport.show();
             cutoutPerson.css('visibility', 'hidden');
 
             playContourAnimation(imgElem, contourCanvas, function () {
+                if (requestId !== cutoutRequestId) return;
                 // 1. Contour flow finished -> pop out & highlight person
                 resultPage.addClass('cutout-mode-active');
                 cutoutPerson.css('visibility', 'visible').addClass('is-lifted');
@@ -545,6 +554,7 @@
 
                 // 3. Smoothly pop open the right-side template selection drawer
                 setTimeout(function () {
+                    if (requestId !== cutoutRequestId) return;
                     if ($('#beautyModal').length) {
                         $('#beautyModal').removeClass('active sidenav--open').hide();
                     }
@@ -815,6 +825,10 @@
             }
 
             const path = tplPath || 'transparent';
+            const requestId = ++compositeRequestId;
+            compositeDirty = false;
+            latestCompositeFile = '';
+            if (window.photoBooth) window.photoBooth.invalidateComposite();
             currentTemplate = path;
 
             if (!baseOriginalName) {
@@ -893,13 +907,14 @@
                 person_offset_y: getNormalizedPersonOffsetY()
             };
 
-            $.ajax({
+            compositeRequest = photoboothTools.ajaxWithCsrf({
                 url: 'api/rembgProcess.php',
                 type: 'POST',
                 data: postData,
                 dataType: 'json',
                 timeout: 35000
             }).done(function (res) {
+                if (requestId !== compositeRequestId) return;
                 if (!res || !res.success || !res.file) {
                     const message = (res && res.error) || '模板合成失败';
                     notifyRembg('error', message);
@@ -908,23 +923,40 @@
                 latestCompositeFile = res.file;
                 const resultPage = $('.stage[data-stage="result"]');
                 const newImgUrl = '/data/images/' + res.file + '?v=' + Date.now();
-                resultPage.attr('data-img', res.file).css('--stage-background-image', 'url("' + newImgUrl + '")');
-                if (window.photoBooth) {
-                    window.photoBooth.filename = res.file;
-                }
+                resultPage.css('--stage-background-image', 'url("' + newImgUrl + '")');
                 notifyRembg('success', '背景替换完成');
             }).fail(function (xhr, status, error) {
+                if (requestId !== compositeRequestId) return;
                 const response = xhr && xhr.responseJSON;
                 const message = (response && (response.error || response.message)) || error || '模板合成失败';
                 notifyRembg('error', message);
             }).always(function () {
+                if (requestId !== compositeRequestId) return;
                 // Unlock mutex and restore cards
                 isProcessingTemplate = false;
+                compositeRequest = null;
                 if (targetCard && targetCard.length) {
                     targetCard.removeClass('is-loading').addClass('active');
                 }
                 grid.find('.rembg-template-card').removeClass('is-locked');
+                // Edits made while the previous request was running must also be saved.
+                if (compositeDirty) {
+                    flushRecomposite();
+                } else if (finalizeRequested) {
+                    finalizeRequested = false;
+                    if (latestCompositeFile) finalizeStageReplacement();
+                }
             });
+        }
+
+        function flushRecomposite() {
+            clearTimeout(recompositeTimer);
+            clearTimeout(personRecompositeTimer);
+            recompositeTimer = null;
+            personRecompositeTimer = null;
+            if (!compositeDirty || isProcessingTemplate) return;
+            const activeCard = grid.find('.rembg-template-card.active');
+            applyTemplateComposite(currentTemplate || 'transparent', activeCard.attr('data-name'), activeCard);
         }
 
         /* ========================================================
@@ -970,13 +1002,9 @@
         }
 
         function scheduleRecomposite() {
+            compositeDirty = true;
             if (recompositeTimer) clearTimeout(recompositeTimer);
-            recompositeTimer = setTimeout(function () {
-                if (currentTemplate && isCustomTemplateActive && !isProcessingTemplate) {
-                    const activeCard = grid.find('.rembg-template-card.active');
-                    applyTemplateComposite(currentTemplate, activeCard.attr('data-name'), activeCard);
-                }
-            }, 350);
+            recompositeTimer = setTimeout(flushRecomposite, 350);
         }
 
         function bindTransformBoxGestures() {
@@ -1108,13 +1136,9 @@
         }
 
         function schedulePersonRecomposite() {
+            compositeDirty = true;
             if (personRecompositeTimer) clearTimeout(personRecompositeTimer);
-            personRecompositeTimer = setTimeout(function () {
-                if (currentTemplate && !isProcessingTemplate) {
-                    const activeCard = grid.find('.rembg-template-card.active');
-                    applyTemplateComposite(currentTemplate, activeCard.attr('data-name'), activeCard);
-                }
-            }, 350);
+            personRecompositeTimer = setTimeout(flushRecomposite, 350);
         }
 
         function bindPersonTransformGestures() {
@@ -1231,6 +1255,7 @@
         }
 
         function uploadCustomTemplate(file) {
+            const requestId = cutoutRequestId;
             const formData = new FormData();
             formData.append('template', file);
 
@@ -1248,6 +1273,7 @@
             }).done(function (res) {
                 uploadBtn.find('span').text(originalText);
                 uploadInput.val('');
+                if (requestId !== cutoutRequestId) return;
                 if (res.success) {
                     const newCard = $(`
                         <div class="rembg-template-card active" data-path="${res.path}" data-name="自定义: ${res.name}" data-type="custom">
@@ -1269,42 +1295,33 @@
             }).fail(function () {
                 uploadBtn.find('span').text(originalText);
                 uploadInput.val('');
+                if (requestId !== cutoutRequestId) return;
                 notifyRembg('error', '上传背景模板失败');
             });
         }
 
         function completeRembgAndApplyToStage() {
-            if (recompositeTimer) {
-                clearTimeout(recompositeTimer);
-                recompositeTimer = null;
-            }
-            if (personRecompositeTimer) {
-                clearTimeout(personRecompositeTimer);
-                personRecompositeTimer = null;
-            }
-
-            if (isProcessingTemplate) {
-                notifyRembg('info', '正在完成背景合成，请稍候...');
-                let checkCount = 0;
-                const waitInterval = setInterval(function () {
-                    checkCount++;
-                    if (!isProcessingTemplate || checkCount > 35) {
-                        clearInterval(waitInterval);
-                        finalizeStageReplacement();
-                    }
-                }, 100);
+            if (cutoutState === 'extracting' || cutoutState === 'animating') {
+                notifyRembg('info', '正在准备人物前景，请稍候');
                 return;
             }
-
+            finalizeRequested = true;
+            flushRecomposite();
+            if (isProcessingTemplate) {
+                notifyRembg('info', '正在完成背景合成，请稍候...');
+                return;
+            }
+            finalizeRequested = false;
             finalizeStageReplacement();
         }
 
         function finalizeStageReplacement() {
+            if (isProcessingTemplate) return;
             const resultPage = $('.stage[data-stage="result"]');
-            const finalFile = latestCompositeFile || resultPage.attr('data-img');
+            const finalFile = latestCompositeFile;
 
             if (!finalFile) {
-                closeRembgDrawer();
+                notifyRembg('error', '当前背景尚未成功合成，请重新选择背景后再完成');
                 return;
             }
 
@@ -1324,6 +1341,11 @@
             // Subsequent filter operations in filter menu will modify THIS image, NOT the raw camera photo!
             resultPage.attr('data-original-img', finalFile);
             resultPage.attr('data-matted-composite', finalFile);
+            if (window.photoEditState) {
+                window.photoEditState.setCurrent(finalFile);
+                window.photoEditState.background = currentTemplate || '';
+                window.photoEditState.begin('background');
+            }
             resultPage.css('--stage-background-image', 'url("' + finalUrl + '")');
             if (resultPage[0]) {
                 resultPage[0].style.setProperty('--stage-background-image', 'url("' + finalUrl + '")');
@@ -1353,8 +1375,8 @@
             $(`#filternav .filter-card[data-filter="plain"], #filternav .sidenav-list-item[data-filter="plain"]`).addClass('filter-card--active sidenav-list-item--active');
 
             if (window.photoBooth) {
-                window.photoBooth.imgFilter = 'plain';
-                window.photoBooth.filename = finalFile;
+                window.photoBooth.applyEditFilter('plain', true);
+                window.photoBooth.setBaseImage(finalFile);
             }
 
             // 3. Update QR code on stage if visible
@@ -1363,10 +1385,7 @@
                 qrImg.src = window.environment.publicFolders.api + '/qrcode.php?filename=' + finalFile;
             }
 
-            const imagesFolder = (window.environment && window.environment.publicFolders && window.environment.publicFolders.images)
-                ? window.environment.publicFolders.images
-                : '/data/images';
-            const filterThumbUrl = imagesFolder + '/' + finalFile + '?v=' + Date.now();
+            const filterThumbUrl = 'resources/img/filter_model_thumb.jpg';
             $('.filter-preview-img').each(function () {
                 $(this).attr('src', filterThumbUrl);
             });
@@ -1378,28 +1397,14 @@
             notifyRembg('success', '已替换为主界面成片，您可继续选择滤镜进行调整');
         }
 
-        function closeRembgDrawer() {
-            if (latestCompositeFile && latestCompositeFile !== baseOriginalName) {
-                finalizeStageReplacement();
-                return;
-            }
-            modal.removeClass('active sidenav--open').hide();
-            transformBox.hide();
-            resizerBar.hide();
-            personTransformBox.hide();
-            personResizerBar.hide();
-
-            // Always hide real-time cutout viewport and restore stage background view
-            cutoutViewport.hide();
-            $('.stage[data-stage="result"]').removeClass('cutout-mode-active');
-
-            if (window.photoBooth && typeof window.photoBooth.resetTimeOut === 'function') {
-                window.photoBooth.resetTimeOut();
-            }
-        }
-
         /* Comprehensive cleanup and state reset when user takes a new picture */
         function cleanupRembg() {
+            compositeRequestId++;
+            if (compositeRequest) compositeRequest.abort();
+            compositeRequest = null;
+            compositeDirty = false;
+            finalizeRequested = false;
+            latestCompositeFile = '';
             setMattingLoadingState(false);
             contourAnimationId++;
             cutoutRequestId++;
@@ -1493,6 +1498,15 @@
         });
 
         function revertToOriginal() {
+            compositeRequestId++;
+            if (compositeRequest) compositeRequest.abort();
+            compositeRequest = null;
+            compositeDirty = false;
+            finalizeRequested = false;
+            clearTimeout(recompositeTimer);
+            clearTimeout(personRecompositeTimer);
+            recompositeTimer = null;
+            personRecompositeTimer = null;
             const resultPage = $('.stage[data-stage="result"]');
             const origCapture = resultPage.attr('data-camera-img') || baseOriginalName;
             if (!origCapture) return;
@@ -1552,14 +1566,17 @@
             $(`#filternav .filter-card[data-filter="plain"], #filternav .sidenav-list-item[data-filter="plain"]`).addClass('filter-card--active sidenav-list-item--active');
 
             if (window.photoBooth) {
-                photoBooth.filename = origCapture;
-                photoBooth.imgFilter = 'plain';
+                window.photoBooth.applyEditFilter('plain', true);
+                window.photoBooth.setBaseImage(origCapture);
+            }
+            if (window.photoEditState) {
+                window.photoEditState.setCurrent(origCapture);
+                window.photoEditState.background = '';
+                window.photoEditState.filter = 'plain';
+                window.photoEditState.begin('reset-background');
             }
 
-            const imagesFolder = (window.environment && window.environment.publicFolders && window.environment.publicFolders.images)
-                ? window.environment.publicFolders.images
-                : '/data/images';
-            const filterThumbUrl = imagesFolder + '/' + origCapture + '?v=' + Date.now();
+            const filterThumbUrl = 'resources/img/filter_model_thumb.jpg';
             $('.filter-preview-img').each(function () {
                 $(this).attr('src', filterThumbUrl);
             });

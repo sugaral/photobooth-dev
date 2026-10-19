@@ -183,17 +183,21 @@ var photoboothTools = function () {
       data: api.addCsrfToPayload(ajaxOptions.data)
     });
     var deferred = $.Deferred();
-    $.ajax(requestOptions).done(function (data, textStatus, jqXHR) {
+    var cancelled = false;
+    var activeRequest = $.ajax(requestOptions).done(function (data, textStatus, jqXHR) {
       deferred.resolve(data, textStatus, jqXHR);
     }).fail(function (xhr, textStatus, errorThrown) {
       if (retryOnCsrf && api.isCsrfErrorResponse(xhr)) {
         api.refreshCsrfToken().then(function (refreshed) {
+          if (cancelled) {
+            return;
+          }
           if (!refreshed) {
             api.handleCsrfMismatch(requestOptions.url || 'unknown');
             deferred.reject(xhr, textStatus, errorThrown);
             return;
           }
-          api.ajaxWithCsrf(ajaxOptions, false).done(function (retryData, retryStatus, retryXhr) {
+          activeRequest = api.ajaxWithCsrf(ajaxOptions, false).done(function (retryData, retryStatus, retryXhr) {
             deferred.resolve(retryData, retryStatus, retryXhr);
           }).fail(function (retryErrXhr, retryErrStatus, retryErrThrown) {
             if (api.isCsrfErrorResponse(retryErrXhr)) {
@@ -202,6 +206,9 @@ var photoboothTools = function () {
             deferred.reject(retryErrXhr, retryErrStatus, retryErrThrown);
           });
         })["catch"](function () {
+          if (cancelled) {
+            return;
+          }
           api.handleCsrfMismatch(requestOptions.url || 'unknown');
           deferred.reject(xhr, textStatus, errorThrown);
         });
@@ -209,7 +216,13 @@ var photoboothTools = function () {
       }
       deferred.reject(xhr, textStatus, errorThrown);
     });
-    return deferred.promise();
+    return deferred.promise({
+      abort: function abort() {
+        cancelled = true;
+        activeRequest.abort();
+        deferred.reject(activeRequest, 'abort', 'abort');
+      }
+    });
   };
   api.initialize = /*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3() {
     var resultTranslations, resultSounds;
@@ -392,7 +405,46 @@ var photoboothTools = function () {
         api.modal.element.remove();
         api.modal.element = null;
       }
+    },
+    empty: function empty() {
+      if (api.modal.element !== null) {
+        var body = api.modal.element.querySelector('.modal-body');
+        if (body) {
+          body.innerHTML = '';
+        }
+      }
+    },
+    append: function append(content) {
+      if (api.modal.element !== null) {
+        var body = api.modal.element.querySelector('.modal-body');
+        if (body) {
+          if (typeof content === 'string') {
+            body.insertAdjacentHTML('beforeend', content);
+          } else if (content instanceof HTMLElement) {
+            body.appendChild(content);
+          } else if (window.jQuery && content instanceof window.jQuery) {
+            $(body).append(content);
+          }
+        }
+      }
     }
+  };
+  var notificationTimer;
+  api.showNotification = function (type, message) {
+    var element = document.getElementById('photobooth-notification');
+    if (!element) {
+      element = document.createElement('div');
+      element.id = 'photobooth-notification';
+      element.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100000;max-width:80vw;padding:14px 22px;border-radius:12px;background:#172033;color:white;box-shadow:0 4px 24px #0008;text-align:center;pointer-events:none;';
+      document.body.appendChild(element);
+    }
+    clearTimeout(notificationTimer);
+    element.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    element.textContent = String(message);
+    element.hidden = false;
+    notificationTimer = setTimeout(function () {
+      element.hidden = true;
+    }, type === 'error' ? 7000 : 3500);
   };
   api.confirm = /*#__PURE__*/function () {
     var _ref5 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4(confirmationText) {
@@ -617,6 +669,7 @@ var photoboothTools = function () {
   });
   return api;
 }();
+window.photoboothTools = photoboothTools;
 
 // Init on domready
 $(function () {

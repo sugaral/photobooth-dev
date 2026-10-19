@@ -58,6 +58,28 @@ final class BeautyConfiguration
                         })
                     ->end()
                 ->end()
+                ->integerNode('default_rosy')
+                    ->defaultValue(20)
+                    ->min(0)
+                    ->max(100)
+                    ->beforeNormalization()
+                        ->ifString()
+                        ->then(function (string $value): int {
+                            return intval($value);
+                        })
+                    ->end()
+                ->end()
+                ->integerNode('default_clarity')
+                    ->defaultValue(15)
+                    ->min(0)
+                    ->max(100)
+                    ->beforeNormalization()
+                        ->ifString()
+                        ->then(function (string $value): int {
+                            return intval($value);
+                        })
+                    ->end()
+                ->end()
                 ->scalarNode('service_url')->defaultValue('http://127.0.0.1:8001')->end()
             ->end();
     }

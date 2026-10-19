@@ -79,7 +79,11 @@ try {
         $captureHandler->captureWithCmd();
     }
     // send image to frontend
-    echo json_encode($captureHandler->returnData());
+    $response = $captureHandler->returnData();
+    if ($_POST['style'] !== 'video' && empty($response['error'])) {
+        $response['capture_token'] = (new \Photobooth\Service\CaptureSourceService())->register($filename_tmp, $_SESSION);
+    }
+    echo json_encode($response);
     exit();
 } catch (\Exception $e) {
     $data = ['error' => $e->getMessage()];

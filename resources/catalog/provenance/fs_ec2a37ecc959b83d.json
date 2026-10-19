@@ -1,0 +1,199 @@
+{
+  "json_ld": [
+    {
+      "@type": "Article",
+      "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#article",
+      "isPartOf": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/"
+      },
+      "author": {
+        "name": "Joanna Malinowska",
+        "@id": "https://freestocks.org/#/schema/person/9dd924bc60bdb349c3c34c161ad0a062"
+      },
+      "headline": "A woman peering through curtains 3",
+      "datePublished": "2017-05-09T08:20:13+00:00",
+      "mainEntityOfPage": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/"
+      },
+      "wordCount": 5,
+      "publisher": {
+        "@id": "https://freestocks.org/#organization"
+      },
+      "image": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#primaryimage"
+      },
+      "thumbnailUrl": "https://freestocks.org/fs/wp-content/uploads/2017/05/woman_peering_through_curtains_3.jpg",
+      "keywords": [
+        "beautiful",
+        "beauty",
+        "blonde",
+        "bright",
+        "choker",
+        "closeup",
+        "copy",
+        "curtains",
+        "drape",
+        "eye",
+        "face",
+        "fade",
+        "fashion",
+        "female",
+        "girl",
+        "hair",
+        "lady",
+        "light",
+        "lips",
+        "look",
+        "make-up",
+        "makeup",
+        "off",
+        "peek",
+        "peer",
+        "peering",
+        "portrait",
+        "seductive",
+        "sensual",
+        "shoulder",
+        "silk",
+        "snow",
+        "space",
+        "style",
+        "subtle",
+        "sweater",
+        "white",
+        "women",
+        "young"
+      ],
+      "articleSection": [
+        "fashion",
+        "people"
+      ],
+      "inLanguage": "en-GB"
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://freestocks.org/photo/woman-peering-curtains-3/",
+      "url": "https://freestocks.org/photo/woman-peering-curtains-3/",
+      "name": "A woman peering through curtains 3 - freestocks.org - Free stock photo",
+      "isPartOf": {
+        "@id": "https://freestocks.org/#website"
+      },
+      "primaryImageOfPage": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#primaryimage"
+      },
+      "image": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#primaryimage"
+      },
+      "thumbnailUrl": "https://freestocks.org/fs/wp-content/uploads/2017/05/woman_peering_through_curtains_3.jpg",
+      "datePublished": "2017-05-09T08:20:13+00:00",
+      "description": "Free stock photo of A woman peering through curtains 3. High quality free stock photos for commercial and personal use. No attribution required.",
+      "breadcrumb": {
+        "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#breadcrumb"
+      },
+      "inLanguage": "en-GB",
+      "potentialAction": [
+        {
+          "@type": "ReadAction",
+          "target": [
+            "https://freestocks.org/photo/woman-peering-curtains-3/"
+          ]
+        }
+      ]
+    },
+    {
+      "@type": "ImageObject",
+      "inLanguage": "en-GB",
+      "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#primaryimage",
+      "url": "https://freestocks.org/fs/wp-content/uploads/2017/05/woman_peering_through_curtains_3.jpg",
+      "contentUrl": "https://freestocks.org/fs/wp-content/uploads/2017/05/woman_peering_through_curtains_3.jpg",
+      "width": 3648,
+      "height": 5472,
+      "caption": "A woman peering through curtains 3"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "@id": "https://freestocks.org/photo/woman-peering-curtains-3/#breadcrumb",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Strona główna",
+          "item": "https://freestocks.org/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "A woman peering through curtains 3"
+        }
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://freestocks.org/#website",
+      "url": "https://freestocks.org/",
+      "name": "freestocks.org",
+      "description": "Free stock photos for commercial use",
+      "publisher": {
+        "@id": "https://freestocks.org/#organization"
+      },
+      "potentialAction": [
+        {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://freestocks.org/?s={search_term_string}"
+          },
+          "query-input": {
+            "@type": "PropertyValueSpecification",
+            "valueRequired": true,
+            "valueName": "search_term_string"
+          }
+        }
+      ],
+      "inLanguage": "en-GB"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://freestocks.org/#organization",
+      "name": "freestocks.org - Free stock photos",
+      "url": "https://freestocks.org/",
+      "logo": {
+        "@type": "ImageObject",
+        "inLanguage": "en-GB",
+        "@id": "https://freestocks.org/#/schema/logo/image/",
+        "url": "https://freestocks.org/fs/wp-content/uploads/2016/03/fs.png",
+        "contentUrl": "https://freestocks.org/fs/wp-content/uploads/2016/03/fs.png",
+        "width": 218,
+        "height": 218,
+        "caption": "freestocks.org - Free stock photos"
+      },
+      "image": {
+        "@id": "https://freestocks.org/#/schema/logo/image/"
+      },
+      "sameAs": [
+        "https://facebook.com/freestocks.org",
+        "https://x.com/FreestocksOrg",
+        "https://instagram.com/freestocks/",
+        "https://www.pinterest.com/freestocks/"
+      ]
+    },
+    {
+      "@type": "Person",
+      "@id": "https://freestocks.org/#/schema/person/9dd924bc60bdb349c3c34c161ad0a062",
+      "name": "Joanna Malinowska",
+      "image": {
+        "@type": "ImageObject",
+        "inLanguage": "en-GB",
+        "@id": "https://secure.gravatar.com/avatar/7fb90dbe2a74a13e841465c6a6f6a0f3877e43cc533f037cb3c27b0be07da91b?s=96&d=mm&r=g",
+        "url": "https://secure.gravatar.com/avatar/7fb90dbe2a74a13e841465c6a6f6a0f3877e43cc533f037cb3c27b0be07da91b?s=96&d=mm&r=g",
+        "contentUrl": "https://secure.gravatar.com/avatar/7fb90dbe2a74a13e841465c6a6f6a0f3877e43cc533f037cb3c27b0be07da91b?s=96&d=mm&r=g",
+        "caption": "Joanna Malinowska"
+      },
+      "sameAs": [
+        "https://joannamalinowska.pl"
+      ]
+    }
+  ],
+  "source_page": "https://freestocks.org/photo/woman-peering-curtains-3/",
+  "retrieved_at": "2026-10-18T09:34:52.556878+00:00"
+}

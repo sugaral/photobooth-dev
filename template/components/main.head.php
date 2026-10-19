@@ -45,5 +45,8 @@ include PathUtility::getAbsolutePath('template/components/main.defaults.php');
     <?= $photoswipe && $config['gallery']['bottom_bar'] ? '<link rel="stylesheet" href="' . $assetService->getUrl('resources/css/photoswipe-bottom.css') . '"/>' : '' ?>
     <?= ThemeUtility::renderCustomUserStyle($config); ?>
     <?= is_file(PathUtility::getAbsolutePath('private/overrides.css')) ? '<link rel="stylesheet" href="' . $assetService->getUrl('private/overrides.css') . '"/>' : '' ?>
+    <link rel="stylesheet" href="<?=$assetService->getUrl('private/editor-upgrade.css')?>" />
+    <link rel="preconnect" href="https://fonts.font.im" crossorigin />
+    <link rel="stylesheet" href="https://fonts.font.im/css?family=Pacifico|Caveat|Dancing+Script|Lobster|Sacramento|Great+Vibes|Allura|Alex+Brush|Cookie|Satisfy|Yellowtail|Parisienne|Courgette|Damion|Marck+Script|Righteous|Cinzel|Abril+Fatface|Playfair+Display|Fredericka+the+Great|Rye|Sancreek|Vast+Shadow|Bungee|Bungee+Shade|Faster+One|Monoton|Limelight|Megrim|Orbitron|Press+Start+2P|VT323|Audiowide|Russo+One|Black+Ops+One|Wallpoet|Share+Tech+Mono|Chakra+Petch|Sniglet|Comfortaa|Chewy|Patrick+Hand|Amatic+SC|Kalam|Permanent+Marker|Rock+Salt|Bangers|Boogaloo|Luckiest+Guy|Gloria+Hallelujah|Shadows+Into+Light|Gochi+Hand|Indie+Flower|Henny+Penny|Short+Stack&display=swap" />
     <script src="<?=$assetService->getUrl('node_modules/jquery/dist/jquery.min.js')?>"></script>
 </head>

@@ -14,7 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+checkCsrfOrFail($_POST);
 $rawFile = isset($_POST['file']) ? trim($_POST['file']) : '';
+$sourceFileParam = isset($_POST['source_file']) ? trim($_POST['source_file']) : '';
 $action = isset($_POST['action']) ? trim($_POST['action']) : 'apply'; // 'preview' | 'apply' | 'reset'
 
 $imagesDir = realpath(FolderEnum::IMAGES->absolute()) ?: FolderEnum::IMAGES->absolute();
@@ -29,16 +31,9 @@ if (!is_dir($thumbsDir)) {
 }
 
 if (empty($rawFile) || $rawFile === 'latest') {
-    $candidates = glob($imagesDir . DIRECTORY_SEPARATOR . '*.jpg');
-    if (empty($candidates)) {
-        $candidates = glob($tmpDir . DIRECTORY_SEPARATOR . '*.jpg');
-    }
-    if (!empty($candidates)) {
-        usort($candidates, function($a, $b) {
-            return filemtime($b) - filemtime($a);
-        });
-        $rawFile = basename($candidates[0]);
-    }
+    http_response_code(400);
+    echo json_encode(['error' => '必须明确指定当前照片，禁止使用 latest']);
+    exit;
 }
 
 if (empty($rawFile)) {
@@ -52,6 +47,19 @@ if (strpos($filename, '?') !== false) {
     $filename = explode('?', $filename)[0];
 }
 
+// Effects must start from the image currently visible on the result stage.
+// The old implementation always read orig_<name>, which silently removed a
+// previously selected background/template or filter before applying beauty.
+$sourceFilename = basename($sourceFileParam !== '' ? $sourceFileParam : $filename);
+if (strpos($sourceFilename, '?') !== false) {
+    $sourceFilename = explode('?', $sourceFilename)[0];
+}
+if (!preg_match('/^[A-Za-z0-9._-]+$/', $sourceFilename)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid source filename']);
+    exit;
+}
+
 // Clean base filename (strip any previous edit prefixes or rembg markers if needed)
 $baseName = $filename;
 if (strpos($baseName, 'orig_') === 0) {
@@ -62,6 +70,18 @@ $origBackupFile = $tmpDir . DIRECTORY_SEPARATOR . 'orig_' . $baseName;
 $imageFile = $imagesDir . DIRECTORY_SEPARATOR . $baseName;
 $tmpFile = $tmpDir . DIRECTORY_SEPARATOR . $baseName;
 
+$sourceCandidates = [
+    $imagesDir . DIRECTORY_SEPARATOR . $sourceFilename,
+    $tmpDir . DIRECTORY_SEPARATOR . $sourceFilename,
+];
+$sourceInput = null;
+foreach ($sourceCandidates as $candidate) {
+    if (is_file($candidate) && filesize($candidate) > 0) {
+        $sourceInput = $candidate;
+        break;
+    }
+}
+
 // Ensure pristine raw original backup exists
 if (!file_exists($origBackupFile) || filesize($origBackupFile) === 0) {
     if (file_exists($tmpFile) && filesize($tmpFile) > 0) {
@@ -71,8 +91,13 @@ if (!file_exists($origBackupFile) || filesize($origBackupFile) === 0) {
     }
 }
 
-// Source for beauty adjustment must ALWAYS be the untouched orig backup
-$sourceInput = file_exists($origBackupFile) ? $origBackupFile : (file_exists($imageFile) ? $imageFile : $tmpFile);
+// For a fresh capture the current file is the raw image. For an explicit
+// source_file (template/filter/beauty result), preserve that composite.
+if ($sourceInput === null) {
+    http_response_code(404);
+    echo json_encode(['error' => 'Specified source image not found']);
+    exit;
+}
 if (!file_exists($sourceInput)) {
     http_response_code(404);
     echo json_encode(['error' => 'Base image file not found: ' . $baseName]);
@@ -82,8 +107,13 @@ if (!file_exists($sourceInput)) {
 // 1. Handle Reset Action
 if ($action === 'reset') {
     if (file_exists($origBackupFile)) {
-        @copy($origBackupFile, $imageFile);
-        @copy($origBackupFile, $tmpFile);
+        $baseName = 'beauty_reset_' . bin2hex(random_bytes(16)) . '.jpg';
+        $imageFile = $imagesDir . DIRECTORY_SEPARATOR . $baseName;
+        if (!copy($origBackupFile, $imageFile)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to restore image']);
+            exit;
+        }
 
         // Regenerate thumbnail
         try {
@@ -117,15 +147,19 @@ $eye = isset($_POST['eye']) ? max(0, min(100, (float)$_POST['eye'])) : (float)($
 $slim = isset($_POST['slim']) ? max(0, min(100, (float)$_POST['slim'])) : (float)($beautyCfg['default_slim'] ?? 15);
 $smooth = isset($_POST['smooth']) ? max(0, min(100, (float)$_POST['smooth'])) : (float)($beautyCfg['default_smooth'] ?? 20);
 $white = isset($_POST['white']) ? max(0, min(100, (float)$_POST['white'])) : (float)($beautyCfg['default_white'] ?? 15);
+$rosy = isset($_POST['rosy']) ? max(0, min(100, (float)$_POST['rosy'])) : (float)($beautyCfg['default_rosy'] ?? 20);
+$clarity = isset($_POST['clarity']) ? max(0, min(100, (float)$_POST['clarity'])) : (float)($beautyCfg['default_clarity'] ?? 15);
 
 $isPreview = ($action === 'preview');
 
 if ($isPreview) {
     // Generate fast preview file
-    $previewFileName = 'beauty_prev_' . md5($baseName . '_' . $eye . '_' . $slim . '_' . $smooth . '_' . $white) . '.jpg';
+    $previewFileName = 'beauty_prev_' . md5($baseName . '_' . $eye . '_' . $slim . '_' . $smooth . '_' . $white . '_' . $rosy . '_' . $clarity) . '.jpg';
     $outputPath = $tmpDir . DIRECTORY_SEPARATOR . $previewFileName;
 } else {
-    // Final high-res baking directly to images folder
+    // Each result gets a new name; never overwrite a base used by an editor/save.
+    $baseName = 'beauty_' . bin2hex(random_bytes(16)) . '.jpg';
+    $imageFile = $imagesDir . DIRECTORY_SEPARATOR . $baseName;
     $outputPath = $imageFile;
 }
 
@@ -137,6 +171,8 @@ $postData = json_encode([
     'slim' => $slim,
     'smooth' => $smooth,
     'white' => $white,
+    'rosy' => $rosy,
+    'clarity' => $clarity,
     'preview' => $isPreview,
     'preview_max' => 960,
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

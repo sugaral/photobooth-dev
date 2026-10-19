@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/fitness-woman-touching-hair.jpg?exif=0&iptc=0",
+    "description": "A strong woman smiles while touching her hair before a workout.",
+    "name": "Fitness Woman Touching Hair",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/fitness-woman-touching-hair",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/fitness-woman-touching-hair.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Matthew Henry",
+    "creator": {
+      "@type": "Person",
+      "name": "Matthew Henry"
+    },
+    "creditText": "Photo by Matthew Henry"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/fitness-woman-touching-hair?c=woman",
+  "source_page_sha256": "afc7844a3dbef669596bae0ed0ab2bc95bbd64fdb6ca90e34d85bbf6d29b1723",
+  "retrieved_at": "2026-10-18T12:44:15.171142+00:00",
+  "terms_sha256": "3747599a88a231d837759a270e137ae5c37d6f4fa3376a4847687e712422074f",
+  "license_page_sha256": "231357b23badff4556513aeedc9023a4483eeefa12e053ba3185dbfa41011556"
+}

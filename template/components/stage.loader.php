@@ -27,7 +27,7 @@
                 </div>
                 <div class="ai-shuttle-percent" id="aiShuttlePercent">0%</div>
                 <div class="ai-shuttle-tips">
-                    <span>💡 RTX 5060 DirectML 硬件加速中 · 华服即将织就</span>
+                    <span>💡 AI 硬件加速中 · 华服即将织就</span>
                 </div>
             </div>
         </div>

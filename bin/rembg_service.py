@@ -1,4 +1,22 @@
+try:
+    from ai_runtime import use_project_runtime
+except ImportError:
+    from bin.ai_runtime import use_project_runtime
+if __name__ == '__main__':
+    use_project_runtime()
+
 import os
+import sys
+
+# Ensure CUDA and cuDNN DLL paths are initialized before any native inference module loads
+try:
+    import cuda_init
+except ImportError:
+    try:
+        from bin import cuda_init
+    except Exception:
+        pass
+
 # Put worker threads into passive sleep immediately on idle to prevent heat accumulation
 os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
 os.environ["KMP_BLOCKTIME"] = "0"
@@ -11,9 +29,9 @@ import cv2
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 try:
-    from matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode
+    from matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode, validate_device_mode
 except ImportError:
-    from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode
+    from bin.matting_core import MattingEngineManager, process_with_manager, DEFAULT_ENGINE, get_persisted_threads, get_persisted_gpu_mode, validate_device_mode
 
 try:
     from beauty_core import BeautyEngine, cv_read_image
@@ -32,7 +50,7 @@ HOST = "127.0.0.1"
 PORT = 8001
 MANAGER = MattingEngineManager(
     default_engine=DEFAULT_ENGINE,
-    prefer_cpu=(get_persisted_gpu_mode() == "cpu"),
+    prefer_cpu=None,
     threads=get_persisted_threads(),
 )
 MANAGER_LOCK = threading.Lock()
@@ -62,11 +80,24 @@ class RembgHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/health":
-            with MANAGER_LOCK:
-                diagnostics = MANAGER.diagnostics()
+        if self.path == "/ready":
+            # Liveness must not wait for inference locks or initialize any model.
             self._json({
                 "status": "ok",
+                "service": "photobooth-ai",
+                "project_root": os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+                "python_executable": sys.executable,
+                "device_mode": MANAGER.device_mode,
+            })
+        elif self.path == "/health":
+            with MANAGER_LOCK:
+                diagnostics = MANAGER.diagnostics()
+            with FACESWAP_LOCK:
+                face_status = FACESWAP_ENGINE.get_device_status() if FACESWAP_ENGINE else None
+            self._json({
+                "status": "ok",
+                "python_executable": sys.executable,
+                "faceswap": face_status,
                 "default_engine": diagnostics.get("default_engine"),
                 "device_status": diagnostics.get("device_status"),
                 "threads": diagnostics.get("threads"),
@@ -91,18 +122,29 @@ class RembgHandler(BaseHTTPRequestHandler):
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
-                with MANAGER_LOCK:
+                # Match the swap path's lock order; device changes wait for any
+                # running swap before replacing its sessions.
+                with FACESWAP_LOCK, MANAGER_LOCK:
                     if "device" in data or "prefer_cpu" in data or "gpu_mode" in data:
                         dev = str(data.get("device") or data.get("gpu_mode") or "").lower().strip()
-                        prefer_cpu = (dev == "cpu") if dev else bool(data.get("prefer_cpu", False))
-                        MANAGER.set_device(prefer_cpu=prefer_cpu)
+                        if dev == "gpu": dev = "auto"
+                        mode = dev if dev in ("auto", "cpu", "cuda", "directml") else ("cpu" if data.get("prefer_cpu") else "auto")
+                        validate_device_mode(mode)
+                        MANAGER.set_device(prefer_cpu=(mode == "cpu"), device_mode=mode)
+                        # Recreate face swap sessions after a device change so
+                        # they cannot continue using the previous provider.
+                        FACESWAP_ENGINE = None
                     if "threads" in data:
                         threads = int(data.get("threads", 4))
                         threads = max(1, min(32, threads))
                         MANAGER.set_threads(threads)
                     status = MANAGER.get_device_status()
-                is_gpu = (status.get("device") == "gpu")
-                msg = "AI抠图已即时切换为 GPU 硬件加速" if is_gpu else f"AI抠图已即时切换为 CPU {status.get('threads')} 核心计算"
+                if not status.get("session_initialized"):
+                    msg = f"AI 抠图已配置为 {status.get('device_mode')}，模型将在首次使用时加载"
+                elif status.get("is_gpu_active"):
+                    msg = "AI 抠图设备设置已应用"
+                else:
+                    msg = f"AI 抠图当前使用 CPU {status.get('threads')} 核心计算"
                 self._json({
                     "status": "ok",
                     "success": True,
@@ -144,18 +186,22 @@ class RembgHandler(BaseHTTPRequestHandler):
                 with FACESWAP_LOCK:
                     if FACESWAP_ENGINE is None and FaceSwapEngine is not None:
                         with MANAGER_LOCK:
-                            prefer_cpu = (MANAGER.get_device_status().get("device") == "cpu")
-                        FACESWAP_ENGINE = FaceSwapEngine(prefer_cpu=prefer_cpu)
+                            device_status = MANAGER.get_device_status()
+                            device_mode = device_status.get("device_mode") or device_status.get("device") or "auto"
+                            prefer_cpu = (device_mode == "cpu")
+                        FACESWAP_ENGINE = FaceSwapEngine(prefer_cpu=prefer_cpu, device_mode=device_mode)
                     
                     if FACESWAP_ENGINE is None:
                         result = {"success": False, "error": "AI 换脸引擎组件未就绪"}
                     else:
-                        fidelity = float(data.get("fidelity", 0.70))
+                        fidelity = float(data.get("fidelity", 0.92))
+                        mode = str(data.get("mode", "neural"))
                         result = FACESWAP_ENGINE.swap(
                             source_path=data.get("source") or data.get("input"),
                             target_path=data.get("target") or data.get("template"),
                             output_path=data.get("output"),
-                            fidelity=fidelity
+                            fidelity=fidelity,
+                            mode=mode
                         )
                 self._json(result, 200 if result.get("success") else 500)
             except Exception as exc:
@@ -239,6 +285,65 @@ class RembgHandler(BaseHTTPRequestHandler):
 
                 aligned = bool(is_size_ok and is_centered and is_yaw_ok and is_tilt_ok)
 
+                # Keep the live browser preview payload small while exposing the
+                # same MediaPipe landmarks used by the high-resolution beauty pass.
+                contour_indices = [
+                    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+                    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+                    172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+                ]
+
+                def build_face_payload(face_points):
+                    def point(index):
+                        value = face_points[index]
+                        return [round(float(value[0]), 5), round(float(value[1]), 5)]
+
+                    # These polygons are excluded from live skin retouching in
+                    # the browser. Keeping the landmark indices here makes the
+                    # realtime mask match the same face model used for tracking.
+                    protected_indices = [
+                        [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
+                        [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398],
+                        [70, 63, 105, 66, 107, 55, 65, 52, 53, 46],
+                        [336, 296, 334, 293, 300, 276, 283, 282, 295, 285],
+                        [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95],
+                    ]
+
+                    def eye_box(outer_a, outer_b, upper, lower, iris):
+                        a = face_points[outer_a]
+                        b = face_points[outer_b]
+                        u = face_points[upper]
+                        l = face_points[lower]
+                        return {
+                            "center": [round(float(face_points[iris][0]), 5), round(float(face_points[iris][1]), 5)],
+                            "width": round(float(abs(b[0] - a[0])), 5),
+                            "height": round(float(max(abs(l[1] - u[1]), 0.012)), 5),
+                        }
+
+                    face_x_min = float(face_points[:, 0].min())
+                    face_x_max = float(face_points[:, 0].max())
+                    face_y_min = float(face_points[:, 1].min())
+                    face_y_max = float(face_points[:, 1].max())
+                    return {
+                        "contour": [point(index) for index in contour_indices],
+                        "protect": [[point(index) for index in polygon] for polygon in protected_indices],
+                        "bounds": {
+                            "center": [round(float((face_x_min + face_x_max) / 2.0), 5), round(float((face_y_min + face_y_max) / 2.0), 5)],
+                            "size": [round(float(face_x_max - face_x_min), 5), round(float(face_y_max - face_y_min), 5)],
+                        },
+                        "eyes": {
+                            "left": eye_box(33, 133, 159, 145, 468),
+                            "right": eye_box(263, 362, 386, 374, 473),
+                        },
+                        "jaw": {
+                            "left": point(172),
+                            "right": point(397),
+                            "chin": point(152),
+                        },
+                    }
+
+                face_payloads = [build_face_payload(face_points) for face_points in landmarks_list]
+
                 if not is_size_ok:
                     msg = "请靠近镜头一点"
                     reason = "face_too_small"
@@ -264,7 +369,8 @@ class RembgHandler(BaseHTTPRequestHandler):
                     "yaw_diff": round(float(yaw_diff), 4),
                     "tilt": round(float(tilt), 4),
                     "center": [round(float(center_x), 3), round(float(center_y), 3)],
-                    "size": [round(float(face_w), 3), round(float(face_h), 3)]
+                    "size": [round(float(face_w), 3), round(float(face_h), 3)],
+                    "faces": face_payloads,
                 })
             except Exception as exc:
                 self._json({"status": "error", "error": str(exc)}, 500)

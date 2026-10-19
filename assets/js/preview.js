@@ -153,11 +153,6 @@ var photoboothPreview = function () {
           vEl.srcObject = stream;
           vEl.play().catch(function () {});
         }
-        var beautyVideo = document.getElementById('preview--face-beauty-video');
-        if (beautyVideo) {
-          beautyVideo.srcObject = stream;
-          beautyVideo.play().catch(function () {});
-        }
         var miniVideo = document.getElementById('settingCameraMiniVideo');
         if (miniVideo) {
           miniVideo.srcObject = stream;
@@ -430,7 +425,7 @@ var photoboothPreview = function () {
   };
 
   api.setFlip = function (isFlipped) {
-    var videoEl = $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video');
+    var videoEl = $('#preview--video, #preview--beauty-canvas, #previewframe--picture, #settingCameraMiniVideo');
     if (isFlipped) {
       videoEl.addClass('flip-horizontal');
       localStorage.setItem('photobooth_camera_flip', 'true');
@@ -450,9 +445,9 @@ var photoboothPreview = function () {
     api.setElements();
     var storedFlip = localStorage.getItem('photobooth_camera_flip');
     if (storedFlip === 'true' || (storedFlip === null && config.preview && config.preview.flip === 'flip-horizontal')) {
-      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video').addClass('flip-horizontal');
+      $('#preview--video, #preview--beauty-canvas, #previewframe--picture, #settingCameraMiniVideo').addClass('flip-horizontal');
     } else if (storedFlip === 'false' || (storedFlip === null && config.preview && config.preview.flip !== 'flip-horizontal')) {
-      $('#preview--video, #previewframe--picture, #settingCameraMiniVideo, #preview--face-beauty-video').removeClass('flip-horizontal');
+      $('#preview--video, #preview--beauty-canvas, #previewframe--picture, #settingCameraMiniVideo').removeClass('flip-horizontal');
     }
   };
   return api;

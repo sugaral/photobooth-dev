@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Shopify Partners"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/portrait-young-man-smiling.jpg?exif=0&iptc=0",
+    "description": "A portrait of a happy young man smiling against a brick wall.",
+    "name": "Portrait Of A Young Man Smiling",
+    "license": "https://www.shopify.com/stock-photos/licenses/creative-commons",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/portrait-of-a-young-man-smiling",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/portrait-young-man-smiling.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Shopify Partners",
+    "creator": {
+      "@type": "Person",
+      "name": "Shopify Partners"
+    },
+    "creditText": "Photo by Shopify Partners"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/portrait-of-a-young-man-smiling?c=portraits",
+  "source_page_sha256": "bca07007c77896d264ea5e7aa9a71c17d38a19b23eb8d98d001f8c2d07e296f4",
+  "retrieved_at": "2026-10-18T11:21:08.146167+00:00",
+  "terms_sha256": "9d6ab0105de678332be48124f2afd4c41beede42a062024ebe5f682fe8e5dad0",
+  "license_page_sha256": "85c10d90b8b2b2ce569b4b73858b56014d98e096e7fbae25c4a0104e8b2116e8"
+}

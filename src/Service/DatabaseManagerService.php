@@ -26,32 +26,75 @@ class DatabaseManagerService
      */
     public function getContentFromDB(): array
     {
-        // check if the database file is defined and non-empty
-        if (!isset($this->databaseFile) || empty($this->databaseFile)) {
-            throw new \Exception('Database not defined.');
-        }
-
         try {
-            // get data from database
-            if (file_exists($this->databaseFile)) {
-                $data = file_get_contents($this->databaseFile);
-                if ($data === false) {
-                    throw new \Exception('Failed to read file: ' . $this->databaseFile);
-                }
-                $decodedData = json_decode($data, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    throw new \Exception('Failed to decode JSON: ' . json_last_error_msg());
-                }
-
-                return is_array($decodedData) ? $decodedData : [];
-            } else {
-                throw new \Exception('File not found: ' . $this->databaseFile);
-            }
+            return $this->withDatabaseLock(fn () => $this->readDatabase(), false);
         } catch (\Exception $e) {
             // do nothing
         }
 
         return [];
+    }
+
+    /** Use a stable lock file: replacing/unlinking the data file must not bypass the lock. */
+    private function withDatabaseLock(callable $operation, bool $exclusive = true): mixed
+    {
+        if ($this->databaseFile === '') {
+            throw new \RuntimeException('Database not defined.');
+        }
+        $lock = fopen($this->databaseFile . '.lock', 'c');
+        if ($lock === false) {
+            throw new \RuntimeException('Cannot open gallery database lock.');
+        }
+        try {
+            if (!flock($lock, $exclusive ? LOCK_EX : LOCK_SH)) {
+                throw new \RuntimeException('Cannot lock gallery database.');
+            }
+            return $operation();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /** Mutation must reject corrupt data rather than silently replacing it with an empty list. */
+    private function readDatabase(): array
+    {
+        if (!is_file($this->databaseFile)) {
+            return [];
+        }
+        $data = file_get_contents($this->databaseFile);
+        if ($data === false) {
+            throw new \RuntimeException('Cannot read gallery database.');
+        }
+        $decoded = json_decode($data, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($decoded) || !array_is_list($decoded)) {
+            throw new \RuntimeException('Invalid gallery database content.');
+        }
+        return $decoded;
+    }
+
+    private function writeDatabase(array $content): void
+    {
+        $json = json_encode(array_values($content), JSON_THROW_ON_ERROR);
+        $temporary = tempnam(dirname($this->databaseFile), '.gallery-');
+        if ($temporary === false) {
+            throw new \RuntimeException('Cannot create temporary gallery database.');
+        }
+        try {
+            if (file_put_contents($temporary, $json) !== strlen($json)) {
+                throw new \RuntimeException('Cannot write gallery database.');
+            }
+            if (is_file($this->databaseFile)) {
+                chmod($temporary, fileperms($this->databaseFile) & 0777);
+            }
+            if (!rename($temporary, $this->databaseFile)) {
+                throw new \RuntimeException('Cannot publish gallery database.');
+            }
+        } finally {
+            if (is_file($temporary)) {
+                unlink($temporary);
+            }
+        }
     }
 
     /**
@@ -106,18 +149,13 @@ class DatabaseManagerService
             throw new \Exception('Database not defined.');
         }
 
-        $currContent = $this->getContentFromDB();
-
-        if (!in_array($content, $currContent)) {
-            $currContent[] = $content;
-            $encoded = json_encode($currContent);
-            if ($encoded === false) {
-                throw new \Exception('Failed to encode database content to JSON: ' . json_last_error_msg());
+        $this->withDatabaseLock(function () use ($content): void {
+            $currContent = $this->readDatabase();
+            if (!in_array($content, $currContent, true)) {
+                $currContent[] = $content;
+                $this->writeDatabase($currContent);
             }
-            if (file_put_contents($this->databaseFile, $encoded) === false) {
-                throw new \Exception('Failed to write database file: ' . $this->databaseFile);
-            }
-        }
+        });
     }
 
     /**
@@ -133,22 +171,14 @@ class DatabaseManagerService
         if (!isset($this->databaseFile) || empty($this->databaseFile)) {
             throw new \Exception('Database not defined.');
         }
-        $currContent = $this->getContentFromDB();
-
-        if (in_array($content, $currContent)) {
-            unset($currContent[array_search($content, $currContent)]);
-            $encoded = json_encode(array_values($currContent));
-            if ($encoded === false) {
-                throw new \Exception('Failed to encode database content to JSON: ' . json_last_error_msg());
+        $this->withDatabaseLock(function () use ($content): void {
+            $currContent = $this->readDatabase();
+            $index = array_search($content, $currContent, true);
+            if ($index !== false) {
+                unset($currContent[$index]);
+                $this->writeDatabase($currContent);
             }
-            if (file_put_contents($this->databaseFile, $encoded) === false) {
-                throw new \Exception('Failed to write database file: ' . $this->databaseFile);
-            }
-        }
-
-        if (file_exists($this->databaseFile) && empty($currContent)) {
-            unlink($this->databaseFile);
-        }
+        });
     }
 
     /**
@@ -200,31 +230,24 @@ class DatabaseManagerService
             throw new \Exception('File directory not defined.');
         }
 
-        $output = [];
-        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->imageDirectory, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::UNIX_PATHS)) as $value) {
-            if ($value->isFile() && strtolower(pathinfo($value->getFilename(), PATHINFO_EXTENSION)) === 'jpg') {
-                $output[] = [$value->getMTime(), $value->getFilename()];
-            }
-        }
-
-        if (!empty($output)) {
-            usort($output, function ($a, $b) {
-                return $a[0] <=> $b[0];
-            });
-        }
-
         try {
-            $filenames = array_column($output, 1);
-            $jsonData = json_encode($filenames);
-            if ($jsonData === false) {
-                throw new \Exception('Error: Failed to encode filenames to JSON.');
-            }
+            return $this->withDatabaseLock(function (): string {
+                $output = [];
+                foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->imageDirectory, \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::UNIX_PATHS)) as $value) {
+                    if ($value->isFile() && strtolower(pathinfo($value->getFilename(), PATHINFO_EXTENSION)) === 'jpg') {
+                        $output[] = [$value->getMTime(), $value->getFilename()];
+                    }
+                }
 
-            if (file_put_contents($this->databaseFile, $jsonData) === false) {
-                throw new \Exception('Error: Failed to write data to database.');
-            }
+                if (!empty($output)) {
+                    usort($output, function ($a, $b) {
+                        return $a[0] <=> $b[0];
+                    });
+                }
 
-            return 'success';
+                $this->writeDatabase(array_column($output, 1));
+                return 'success';
+            });
         } catch (\Exception $e) {
             return 'error';
         }

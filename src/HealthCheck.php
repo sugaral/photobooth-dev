@@ -15,6 +15,8 @@ class HealthCheck
     public const REQUIRED_PHP_EXTENSIONS = [
         'gd',
         'mbstring',
+        'pdo',
+        'pdo_sqlite',
         'xml',
         'zip'
     ];

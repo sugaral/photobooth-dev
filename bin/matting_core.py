@@ -10,6 +10,16 @@
    - 【最适合场景】：全身照、站姿、多人合影、复杂服装与手势、杂乱背景。
 """
 import os
+
+# Ensure CUDA and cuDNN DLL paths are initialized before any native inference module loads
+try:
+    import cuda_init
+except ImportError:
+    try:
+        from bin import cuda_init
+    except Exception:
+        pass
+
 # Configure OpenMP and MKL thread pools to immediately sleep on idle (no spin-wait / no CPU heating)
 os.environ["OMP_WAIT_POLICY"] = "PASSIVE"
 os.environ["KMP_BLOCKTIME"] = "0"
@@ -40,11 +50,18 @@ def get_persisted_gpu_mode():
             m = re.search(r"['\"]gpu_mode['\"]\s*=>\s*['\"]([^'\"]+)['\"]", content)
             if m:
                 val = m.group(1).lower().strip()
-                if val in ("gpu", "cpu"):
+                if val == "gpu":
+                    return "auto"
+                if val in ("auto", "cuda", "directml", "cpu"):
                     return val
     except Exception:
         pass
-    return "gpu"
+    return "auto"
+
+
+def normalize_device_mode(mode):
+    value = str(mode or "auto").lower().strip()
+    return "auto" if value == "gpu" or value not in ("auto", "cuda", "directml", "cpu") else value
 
 
 os.environ["OMP_NUM_THREADS"] = str(get_persisted_threads())
@@ -76,22 +93,69 @@ ENGINE_ALIASES = {
 }
 
 
-def get_best_providers(prefer_cpu=True, gpu_device_id=0):
+def safe_exception_msg(exc):
+    """Safely format exceptions on Windows to prevent UnicodeDecodeError with GBK/ANSI error bytes."""
+    try:
+        return str(exc)
+    except Exception:
+        try:
+            if hasattr(exc, "args") and exc.args:
+                parts = []
+                for a in exc.args:
+                    if isinstance(a, bytes):
+                        parts.append(a.decode("gbk", errors="replace"))
+                    else:
+                        parts.append(repr(a))
+                return " ".join(parts)
+            return repr(exc)
+        except Exception:
+            return "Internal Execution Exception"
+
+
+def get_best_providers(prefer_cpu=True, gpu_device_id=0, device_mode=None):
     """Return optimal execution providers for ONNX Runtime."""
-    if prefer_cpu:
+    mode = normalize_device_mode(device_mode or ("cpu" if prefer_cpu else "auto"))
+    if mode == "cpu":
         return ["CPUExecutionProvider"]
     try:
         import onnxruntime as ort
         available = ort.get_available_providers()
+        if mode == "cuda":
+            if "CUDAExecutionProvider" not in available:
+                raise RuntimeError("CUDAExecutionProvider 不可用")
+            return [("CUDAExecutionProvider", {"device_id": gpu_device_id, "cudnn_conv_algo_search": "HEURISTIC"})]
+        if mode == "directml":
+            if "DmlExecutionProvider" not in available:
+                raise RuntimeError("DmlExecutionProvider 不可用")
+            return [("DmlExecutionProvider", {"device_id": gpu_device_id})]
         providers = []
         if "CUDAExecutionProvider" in available:
-            providers.append(("CUDAExecutionProvider", {"device_id": gpu_device_id}))
+            providers.append(("CUDAExecutionProvider", {"device_id": gpu_device_id, "cudnn_conv_algo_search": "HEURISTIC"}))
         if "DmlExecutionProvider" in available:
             providers.append(("DmlExecutionProvider", {"device_id": gpu_device_id}))
         providers.append("CPUExecutionProvider")
-        return providers if providers else ["CPUExecutionProvider"]
+        return providers
     except Exception:
+        if mode != "auto":
+            raise
         return ["CPUExecutionProvider"]
+
+
+def validate_device_mode(device_mode):
+    """Validate an explicitly selected provider before changing live state."""
+    mode = normalize_device_mode(device_mode)
+    if mode in ("auto", "cpu"):
+        return {"mode": mode, "available": True, "providers": ["CPUExecutionProvider"]}
+    try:
+        import onnxruntime as ort
+        available = list(ort.get_available_providers())
+    except Exception as exc:
+        raise RuntimeError(f"无法读取 ONNX Runtime provider: {exc}") from exc
+    provider = "CUDAExecutionProvider" if mode == "cuda" else "DmlExecutionProvider"
+    if provider not in available:
+        label = "CUDA" if mode == "cuda" else "DirectML"
+        raise RuntimeError(f"{label} 推理 provider 不可用，未切换设备")
+    return {"mode": mode, "available": True, "providers": available}
 
 
 def clean_cutout_defringe(cutout, alpha_low=15.0, alpha_high=220.0, radius=1):
@@ -147,9 +211,10 @@ class BiRefNetPortraitEngine:
     display_name = "BiRefNet-Portrait"
     suitable_for = "适合半身照 / 自拍照 / 大头贴 / 精细发丝"
 
-    def __init__(self, model_path=BIREFNET_MODEL_PATH, prefer_cpu=False, threads=None):
+    def __init__(self, model_path=BIREFNET_MODEL_PATH, prefer_cpu=False, threads=None, device_mode=None):
         self.model_path = model_path
         self.prefer_cpu = prefer_cpu
+        self.device_mode = normalize_device_mode(device_mode or ("cpu" if prefer_cpu else "auto"))
         self.threads = max(1, min(32, int(threads or get_persisted_threads())))
         self.session = None
         self.providers = []
@@ -162,34 +227,31 @@ class BiRefNetPortraitEngine:
             raise FileNotFoundError(f"BiRefNet 模型文件不存在: {self.model_path}")
         import onnxruntime as ort
         opts = ort.SessionOptions()
-        if not self.prefer_cpu:
-            # GPU 加速 (DirectML)：禁用全局图融合以规避驱动显存突增 (8007000E/DXGI_ERROR_DEVICE_HUNG)
-            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
-            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            self.providers = get_best_providers(prefer_cpu=False)
+        opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
+        opts.inter_op_num_threads = 1
+        opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        self.providers = get_best_providers(self.prefer_cpu, device_mode=self.device_mode)
+        names = [p[0] if isinstance(p, tuple) else p for p in self.providers]
+        if 'CUDAExecutionProvider' in names and hasattr(ort, 'preload_dlls'):
             try:
-                self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
-                active = self.session.get_providers()
-                if not any("Dml" in p or "CUDA" in p for p in active):
-                    print("[BiRefNet] 未检测到可用的 GPU 加速提供者，切换至 CPU 模式...")
-                    self.prefer_cpu = True
-            except Exception as e:
-                print(f"[BiRefNet] GPU 启动异常 ({e})，正在自动安全回退至 CPU 多核模式...")
-                self.prefer_cpu = True
-                opts = ort.SessionOptions()
-                opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
-                opts.inter_op_num_threads = 1
-                opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-                self.providers = ["CPUExecutionProvider"]
-                self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+                ort.preload_dlls()
+            except Exception:
+                pass
+        if 'DmlExecutionProvider' in names:
+            opts.enable_mem_pattern = False
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
         else:
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
-            opts.inter_op_num_threads = 1
-            opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            self.providers = ["CPUExecutionProvider"]
+        try:
             self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        except Exception as exc:
+            print(f"[BiRefNet] Session init with {self.providers} failed: {safe_exception_msg(exc)}. Fallback to CPU.")
+            self.providers = ["CPUExecutionProvider"]
+            self.prefer_cpu = True
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        active = self.session.get_providers()
+        self.providers = active
 
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
@@ -202,11 +264,14 @@ class BiRefNetPortraitEngine:
             if self.session is not None and self.prefer_cpu:
                 self.session = None
 
-    def set_device(self, prefer_cpu=False):
+    def set_device(self, prefer_cpu=False, device_mode=None):
         prefer_cpu = bool(prefer_cpu)
-        if self.prefer_cpu != prefer_cpu:
+        mode = normalize_device_mode(device_mode or ("cpu" if prefer_cpu else "auto"))
+        if self.prefer_cpu != prefer_cpu or self.device_mode != mode:
             self.prefer_cpu = prefer_cpu
+            self.device_mode = mode
             self.session = None
+            self.providers = []
 
     def predict(self, image):
         if self.session is None:
@@ -223,12 +288,10 @@ class BiRefNetPortraitEngine:
         try:
             ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
         except Exception as exc:
-            if not self.prefer_cpu:
-                print(f"[BiRefNet] GPU 推理异常 ({exc})，即时降级至 CPU 纯多核重试...")
-                self.set_device(prefer_cpu=True)
-                ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
-            else:
-                raise
+            print(f"[BiRefNet] GPU 推理异常 ({safe_exception_msg(exc)})，即时降级至 CPU 纯多核重试...")
+            self.set_device(prefer_cpu=True, device_mode="cpu")
+            self.initialize()
+            ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
 
         out = ort_outs[0]
         if len(out.shape) == 4:
@@ -267,9 +330,10 @@ class RMBG2Engine:
     display_name = "RMBG-2.0"
     suitable_for = "适合全身照 / 站姿 / 多人合影 / 复杂服装与手势"
 
-    def __init__(self, model_path=RMBG2_MODEL_PATH, prefer_cpu=True, threads=None):
+    def __init__(self, model_path=RMBG2_MODEL_PATH, prefer_cpu=True, threads=None, device_mode=None):
         self.model_path = model_path
         self.prefer_cpu = prefer_cpu
+        self.device_mode = normalize_device_mode(device_mode or ("cpu" if prefer_cpu else "auto"))
         self.threads = max(1, min(32, int(threads or get_persisted_threads())))
         self.session = None
         self.providers = []
@@ -282,12 +346,31 @@ class RMBG2Engine:
             raise FileNotFoundError(f"RMBG-2.0 模型文件不存在: {self.model_path}")
         import onnxruntime as ort
         opts = ort.SessionOptions()
-        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.intra_op_num_threads = max(1, min(32, int(self.threads)))
         opts.inter_op_num_threads = 1
         opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        self.providers = get_best_providers(self.prefer_cpu)
-        self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        self.providers = get_best_providers(self.prefer_cpu, device_mode=self.device_mode)
+        names = [p[0] if isinstance(p, tuple) else p for p in self.providers]
+        if 'CUDAExecutionProvider' in names and hasattr(ort, 'preload_dlls'):
+            try:
+                ort.preload_dlls()
+            except Exception:
+                pass
+        if 'DmlExecutionProvider' in names:
+            opts.enable_mem_pattern = False
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+        else:
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        try:
+            self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        except Exception as exc:
+            print(f"[RMBG-2.0] Session init with {self.providers} failed: {safe_exception_msg(exc)}. Fallback to CPU.")
+            self.providers = ["CPUExecutionProvider"]
+            self.prefer_cpu = True
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            self.session = ort.InferenceSession(self.model_path, opts, providers=self.providers)
+        active = self.session.get_providers()
+        self.providers = active
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name
         self.error = None
@@ -299,11 +382,14 @@ class RMBG2Engine:
             if self.session is not None and self.prefer_cpu:
                 self.session = None
 
-    def set_device(self, prefer_cpu=False):
+    def set_device(self, prefer_cpu=False, device_mode=None):
         prefer_cpu = bool(prefer_cpu)
-        if self.prefer_cpu != prefer_cpu:
+        mode = normalize_device_mode(device_mode or ("cpu" if prefer_cpu else "auto"))
+        if self.prefer_cpu != prefer_cpu or self.device_mode != mode:
             self.prefer_cpu = prefer_cpu
+            self.device_mode = mode
             self.session = None
+            self.providers = []
 
     def predict(self, image):
         if self.session is None:
@@ -317,7 +403,13 @@ class RMBG2Engine:
         std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
         tensor = np.transpose((arr - mean) / std, (2, 0, 1))[np.newaxis, ...]
 
-        ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
+        try:
+            ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
+        except Exception as exc:
+            print(f"[RMBG-2.0] GPU 推理异常 ({safe_exception_msg(exc)})，即时降级至 CPU 纯多核重试...")
+            self.set_device(prefer_cpu=True, device_mode="cpu")
+            self.initialize()
+            ort_outs = self.session.run([self.output_name], {self.input_name: tensor})
         out = ort_outs[0]
         if len(out.shape) == 4:
             out = out[0, 0, :, :]
@@ -350,15 +442,17 @@ class MattingEngineManager:
 
     def __init__(self, default_engine=DEFAULT_ENGINE, prefer_cpu=None, threads=None):
         if prefer_cpu is None:
-            self.prefer_cpu = (get_persisted_gpu_mode() == "cpu")
+            self.device_mode = normalize_device_mode(get_persisted_gpu_mode())
+            self.prefer_cpu = self.device_mode == "cpu"
         else:
             self.prefer_cpu = bool(prefer_cpu)
+            self.device_mode = "cpu" if self.prefer_cpu else "auto"
         self.threads = max(1, min(32, int(threads or get_persisted_threads())))
         os.environ["OMP_NUM_THREADS"] = str(self.threads)
         self.default_engine = ENGINE_ALIASES.get(default_engine, DEFAULT_ENGINE)
         self.engines = {
-            "birefnet": BiRefNetPortraitEngine(prefer_cpu=self.prefer_cpu, threads=self.threads),
-            "rmbg2": RMBG2Engine(prefer_cpu=self.prefer_cpu, threads=self.threads),
+            "birefnet": BiRefNetPortraitEngine(prefer_cpu=self.prefer_cpu, device_mode=self.device_mode, threads=self.threads),
+            "rmbg2": RMBG2Engine(prefer_cpu=self.prefer_cpu, device_mode=self.device_mode, threads=self.threads),
         }
 
     def set_threads(self, threads):
@@ -369,18 +463,30 @@ class MattingEngineManager:
             if hasattr(engine, "set_threads"):
                 engine.set_threads(threads)
 
-    def set_device(self, prefer_cpu=False):
+    def set_device(self, prefer_cpu=False, device_mode=None):
         self.prefer_cpu = bool(prefer_cpu)
+        self.device_mode = normalize_device_mode(device_mode or ("cpu" if self.prefer_cpu else "auto"))
         for engine in self.engines.values():
             if hasattr(engine, "set_device"):
-                engine.set_device(self.prefer_cpu)
+                engine.set_device(self.prefer_cpu, self.device_mode)
 
     def get_device_status(self):
+        providers = []
+        for engine in self.engines.values():
+            if engine.session is not None:
+                providers.extend(engine.session.get_providers())
+        active = list(dict.fromkeys(providers))
+        # Installed providers and requested settings are not live sessions.
+        # A failed/reset session may also leave stale engine.providers behind.
+        active_gpu = any("CUDA" in str(p) or "Dml" in str(p) for p in active)
         return {
-            "device": "gpu" if (not self.prefer_cpu) else "cpu",
-            "is_gpu_active": not self.prefer_cpu,
+            "device": self.device_mode,
+            "device_mode": self.device_mode,
+            "is_gpu_active": active_gpu,
+            "session_initialized": bool(active),
             "prefer_cpu": self.prefer_cpu,
-            "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+            "gpu_name": next((p for p in active if "CUDA" in p or "Dml" in p), ""),
+            "providers": active,
             "threads": self.threads,
         }
 
@@ -405,7 +511,7 @@ class MattingEngineManager:
                 "quality": inspect_quality(cutout),
             }
         except Exception as exc:
-            error_msg = str(exc)
+            error_msg = safe_exception_msg(exc)
             if not auto_fallback:
                 raise
 
@@ -425,7 +531,8 @@ class MattingEngineManager:
                 "quality": inspect_quality(cutout),
             }
         except Exception as alt_exc:
-            raise RuntimeError(f"Primary engine '{canonical}' failed: {error_msg}; Alternate '{alt_key}' failed: {alt_exc}") from alt_exc
+            alt_msg = safe_exception_msg(alt_exc)
+            raise RuntimeError(f"Primary engine '{canonical}' failed: {error_msg}; Alternate '{alt_key}' failed: {alt_msg}") from alt_exc
 
     def diagnostics(self):
         return {
@@ -571,4 +678,4 @@ def process_with_manager(manager, input_path, output_path, template_path=None, e
         meta.update({"success": True, "output": output_path, "type": kind, "time_ms": round((time.time() - started) * 1000, 2)})
         return meta
     except Exception as exc:
-        return {"success": False, "error": str(exc), "requested_engine": engine, "time_ms": round((time.time() - started) * 1000, 2)}
+        return {"success": False, "error": safe_exception_msg(exc), "requested_engine": engine, "time_ms": round((time.time() - started) * 1000, 2)}

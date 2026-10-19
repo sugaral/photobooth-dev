@@ -2,6 +2,8 @@
 use Photobooth\Utility\PathUtility;
 use Photobooth\Utility\StartpageTextPosition;
 
+$availableAiTemplates = (new \Photobooth\Service\AiTemplateCatalogService())->all();
+
 $startpageTextPosition = StartpageTextPosition::resolve(
     $config['ui']['startpage_text_position'] ?? null,
     $config['logo']['position'] ?? null,
@@ -107,33 +109,27 @@ $startpageTextPosition = StartpageTextPosition::resolve(
                     <!-- 模式 B：AI 魔法变身照 -->
                     <div class="mode-card mode-card--ai" id="cardModeAi" role="button" tabindex="0">
                         <div class="mode-card__badge mode-card__badge--violet">
-                            <i class="fa fa-bolt"></i> RTX 5060 极速加速
+                            <i class="fa fa-bolt"></i> 自动硬件加速
                         </div>
                         <div class="mode-card__icon-box">
                             <i class="fa fa-masks-theater"></i>
                         </div>
                         <div class="mode-card__body">
                             <h3 class="mode-card__heading">AI 魔法变身照</h3>
-                            <p class="mode-card__sub">盛唐汉服 · 未来机甲 · 赛博朋克 · 一秒穿越换脸</p>
+                            <p class="mode-card__sub">挑选写真 · 正面拍摄 · 保留本人五官</p>
                             <!-- 模板例图微缩长廊 -->
                             <div class="mode-card__showcase">
+                                <?php foreach (array_slice($availableAiTemplates, 0, 3) as $tpl): ?>
                                 <div class="mode-showcase-item">
-                                    <img src="resources/img/templates_ai/hanfu_female_01.jpg" alt="古风汉服" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'60\' fill=\'%23fecdd3\'><rect width=\'100%\' height=\'100%\'/></svg>'">
-                                    <span>盛唐华服</span>
+                                    <img src="<?= htmlspecialchars($tpl['thumb'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($tpl['title'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span><?= htmlspecialchars($tpl['tag'] ?? '精选写真', ENT_QUOTES, 'UTF-8') ?></span>
                                 </div>
-                                <div class="mode-showcase-item">
-                                    <img src="resources/img/templates_ai/mecha_01.jpg" alt="量子机甲" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'60\' fill=\'%23bae6fd\'><rect width=\'100%\' height=\'100%\'/></svg>'">
-                                    <span>量子机甲</span>
-                                </div>
-                                <div class="mode-showcase-item">
-                                    <img src="resources/img/templates_ai/cyber_01.jpg" alt="赛博霓虹" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'60\' fill=\'%23ddd6fe\'><rect width=\'100%\' height=\'100%\'/></svg>'">
-                                    <span>赛博霓虹</span>
-                                </div>
+                                <?php endforeach; ?>
                             </div>
                             <div class="mode-card__pills">
-                                <span class="mode-pill"><i class="fa fa-shirt"></i> 古风华服</span>
-                                <span class="mode-pill"><i class="fa fa-robot"></i> 未来科幻</span>
-                                <span class="mode-pill"><i class="fa fa-bolt-lightning"></i> 极速换脸</span>
+                                <span class="mode-pill"><i class="fa fa-shirt"></i> 写真风格</span>
+                                <span class="mode-pill"><i class="fa fa-robot"></i> 自选模板</span>
+                                <span class="mode-pill"><i class="fa fa-bolt-lightning"></i> 本人五官</span>
                             </div>
                         </div>
                         <div class="mode-card__footer">
@@ -269,8 +265,8 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
 
                 <!-- 3. AI 抠图计算设备 (GPU / CPU) 设置 -->
                 <?php
-                $gpuMode = $config['rembg']['gpu_mode'] ?? 'gpu';
-                $isGpu = ($gpuMode === 'gpu');
+                $gpuMode = $config['rembg']['gpu_mode'] ?? 'auto';
+                $isGpu = in_array($gpuMode, ['cuda', 'directml'], true);
                 $cpuThreads = (int)($config['rembg']['cpu_threads'] ?? 8);
                 ?>
                 <div class="settings-card settings-card--device">
@@ -284,21 +280,29 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
                         </div>
                     </div>
                     <div class="settings-card-content">
-                        <!-- GPU / CPU Segmented Switcher -->
-                        <div class="settings-device-segmented">
-                            <button type="button" class="settings-device-pill <?= $isGpu ? 'active' : '' ?>" id="btnDeviceGpu" data-device="gpu">
-                                <i class="fa fa-bolt"></i> GPU 硬件加速 (极速)
-                            </button>
-                            <button type="button" class="settings-device-pill <?= !$isGpu ? 'active' : '' ?>" id="btnDeviceCpu" data-device="cpu">
-                                <i class="fa fa-server"></i> CPU 纯多核 (节能)
-                            </button>
+                        <div class="settings-select-wrapper settings-device-select-wrapper">
+                            <select id="settingInferenceDevice" class="settings-select" aria-label="AI 推理设备">
+                                <option value="auto" <?= $gpuMode === 'auto' ? 'selected' : '' ?>>自动选择（允许回退）</option>
+                                <option value="cpu" <?= $gpuMode === 'cpu' ? 'selected' : '' ?>>CPU</option>
+                                <option value="cuda" <?= $gpuMode === 'cuda' ? 'selected' : '' ?>>CUDA</option>
+                                <option value="directml" <?= $gpuMode === 'directml' ? 'selected' : '' ?>>DirectML</option>
+                            </select>
+                            <i class="fa fa-chevron-down select-chevron"></i>
+                        </div>
+                        <div class="settings-select-wrapper settings-device-select-wrapper">
+                            <span class="settings-device-select-label">抠图模型</span>
+                            <select id="settingMattingEngine" class="settings-select" aria-label="AI 抠图模型">
+                                <option value="birefnet" <?= ($config['rembg']['engine'] ?? 'birefnet') === 'birefnet' ? 'selected' : '' ?>>BiRefNet 人像发丝</option>
+                                <option value="rmbg2" <?= ($config['rembg']['engine'] ?? '') === 'rmbg2' ? 'selected' : '' ?>>RMBG-2.0 通用主体</option>
+                            </select>
+                            <i class="fa fa-chevron-down select-chevron"></i>
                         </div>
                         
                         <!-- GPU Info Box -->
                         <div class="settings-gpu-info-box" id="settingsGpuInfoBox" style="<?= $isGpu ? '' : 'display:none;' ?>">
                             <div class="settings-gpu-status">
                                 <i class="fa fa-circle-check" style="color: #10b981;"></i>
-                                <span id="settingsGpuName">已绑定独立显卡：NVIDIA GeForce RTX 5060 Laptop GPU</span>
+                                <span id="settingsGpuName">运行时设备状态读取中</span>
                             </div>
                             <div class="settings-gpu-tip">
                                 <i class="fa fa-gauge-high"></i> DirectML 硬件张量与显存加速 · 耗时约 3 秒（提速超 2.7 倍）
@@ -328,11 +332,14 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
 
                 <!-- 4. AI 智能人像美颜设置 -->
                 <?php
-                $beautyAuto = !empty($config['beauty']['auto_apply']);
+                $beautyEnabled = !isset($config['beauty']['enabled']) || !empty($config['beauty']['enabled']);
+                $beautyAuto = $beautyEnabled && (!isset($config['beauty']['auto_apply']) || !empty($config['beauty']['auto_apply']));
                 $bEye = (int)($config['beauty']['default_eye'] ?? 15);
                 $bSlim = (int)($config['beauty']['default_slim'] ?? 15);
                 $bSmooth = (int)($config['beauty']['default_smooth'] ?? 20);
                 $bWhite = (int)($config['beauty']['default_white'] ?? 15);
+                $bRosy = (int)($config['beauty']['default_rosy'] ?? 20);
+                $bClarity = (int)($config['beauty']['default_clarity'] ?? 15);
                 ?>
                 <div class="settings-card settings-card--beauty">
                     <div class="settings-card-header">
@@ -377,9 +384,27 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
                             </div>
                             <input type="range" id="settingBeautyWhite" min="0" max="100" value="<?= $bWhite ?>" class="settings-beauty-slider">
                         </div>
-                        <div class="settings-camera-hint" id="settingBeautyHint">
-                            <i class="fa fa-circle-check" style="color: #10b981;"></i> 默认美颜参数已生效 · 新拍照片自动同步初修
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-droplet"></i> 默认红润强度</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautyRosy"><?= $bRosy ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautyRosy" min="0" max="100" value="<?= $bRosy ?>" class="settings-beauty-slider">
                         </div>
+                        <div class="settings-beauty-row">
+                            <div class="settings-beauty-label">
+                                <span><i class="fa fa-sliders"></i> 默认立体修容</span>
+                                <span class="settings-beauty-val" id="lblSettingBeautyClarity"><?= $bClarity ?>%</span>
+                            </div>
+                            <input type="range" id="settingBeautyClarity" min="0" max="100" value="<?= $bClarity ?>" class="settings-beauty-slider">
+                        </div>
+                    </div>
+                    <div class="settings-camera-hint" id="settingBeautyHint" style="margin-top: 0.5rem; padding: 0.5rem 0.75rem;">
+                        <?php if ($beautyAuto): ?>
+                            <i class="fa fa-circle-check" style="color: #10b981;"></i> 默认美颜参数已生效 · 新拍照片自动同步初修
+                        <?php else: ?>
+                            <i class="fa fa-circle-info" style="color: #94a3b8;"></i> 已停用美颜 · 拍照将保留原始生动镜头画面
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -393,158 +418,7 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
         </div>
     </div>
 
-    <!-- AI 魔法变身照 · 挑选模板弹窗 (Stage 1 AI Portal Gateway) -->
-    <div id="aiTemplateModal" class="ai-template-modal" style="display: none;" aria-hidden="true">
-        <div class="ai-template-backdrop" id="aiTemplateBackdrop"></div>
-        <div class="ai-template-dialog">
-            <div class="ai-template-header">
-                <div class="ai-template-title-wrap">
-                    <div class="ai-template-icon"><i class="fa fa-masks-theater"></i></div>
-                    <div>
-                        <div class="ai-template-title">AI 魔法变身照 · 挑选心动模板</div>
-                        <div class="ai-template-subtitle">先选一款精美形象，再端正拍照完成极速穿越</div>
-                    </div>
-                </div>
-                <button type="button" id="btnAiTemplateClose" class="ai-close-btn" title="返回首页">
-                    <i class="fa fa-xmark"></i>
-                </button>
-            </div>
 
-            <!-- 分类标签过滤器与上传入口 -->
-            <div class="ai-category-tabs">
-                <button type="button" class="ai-cat-tab active" data-category="all">全部精选</button>
-                <button type="button" class="ai-cat-tab" data-category="hanfu">🌸 盛唐汉服</button>
-                <button type="button" class="ai-cat-tab" data-category="cyberpunk">🤖 赛博未来</button>
-                <button type="button" class="ai-cat-tab" data-category="vintage">🎞️ 港风胶片</button>
-                <button type="button" class="ai-cat-tab" data-category="business">👔 商务形象</button>
-                <button type="button" class="ai-cat-tab" data-category="custom">⭐ 自定义模板</button>
-                <button type="button" class="ai-cat-tab ai-cat-tab--upload" id="btnUploadAiTemplate" title="上传您喜爱的任意人物或写真作为换脸模板">
-                    <i class="fa fa-cloud-arrow-up"></i> 上传自定义模板
-                </button>
-                <input type="file" id="aiTemplateUploadInput" accept="image/jpeg,image/png,image/webp,image/jpg" style="display: none;" />
-            </div>
-
-            <!-- 模板展示网格 -->
-            <div class="ai-template-grid" id="aiTemplateGrid">
-                <!-- 1. 盛唐汉服 -->
-                <div class="ai-template-card active" data-id="hanfu_female_01" data-category="hanfu" data-title="盛唐绮梦 · 汉服仙子" data-image="resources/img/templates_ai/hanfu_female_01.jpg">
-                    <div class="ai-tpl-badge">人气推荐</div>
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/hanfu_female_01.jpg" alt="盛唐绮梦 · 汉服仙子" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--hanfu1" style="display: none;">
-                            <i class="fa fa-fan"></i>
-                            <span class="ai-tpl-preview-tag">盛唐华服</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">盛唐绮梦 · 汉服仙子</div>
-                        <div class="ai-tpl-tags"><span>女性</span><span>华丽刺绣</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-
-                <!-- 2. 古风书生 -->
-                <div class="ai-template-card" data-id="hanfu_male_01" data-category="hanfu" data-title="青衫折扇 · 古风书生" data-image="resources/img/templates_ai/hanfu_male_01.jpg">
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/hanfu_male_01.jpg" alt="青衫折扇 · 古风书生" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--hanfu2" style="display: none;">
-                            <i class="fa fa-feather-pointed"></i>
-                            <span class="ai-tpl-preview-tag">儒雅古韵</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">青衫折扇 · 古风书生</div>
-                        <div class="ai-tpl-tags"><span>男性</span><span>儒雅文质</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-
-                <!-- 3. 量子机甲 -->
-                <div class="ai-template-card" data-id="mecha_01" data-category="cyberpunk" data-title="未来战警 · 量子机甲" data-image="resources/img/templates_ai/mecha_01.jpg">
-                    <div class="ai-tpl-badge ai-tpl-badge--cyan">酷炫机甲</div>
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/mecha_01.jpg" alt="未来战警 · 量子机甲" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--mecha" style="display: none;">
-                            <i class="fa fa-robot"></i>
-                            <span class="ai-tpl-preview-tag">重装科技</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">未来战警 · 量子机甲</div>
-                        <div class="ai-tpl-tags"><span>通用</span><span>重型机甲</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-
-                <!-- 4. 赛博黑客 -->
-                <div class="ai-template-card" data-id="cyber_01" data-category="cyberpunk" data-title="霓虹夜市 · 赛博黑客" data-image="resources/img/templates_ai/cyber_01.jpg">
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/cyber_01.jpg" alt="霓虹夜市 · 赛博黑客" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--cyber" style="display: none;">
-                            <i class="fa fa-microchip"></i>
-                            <span class="ai-tpl-preview-tag">赛博光影</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">霓虹夜市 · 赛博黑客</div>
-                        <div class="ai-tpl-tags"><span>通用</span><span>霓虹夜色</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-
-                <!-- 5. 港风胶片 -->
-                <div class="ai-template-card" data-id="vintage_01" data-category="vintage" data-title="旺角雨夜 · 港风胶片" data-image="resources/img/templates_ai/vintage_01.jpg">
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/vintage_01.jpg" alt="旺角雨夜 · 港风胶片" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--vintage" style="display: none;">
-                            <i class="fa fa-film"></i>
-                            <span class="ai-tpl-preview-tag">复古光影</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">旺角雨夜 · 港风胶片</div>
-                        <div class="ai-tpl-tags"><span>通用</span><span>浓郁胶片</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-
-                <!-- 6. 商务形象 -->
-                <div class="ai-template-card" data-id="business_01" data-category="business" data-title="精英名片 · 高管肖像" data-image="resources/img/templates_ai/business_01.jpg">
-                    <div class="ai-tpl-thumb-wrap">
-                        <img class="ai-tpl-thumb" src="resources/img/templates_ai/business_01.jpg" alt="精英名片 · 高管肖像" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="ai-tpl-preview ai-tpl-preview--business" style="display: none;">
-                            <i class="fa fa-user-tie"></i>
-                            <span class="ai-tpl-preview-tag">高级棚拍</span>
-                        </div>
-                    </div>
-                    <div class="ai-tpl-info">
-                        <div class="ai-tpl-name">精英名片 · 高管肖像</div>
-                        <div class="ai-tpl-tags"><span>通用</span><span>棚拍影棚</span></div>
-                    </div>
-                    <div class="ai-tpl-selected-check"><i class="fa fa-circle-check"></i></div>
-                </div>
-            </div>
-
-            <!-- 底部确认栏 -->
-            <div class="ai-template-footer">
-                <div class="ai-selected-preview-wrap">
-                    <img id="aiCurrentTemplateThumb" class="ai-selected-mini-thumb" src="resources/img/templates_ai/hanfu_female_01.jpg" alt="已选模板" onerror="this.style.display='none';">
-                    <div class="ai-selected-preview-text">
-                        <div>已选模板：<strong id="aiCurrentTemplateName">盛唐绮梦 · 汉服仙子</strong></div>
-                        <span class="ai-hint-tag"><i class="fa fa-circle-info"></i> 建议拍照时正视镜头、面部无大面积遮挡</span>
-                    </div>
-                </div>
-                <div class="ai-footer-buttons">
-                    <button type="button" id="btnAiTemplateBack" class="ai-btn ai-btn--cancel">
-                        <i class="fa fa-arrow-left"></i> 返回选择模式
-                    </button>
-                    <button type="button" id="btnAiTemplateConfirm" class="ai-btn ai-btn--primary">
-                        <i class="fa fa-camera"></i> 确认模板并去拍照
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- 连拍选片工作台与局部重拍 Modal (Stage 4.1 & 4.2) -->
     <div class="burst-workbench-modal rotarygroup" id="burstWorkbenchModal" style="display:none;" aria-hidden="true">

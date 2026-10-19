@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Kristin Hardwick",
+    "creator": {
+      "@type": "Person",
+      "name": "Kristin Hardwick"
+    },
+    "copyrightNotice": "Kristin Hardwick",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/male-professional_LLBULYYEGR.jpg",
+    "name": "Free photo of male professional",
+    "creditText": "Free photo of male professional downloaded from https://stocksnap.io/photo/male-professional-LLBULYYEGR",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/male-professional-LLBULYYEGR",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/male-professional_LLBULYYEGR.jpg"
+    },
+    "description": "Free stock photo of male professional on StockSnap.",
+    "caption": "Download free stock photo of male professional on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/male-professional-LLBULYYEGR",
+  "retrieved_at": "2026-10-18T09:33:30.301131+00:00"
+}

@@ -915,6 +915,7 @@ body,
 #preview--none,
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   display: none;
@@ -933,12 +934,14 @@ body,
 
 #preview--none,
 #preview--ipcam,
-#preview--video {
+#preview--video,
+#preview--beauty-canvas {
   translate: unset;
 }
 
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   rotate: var(--preview-rotation);
@@ -953,6 +956,7 @@ body,
 
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   background-image: none;
@@ -962,18 +966,21 @@ body,
 }
 #preview--ipcam.fill,
 #preview--video.fill,
+#preview--beauty-canvas.fill,
 #previewframe--picture.fill,
 #previewframe--collage.fill {
   object-fit: fill;
 }
 #preview--ipcam.contain,
 #preview--video.contain,
+#preview--beauty-canvas.contain,
 #previewframe--picture.contain,
 #previewframe--collage.contain {
   object-fit: contain;
 }
 #preview--ipcam.cover,
 #preview--video.cover,
+#preview--beauty-canvas.cover,
 #previewframe--picture.cover,
 #previewframe--collage.cover {
   background-size: cover;
@@ -981,26 +988,28 @@ body,
 }
 #preview--ipcam.none,
 #preview--video.none,
+#preview--beauty-canvas.none,
 #previewframe--picture.none,
 #previewframe--collage.none {
   object-fit: none;
 }
 #preview--ipcam.scale-down,
 #preview--video.scale-down,
+#preview--beauty-canvas.scale-down,
 #previewframe--picture.scale-down,
 #previewframe--collage.scale-down {
   object-fit: scale-down;
 }
 #preview--ipcam.flip-horizontal,
 #preview--video.flip-horizontal,
-#preview--face-beauty-video.flip-horizontal,
+#preview--beauty-canvas.flip-horizontal,
 #previewframe--picture.flip-horizontal,
 #previewframe--collage.flip-horizontal {
   scale: -1 1;
 }
 #preview--ipcam.flip-vertical,
 #preview--video.flip-vertical,
-#preview--face-beauty-video.flip-vertical,
+#preview--beauty-canvas.flip-vertical,
 #previewframe--picture.flip-vertical,
 #previewframe--collage.flip-vertical {
   scale: 1 -1;

@@ -24,6 +24,7 @@
 #preview--none,
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   display: none;
@@ -42,12 +43,14 @@
 
 #preview--none,
 #preview--ipcam,
-#preview--video {
+#preview--video,
+#preview--beauty-canvas {
   translate: unset;
 }
 
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   rotate: var(--preview-rotation);
@@ -62,6 +65,7 @@
 
 #preview--ipcam,
 #preview--video,
+#preview--beauty-canvas,
 #previewframe--picture,
 #previewframe--collage {
   background-image: none;

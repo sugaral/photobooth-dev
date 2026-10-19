@@ -12,12 +12,15 @@ $deviceEndpoint = $serviceBaseUrl . '/device';
 
 // 1. GET: 获取当前配置与运行时计算设备与 CPU 线程数
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $configuredGpuMode = (string)($config['rembg']['gpu_mode'] ?? 'gpu');
+    $configuredGpuMode = (string)($config['rembg']['gpu_mode'] ?? 'auto');
+    if ($configuredGpuMode === 'gpu') $configuredGpuMode = 'auto';
     $configuredThreads = (int)($config['rembg']['cpu_threads'] ?? 8);
+    $configuredEngine = (string)($config['rembg']['engine'] ?? 'birefnet');
     $liveDevice = $configuredGpuMode;
     $liveThreads = $configuredThreads;
-    $isGpuActive = ($configuredGpuMode === 'gpu');
-    $gpuName = 'NVIDIA GeForce RTX 5060 Laptop GPU';
+    $isGpuActive = false;
+    $sessionInitialized = false;
+    $gpuName = '';
     $maxThreads = 24;
     $serviceOnline = false;
 
@@ -31,12 +34,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $resp = @file_get_contents($deviceEndpoint, false, $ctx);
     if ($resp !== false) {
         $json = json_decode($resp, true);
-        if (is_array($json)) {
+        if (is_array($json) && ($json['status'] ?? '') === 'ok' && !empty($json['success'])) {
             $liveDevice = $json['device'] ?? $liveDevice;
             $liveThreads = (int)($json['threads'] ?? $liveThreads);
             $maxThreads = (int)($json['max_threads'] ?? $maxThreads);
             $gpuName = $json['gpu_name'] ?? $gpuName;
             $isGpuActive = !empty($json['is_gpu_active']);
+            $sessionInitialized = !empty($json['session_initialized']);
             $serviceOnline = true;
         }
     }
@@ -45,8 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         'success' => true,
         'gpu_mode' => $configuredGpuMode,
         'threads' => $configuredThreads,
+        'engine' => $configuredEngine,
         'live_device' => $liveDevice,
         'is_gpu_active' => $isGpuActive,
+        'session_initialized' => $sessionInitialized,
         'gpu_name' => $gpuName,
         'live_threads' => $liveThreads,
         'max_threads' => $maxThreads,
@@ -72,21 +78,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawGpuMode = $inputData['gpu_mode'] ?? $inputData['device'] ?? null;
     $gpuMode = null;
     if ($rawGpuMode !== null) {
-        $gpuMode = strtolower(trim((string)$rawGpuMode)) === 'cpu' ? 'cpu' : 'gpu';
+        $gpuMode = strtolower(trim((string)$rawGpuMode));
+        if ($gpuMode === 'gpu') $gpuMode = 'auto';
+        if (!in_array($gpuMode, ['auto', 'cpu', 'cuda', 'directml'], true)) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'error' => '不支持的推理设备']);
+            exit;
+        }
     }
 
     $threads = isset($inputData['threads']) ? (int)$inputData['threads'] : null;
     if ($threads !== null) {
         $threads = max(1, min(32, $threads));
     }
+    $engine = isset($inputData['engine']) ? strtolower(trim((string)$inputData['engine'])) : null;
+    if ($engine !== null && !in_array($engine, ['birefnet', 'rmbg2'], true)) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'error' => '不支持的抠图模型']);
+        exit;
+    }
 
     // 2.1 写入持久化配置文件 config/my.config.inc.php
     $configUpdated = false;
+    $previousConfig = null;
     try {
         $configFile = PathUtility::getAbsolutePath('config/my.config.inc.php');
         if (file_exists($configFile)) {
             $userConfig = require $configFile;
             if (is_array($userConfig)) {
+                $previousConfig = $userConfig;
                 if (!isset($userConfig['rembg']) || !is_array($userConfig['rembg'])) {
                     $userConfig['rembg'] = [];
                 }
@@ -95,6 +115,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if ($threads !== null) {
                     $userConfig['rembg']['cpu_threads'] = $threads;
+                }
+                if ($engine !== null) {
+                    $userConfig['rembg']['engine'] = $engine;
                 }
                 $configService = ConfigurationService::getInstance();
                 $configService->update($userConfig);
@@ -117,6 +140,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $content = preg_replace("/(['\"]cpu_threads['\"]\s*=>\s*)\d+/", "\${1}{$threads}", $content);
                 } else {
                     $content = preg_replace("/(['\"]rembg['\"]\s*=>\s*\[)/", "\${1}\n        'cpu_threads' => {$threads},", $content);
+                }
+            }
+            if ($engine !== null) {
+                if (preg_match("/(['\"]engine['\"]\s*=>\s*)['\"][^'\"]*['\"]/", $content)) {
+                    $content = preg_replace("/(['\"]engine['\"]\s*=>\s*)['\"][^'\"]*['\"]/", "\${1}'{$engine}'", $content);
+                } else {
+                    $content = preg_replace("/(['\"]rembg['\"]\s*=>\s*\[)/", "\${1}\n        'engine' => '{$engine}',", $content);
                 }
             }
             @file_put_contents($configFile, $content);
@@ -155,8 +185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$serviceMessage) {
-        if ($gpuMode === 'gpu') {
-            $serviceMessage = 'AI抠图已即时切换为 GPU 硬件加速';
+        if (in_array($gpuMode, ['cuda', 'directml'], true)) {
+            $serviceMessage = '所选 GPU provider 当前不可用，未切换设备';
         } elseif ($threads !== null) {
             $serviceMessage = "AI抠图已即时切换为 CPU {$threads} 核心并行计算";
         } else {
@@ -164,12 +194,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // An explicit GPU selection is valid only when the resident service
+    // acknowledges the provider. Restore the previous file if the runtime
+    // rejected it, so the next restart cannot silently use another device.
+    if (in_array($gpuMode, ['cuda', 'directml'], true) && !$serviceUpdated) {
+        if (is_array($previousConfig)) {
+            try {
+                ConfigurationService::getInstance()->update($previousConfig);
+                $configUpdated = false;
+            } catch (\Throwable $e) {
+                // Keep the original error response; no alternate device is used.
+            }
+        }
+        http_response_code(422);
+    }
+
+    $applied = $serviceUpdated || ($gpuMode === null && $configUpdated);
     echo json_encode([
-        'success' => true,
+        'success' => $applied,
         'gpu_mode' => $gpuMode,
         'threads' => $threads,
+        'engine' => $engine,
         'config_updated' => $configUpdated,
         'service_updated' => $serviceUpdated,
+        'applied' => $applied,
         'message' => $serviceMessage,
     ], JSON_UNESCAPED_UNICODE);
     exit;

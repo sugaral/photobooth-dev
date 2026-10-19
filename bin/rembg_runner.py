@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """Photobooth CLI matting runner for BiRefNet and RMBG-2.0."""
+try:
+    from ai_runtime import use_project_runtime
+except ImportError:
+    from bin.ai_runtime import use_project_runtime
+if __name__ == '__main__':
+    use_project_runtime()
+
 import sys
 import argparse
 import json
@@ -11,7 +18,7 @@ except ImportError:
 
 
 def process_matting(input_path, output_path, template_path=None, engine=DEFAULT_ENGINE, auto_fallback=True, template_scale=1.0, offset_x=0.0, offset_y=0.0, person_scale=1.0, person_offset_x=0.0, person_offset_y=0.0, threads=None):
-    manager = MattingEngineManager(default_engine=engine, prefer_cpu=True, threads=threads)
+    manager = MattingEngineManager(default_engine=engine, prefer_cpu=None, threads=threads)
     return process_with_manager(
         manager, input_path, output_path, template_path, engine, auto_fallback,
         template_scale=template_scale, offset_x=offset_x, offset_y=offset_y,

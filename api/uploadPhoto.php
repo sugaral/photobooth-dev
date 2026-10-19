@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /** @var array $config */
 
@@ -8,6 +8,7 @@ use Photobooth\Enum\FolderEnum;
 use Photobooth\Image;
 use Photobooth\Service\DatabaseManagerService;
 use Photobooth\Service\LoggerService;
+use Photobooth\Service\CompositeSaveService;
 
 header('Content-Type: application/json');
 
@@ -23,6 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
     exit;
 }
+
+checkCsrfOrFail($_POST);
 
 if (!isset($_FILES['photo'])) {
     echo json_encode(['success' => false, 'error' => '未接收到上传的图片文件']);
@@ -55,14 +58,50 @@ if (!in_array($extension, $allowedExtensions)) {
     exit;
 }
 
+$journal = null;
+$temporaryFiles = [];
 try {
+    // Reject oversized/invalid inputs before allocating a decoded GD image.
+    $dimensions = @getimagesize($file['tmp_name']);
+    if (!$dimensions || !in_array($dimensions[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
+        throw new \InvalidArgumentException('图片内容格式无效');
+    }
+    if ($file['size'] > 32 * 1024 * 1024 || $dimensions[0] > 12000 || $dimensions[1] > 12000 || $dimensions[0] * $dimensions[1] > 24000000) {
+        throw new \InvalidArgumentException('图片超过限制：最大 32 MB、2400 万像素、单边 12000 像素');
+    }
     $imageHandler = new Image();
     $database = DatabaseManagerService::getInstance();
 
     $naming = $config['picture']['naming'] ?? 'dateformatted';
-    $imageNewName = Image::createNewFilename($naming, '.jpg');
+    $imageNewName = pathinfo(Image::createNewFilename($naming, '.jpg'), PATHINFO_FILENAME) . '_' . bin2hex(random_bytes(8)) . '.jpg';
+    $saveId = (string)($_POST['composite_save_id'] ?? '');
+    if ($saveId !== '') {
+        // boot.php selects a private session directory outside the document root.
+        $journalDirectory = realpath(session_save_path());
+        $publicRoot = realpath(dirname(__DIR__));
+        if (!$journalDirectory || str_starts_with(strtolower($journalDirectory . DIRECTORY_SEPARATOR), strtolower($publicRoot . DIRECTORY_SEPARATOR))) {
+            throw new \RuntimeException('合成保存记录目录必须位于网站根目录之外');
+        }
+        $journal = new CompositeSaveService($journalDirectory . DIRECTORY_SEPARATOR . 'composite-' . hash('sha256', $publicRoot) . '.sqlite');
+        $owner = hash('sha256', session_id());
+        $record = $journal->begin($owner, $saveId, hash_file('sha256', $file['tmp_name']));
+        $imageNewName = $record['filename'];
+        if ($record['completed']) {
+            if (!is_file(FolderEnum::IMAGES->absolute() . DIRECTORY_SEPARATOR . $imageNewName)) {
+                throw new \DomainException('已保存成片已被删除，请重新编辑后保存');
+            }
+            $journal->complete($owner, $saveId);
+            echo json_encode(['success' => true, 'file' => $imageNewName, 'replayed' => true]);
+            exit;
+        }
+    }
     $filename_photo = FolderEnum::IMAGES->absolute() . DIRECTORY_SEPARATOR . $imageNewName;
     $filename_thumb = FolderEnum::THUMBS->absolute() . DIRECTORY_SEPARATOR . $imageNewName;
+    $photoPart = tempnam(FolderEnum::IMAGES->absolute(), '.upload-');
+    if ($photoPart) $temporaryFiles[] = $photoPart;
+    $thumbPart = tempnam(FolderEnum::THUMBS->absolute(), '.upload-');
+    if ($thumbPart) $temporaryFiles[] = $thumbPart;
+    if (!$photoPart || !$thumbPart) throw new \RuntimeException('无法创建临时照片文件');
 
     // Load uploaded image into GD
     $imageResource = $imageHandler->createFromImage($file['tmp_name']);
@@ -94,7 +133,7 @@ try {
     // If image exceeds 4K max dimension (e.g. 28MP Pexels photo 4314x6471), downscale smoothly
     // to preserve studio quality while keeping subsequent AI matting and filter effects ultra-fast
     $maxDimension = 3840;
-    if ($width > $maxDimension || $height > $maxDimension) {
+    if ($saveId === '' && ($width > $maxDimension || $height > $maxDimension)) {
         $scale = min($maxDimension / $width, $maxDimension / $height);
         $targetWidth = (int)round($width * $scale);
         $targetHeight = (int)round($height * $scale);
@@ -122,16 +161,19 @@ try {
     $thumbResource = $imageHandler->resizeImage($imageResource, $thumb_size);
     if ($thumbResource instanceof \GdImage) {
         $imageHandler->jpegQuality = $config['jpeg_quality']['thumb'] ?? 60;
-        $imageHandler->saveJpeg($thumbResource, $filename_thumb);
+        if (!$imageHandler->saveJpeg($thumbResource, $thumbPart)) throw new \RuntimeException('缩略图保存失败');
         imagedestroy($thumbResource);
-    }
+    } else throw new \RuntimeException('缩略图生成失败');
 
     // Save main photo
     $imageHandler->jpegQuality = $config['jpeg_quality']['image'] ?? 100;
-    if (!$imageHandler->saveJpeg($imageResource, $filename_photo)) {
+    if (!$imageHandler->saveJpeg($imageResource, $photoPart)) {
         throw new \Exception('Failed to save photo.');
     }
     imagedestroy($imageResource);
+    if (!rename($thumbPart, $filename_thumb) || !rename($photoPart, $filename_photo)) {
+        throw new \RuntimeException('无法发布成片，请重试');
+    }
 
     // Set permissions
     $picture_permissions = $config['picture']['permissions'] ?? '0644';
@@ -141,6 +183,7 @@ try {
     if ($config['database']['enabled']) {
         $database->appendContentToDB($imageNewName);
     }
+    if ($journal) $journal->complete($owner, $saveId);
 
     echo json_encode([
         'success' => true,
@@ -149,6 +192,11 @@ try {
     ]);
     exit;
 } catch (\Throwable $e) {
+    if ($journal) $journal->rollback();
+    foreach ($temporaryFiles as $temporaryFile) {
+        if (is_file($temporaryFile)) @unlink($temporaryFile);
+    }
+    http_response_code($e instanceof \DomainException ? 409 : ($e instanceof \InvalidArgumentException ? 422 : 500));
     $logger->error('uploadPhoto error: ' . $e->getMessage());
     echo json_encode([
         'success' => false,

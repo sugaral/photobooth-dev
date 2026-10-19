@@ -98,9 +98,16 @@ if ($config['ui']['selfie_mode']) {
 ?>
 
 <script src="<?=$assetService->getUrl('resources/js/preview.js')?>"></script>
+<script src="<?=$assetService->getUrl('resources/js/faceBeautyTracker.js')?>"></script>
 <script src="<?=$assetService->getUrl('resources/js/virtualKeyboard.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/screensaver.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/beautyGl.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/editor-catalog.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/editor-stickers.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/edit-session.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/composite-renderer.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/core.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/editor-ui.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/rembg.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/beauty.js')?>"></script>
 

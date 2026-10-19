@@ -1207,5 +1207,11 @@
     "viewer_photo_title": "Your photo",
     "viewer_video_fallback": "Your browser can’t play this video.",
     "wait_message": "Please wait...",
-    "beauty": "AI Beauty"
+    "beauty": "AI Beauty",
+    "beauty:beauty_enabled": "Enable AI Beauty",
+    "beauty:beauty_auto_apply": "Auto apply default beauty retouch after capture",
+    "beauty:beauty_default_eye": "Default eye enlarge",
+    "beauty:beauty_default_slim": "Default face slimming",
+    "beauty:beauty_default_smooth": "Default skin smoothing",
+    "beauty:beauty_default_white": "Default skin whitening"
 }

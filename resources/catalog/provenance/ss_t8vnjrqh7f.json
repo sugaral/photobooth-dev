@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Kristin Hardwick",
+    "creator": {
+      "@type": "Person",
+      "name": "Kristin Hardwick"
+    },
+    "copyrightNotice": "Kristin Hardwick",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/black-portrait_T8VNJRQH7F.jpg",
+    "name": "Free photo of black portrait",
+    "creditText": "Free photo of black portrait downloaded from https://stocksnap.io/photo/black-portrait-T8VNJRQH7F",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/black-portrait-T8VNJRQH7F",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/black-portrait_T8VNJRQH7F.jpg"
+    },
+    "description": "Free stock photo of black portrait on StockSnap.",
+    "caption": "Download free stock photo of black portrait on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/black-portrait-T8VNJRQH7F",
+  "retrieved_at": "2026-10-18T09:40:11.678949+00:00"
+}

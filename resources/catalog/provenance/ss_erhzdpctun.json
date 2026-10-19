@@ -1,0 +1,27 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org/",
+    "@type": "ImageObject",
+    "author": "Candace McDaniel",
+    "creator": {
+      "@type": "Person",
+      "name": "Candace McDaniel"
+    },
+    "copyrightNotice": "Candace McDaniel",
+    "contentUrl": "https://cdn.stocksnap.io/img-thumbs/960w/person-teenage_ERHZDPCTUN.jpg",
+    "name": "Free photo of person teenage",
+    "creditText": "Free photo of person teenage downloaded from https://stocksnap.io/photo/person-teenage-ERHZDPCTUN",
+    "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "acquireLicensePage": "https://stocksnap.io/photo/person-teenage-ERHZDPCTUN",
+    "isAccessibleForFree": true,
+    "representativeOfPage": true,
+    "thumbnail": {
+      "@type": "ImageObject",
+      "url": "https://cdn.stocksnap.io/img-thumbs/280h/person-teenage_ERHZDPCTUN.jpg"
+    },
+    "description": "Free stock photo of person teenage on StockSnap.",
+    "caption": "Download free stock photo of person teenage on StockSnap."
+  },
+  "source_page": "https://stocksnap.io/photo/person-teenage-ERHZDPCTUN",
+  "retrieved_at": "2026-10-18T09:40:45.092519+00:00"
+}

@@ -2,7 +2,6 @@
 
 /* exported rotaryController initRemoteBuzzerFromDOM remoteBuzzerClient */
 /* global photoBooth photoboothTools io */
-
 var remoteBuzzerClient;
 var rotaryController;
 var buttonController;

@@ -23,6 +23,18 @@ class Beauty
             return [$imageHandler, $imageResource];
         }
 
+        $eye = (float)($beautyConfig['default_eye'] ?? 0);
+        $slim = (float)($beautyConfig['default_slim'] ?? 0);
+        $smooth = (float)($beautyConfig['default_smooth'] ?? 0);
+        $white = (float)($beautyConfig['default_white'] ?? 0);
+        $rosy = (float)($beautyConfig['default_rosy'] ?? 0);
+        $clarity = (float)($beautyConfig['default_clarity'] ?? 0);
+
+        if ($eye <= 0 && $slim <= 0 && $smooth <= 0 && $white <= 0 && $rosy <= 0 && $clarity <= 0) {
+            $logger->debug('Skipped auto beauty (all parameters are 0)');
+            return [$imageHandler, $imageResource];
+        }
+
         $tempInput = tempnam(sys_get_temp_dir(), 'beauty_in_') . '.jpg';
         $tempOutput = tempnam(sys_get_temp_dir(), 'beauty_out_') . '.jpg';
 
@@ -35,12 +47,12 @@ class Beauty
             $payload = json_encode([
                 'input' => $tempInput,
                 'output' => $tempOutput,
-                'eye' => (float)($beautyConfig['default_eye'] ?? 15),
-                'slim' => (float)($beautyConfig['default_slim'] ?? 15),
-                'smooth' => (float)($beautyConfig['default_smooth'] ?? 30),
-                'white' => (float)($beautyConfig['default_white'] ?? 25),
-                'rosy' => (float)($beautyConfig['default_rosy'] ?? 20),
-                'clarity' => (float)($beautyConfig['default_clarity'] ?? 15),
+                'eye' => $eye,
+                'slim' => $slim,
+                'smooth' => $smooth,
+                'white' => $white,
+                'rosy' => $rosy,
+                'clarity' => $clarity,
                 'preview' => false,
             ]);
 
@@ -70,8 +82,15 @@ class Beauty
             if (!$fastSuccess) {
                 $script = realpath(__DIR__ . '/../bin/beauty_core.py');
                 if ($script) {
+                    $python = 'python';
+                    if (is_file(dirname(__DIR__) . '/.venv-ai/Scripts/python.exe')) {
+                        $python = dirname(__DIR__) . '/.venv-ai/Scripts/python.exe';
+                    } elseif (is_file('C:\\Users\\WS\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe')) {
+                        $python = 'C:\\Users\\WS\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe';
+                    }
                     $cmd = sprintf(
-                        'python -X utf8 %s --input %s --output %s --eye %f --slim %f --smooth %f --white %f --rosy %f --clarity %f',
+                        '%s -X utf8 %s --input %s --output %s --eye %f --slim %f --smooth %f --white %f --rosy %f --clarity %f',
+                        escapeshellarg($python),
                         escapeshellarg($script),
                         escapeshellarg($tempInput),
                         escapeshellarg($tempOutput),

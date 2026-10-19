@@ -1,0 +1,32 @@
+{
+  "json_ld": {
+    "@context": "https://schema.org",
+    "@type": "ImageObject",
+    "author": {
+      "@type": "Person",
+      "name": "Sarah Pflug"
+    },
+    "contentUrl": "https://burst.shopifycdn.com/photos/smiling-office-presentation.jpg?exif=0&iptc=0",
+    "description": "A smiling woman is presenting her flowchart on a whiteboard to her team at the office. Young leaders and entrepreneurs like her should be proud and wear a smile. ",
+    "name": "Smiling Office Presentation",
+    "license": "https://www.shopify.com/stock-photos/licenses/shopify-some-rights-reserved",
+    "acquireLicensePage": "https://www.shopify.com/stock-photos/photos/smiling-office-presentation",
+    "representativeOfPage": "true",
+    "isAccessibleForFree": "true",
+    "thumbnail": {
+      "@type": "ImageObject",
+      "contentUrl": "https://burst.shopifycdn.com/photos/smiling-office-presentation.jpg?width=150&height=150&exif=0&iptc=0"
+    },
+    "copyrightNotice": "Sarah Pflug",
+    "creator": {
+      "@type": "Person",
+      "name": "Sarah Pflug"
+    },
+    "creditText": "Photo by Sarah Pflug"
+  },
+  "source_page": "https://www.shopify.com/stock-photos/photos/smiling-office-presentation?c=woman",
+  "source_page_sha256": "080d572398a615cc7a9b29c06b05a1453d33fabd506c4abb19844dcddf9859f9",
+  "retrieved_at": "2026-10-18T12:45:05.998014+00:00",
+  "terms_sha256": "3747599a88a231d837759a270e137ae5c37d6f4fa3376a4847687e712422074f",
+  "license_page_sha256": "231357b23badff4556513aeedc9023a4483eeefa12e053ba3185dbfa41011556"
+}

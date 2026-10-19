@@ -45,6 +45,14 @@ try {
 
     $vars['style'] = $_POST['style'];
 
+    // `file` remains the output identity. `source_file` is the immutable
+    // input selected by the editor and may be a background composite or a
+    // previous beauty/filter result.
+    $vars['sourceFileName'] = basename((string)($_POST['source_file'] ?? $vars['fileName']));
+    if (!preg_match('/^[A-Za-z0-9._-]+$/', $vars['sourceFileName'])) {
+        $vars['sourceFileName'] = $vars['fileName'];
+    }
+
     $vars['imageFilter'] = null;
     if (!isset($_POST['filter'])) {
         $logger->debug('No filter provided.');
@@ -60,6 +68,7 @@ try {
 
 // Studio Dynamic Beauty & Template Matting Override
 $templateParam = isset($_POST['template']) ? trim((string)$_POST['template']) : '';
+$templateParam = preg_replace('/[?#].*$/', '', $templateParam);
 $smoothParam = isset($_POST['smooth']) && is_numeric($_POST['smooth']) ? (float)$_POST['smooth'] : null;
 $whiteParam = isset($_POST['white']) && is_numeric($_POST['white']) ? (float)$_POST['white'] : null;
 $rosyParam = isset($_POST['rosy']) && is_numeric($_POST['rosy']) ? (float)$_POST['rosy'] : null;
@@ -71,8 +80,9 @@ if ($smoothParam !== null || $whiteParam !== null || $rosyParam !== null || $cla
     if (!isset($config['beauty']) || !is_array($config['beauty'])) {
         $config['beauty'] = [];
     }
-    $config['beauty']['enabled'] = true;
-    $config['beauty']['auto_apply'] = true;
+    $hasAnyBeautyParam = (($smoothParam ?? 0) > 0 || ($whiteParam ?? 0) > 0 || ($rosyParam ?? 0) > 0 || ($clarityParam ?? 0) > 0 || ($eyeParam ?? 0) > 0 || ($slimParam ?? 0) > 0);
+    $config['beauty']['enabled'] = $hasAnyBeautyParam;
+    $config['beauty']['auto_apply'] = $hasAnyBeautyParam;
     if ($smoothParam !== null) $config['beauty']['default_smooth'] = $smoothParam;
     if ($whiteParam !== null) $config['beauty']['default_white'] = $whiteParam;
     if ($rosyParam !== null) $config['beauty']['default_rosy'] = $rosyParam;
@@ -81,7 +91,42 @@ if ($smoothParam !== null || $whiteParam !== null || $rosyParam !== null || $cla
     if ($slimParam !== null) $config['beauty']['default_slim'] = $slimParam;
 }
 
+if ((!empty($templateParam) && $templateParam !== 'none') || (!empty($config['beauty']['enabled']) && !empty($config['beauty']['auto_apply']))) {
+    try {
+        if (class_exists('Photobooth\\Service\\AiServiceLauncher')) {
+            (new \Photobooth\Service\AiServiceLauncher())->ensureReady(4.0);
+        }
+    } catch (\Throwable $e) {
+        $logger->warning('AiServiceLauncher check: ' . $e->getMessage());
+    }
+}
+
 if (!empty($templateParam) && $templateParam !== 'none') {
+    // The browser sends a public asset path, while the matting service needs a
+    // readable filesystem path. Normalize both forms before passing the value
+    // through the configuration layer.
+    $templateCandidates = [$templateParam];
+    $urlPath = parse_url($templateParam, PHP_URL_PATH);
+    if (is_string($urlPath) && $urlPath !== '') {
+        $templateCandidates[] = $urlPath;
+    }
+    $resolvedTemplate = null;
+    foreach (array_unique($templateCandidates) as $candidate) {
+        if (!is_string($candidate) || $candidate === '' || preg_match('#^https?://#i', $candidate)) {
+            continue;
+        }
+        $candidate = ltrim(rawurldecode($candidate), '/\\');
+        $absoluteCandidate = PathUtility::getAbsolutePath($candidate);
+        if (is_file($absoluteCandidate)) {
+            $resolvedTemplate = $absoluteCandidate;
+            break;
+        }
+    }
+    if ($resolvedTemplate === null) {
+        echo json_encode(['error' => '背景模板文件不存在：' . $templateParam], JSON_UNESCAPED_UNICODE);
+        die();
+    }
+    $templateParam = PathUtility::toProjectRelative($resolvedTemplate);
     if (!isset($config['rembg']) || !is_array($config['rembg'])) {
         $config['rembg'] = [];
     }
@@ -181,22 +226,34 @@ try {
         $vars['tmpFile'] = FolderEnum::TEMP->absolute() . DIRECTORY_SEPARATOR . 'proc_' . $reqToken . '_' . $vars['singleImageFile'];
         $vars['thumbFile'] = FolderEnum::THUMBS->absolute() . DIRECTORY_SEPARATOR . $vars['singleImageFile'];
 
-        $capturedImage = FolderEnum::TEMP->absolute() . DIRECTORY_SEPARATOR . $vars['singleImageFile'];
-        $existingImage = FolderEnum::IMAGES->absolute() . DIRECTORY_SEPARATOR . $vars['singleImageFile'];
+    $sourceName = $vars['sourceFileName'];
+    $capturedImage = FolderEnum::TEMP->absolute() . DIRECTORY_SEPARATOR . $sourceName;
+    $existingImage = FolderEnum::IMAGES->absolute() . DIRECTORY_SEPARATOR . $sourceName;
+    $targetCapturedImage = FolderEnum::TEMP->absolute() . DIRECTORY_SEPARATOR . $vars['singleImageFile'];
+    $targetExistingImage = FolderEnum::IMAGES->absolute() . DIRECTORY_SEPARATOR . $vars['singleImageFile'];
         if (!file_exists($vars['origBackupFile']) || filesize($vars['origBackupFile']) === 0) {
-            if (file_exists($capturedImage) && filesize($capturedImage) > 0) {
+        if (file_exists($capturedImage) && filesize($capturedImage) > 0) {
                 @copy($capturedImage, $vars['origBackupFile']);
-            } elseif (file_exists($existingImage) && filesize($existingImage) > 0) {
+        } elseif (file_exists($existingImage) && filesize($existingImage) > 0) {
                 @copy($existingImage, $vars['origBackupFile']);
             }
         }
 
-        if (file_exists($vars['origBackupFile']) && filesize($vars['origBackupFile']) > 0) {
+        // For non-chroma filter changes, always prefer the original raw capture backup
+        // so consecutive filter changes do not compound or degrade the image.
+        $isFilterChange = isset($_POST['filter']) && (!isset($_POST['style']) || $_POST['style'] !== 'chroma') && empty($_POST['is_custom_bg']);
+        if ($isFilterChange && file_exists($vars['origBackupFile']) && filesize($vars['origBackupFile']) > 0) {
             copy($vars['origBackupFile'], $vars['tmpFile']);
         } elseif (file_exists($capturedImage) && filesize($capturedImage) > 0) {
             copy($capturedImage, $vars['tmpFile']);
         } elseif (file_exists($existingImage) && filesize($existingImage) > 0) {
             copy($existingImage, $vars['tmpFile']);
+        } elseif (file_exists($vars['origBackupFile']) && filesize($vars['origBackupFile']) > 0) {
+            copy($vars['origBackupFile'], $vars['tmpFile']);
+        } elseif (file_exists($targetCapturedImage) && filesize($targetCapturedImage) > 0) {
+            copy($targetCapturedImage, $vars['tmpFile']);
+        } elseif (file_exists($targetExistingImage) && filesize($targetExistingImage) > 0) {
+            copy($targetExistingImage, $vars['tmpFile']);
         }
 
         if (!file_exists($vars['tmpFile'])) {
@@ -529,8 +586,11 @@ if (is_array($imageHandler->errorLog) && !empty($imageHandler->errorLog)) {
     $logger->error('Error', $imageHandler->errorLog);
 }
 
+$rawFileName = (isset($vars['origBackupFile']) && file_exists($vars['origBackupFile'])) ? ('orig_' . $vars['singleImageFile']) : $vars['singleImageFile'];
 $data = [
     'file' => $vars['fileName'],
+    'raw_file' => $rawFileName,
+    'raw_path' => PathUtility::getPublicPath('data/tmp/' . $rawFileName),
     'images' => $vars['srcImages'],
 ];
 $logger->debug('effects applied', $data);

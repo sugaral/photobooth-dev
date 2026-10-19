@@ -27,7 +27,7 @@ echo '
         <button type="button" class="resizer-btn" id="btnPersonScaleMinus" title="缩小人像"><i class="fa fa-minus"></i></button>
         <span class="resizer-val" id="lblPersonScaleVal">100%</span>
         <button type="button" class="resizer-btn" id="btnPersonScalePlus" title="放大人像"><i class="fa fa-plus"></i></button>
-        <button type="button" class="resizer-btn resizer-action" id="btnPersonReset" title="居中重置"><i class="fa fa-rotate-left"></i> 居中重置</button>
+        <button type="button" class="resizer-btn resizer-action" id="btnPersonReset" title="居中重置"><i class="fa fa-undo"></i> 居中重置</button>
     </div>
 
     <!-- Custom Template Interactive Resizer & Transform Controls -->
@@ -45,7 +45,7 @@ echo '
         <span class="resizer-val" id="lblBgScaleVal">100%</span>
         <button type="button" class="resizer-btn" id="btnBgScalePlus" title="放大"><i class="fa fa-plus"></i></button>
         <button type="button" class="resizer-btn resizer-action" id="btnBgScaleFit" title="铺满"><i class="fa fa-maximize"></i> 铺满</button>
-        <button type="button" class="resizer-btn resizer-action" id="btnBgScaleReset" title="重置"><i class="fa fa-rotate-left"></i> 重置</button>
+        <button type="button" class="resizer-btn resizer-action" id="btnBgScaleReset" title="重置"><i class="fa fa-undo"></i> 重置</button>
     </div>
 </div>
 
@@ -68,15 +68,84 @@ echo '
 
 echo '<div class="stage-inner">';
 
-// AI FaceSwap Floating Comparison & Control Bar
-echo '
-<div class="ai-result-control-bar" id="aiResultControlBar" style="display:none;">
-    <div class="ai-result-pill">
-        <i class="fa fa-wand-magic-sparkles"></i>
-        <span id="aiResultTemplateName">AI 魔法变身照已生成</span>
-    </div>
-</div>
+// Left Sidebar for Results Action Buttons with 3 Structured Zones
+echo '<aside class="result-sidebar buttonbar buttonbar--sidebar" id="resultSidebar">';
 
+// 1. 创作修图区 (Editing & Dressing Zone)
+echo '<div class="sidebar-section sidebar-section--edit">';
+echo '<div class="sidebar-section-title"><i class="fa fa-wand-magic-sparkles"></i> 创作修图</div>';
+echo '<div class="sidebar-section-buttons">';
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicToggleFilters" title="选择成片滤镜"><span class="button--icon fa fa-sliders"></span><span class="button--label">成片滤镜</span></button>';
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicToggleFrame" title="添加或移除潮流边框"><span class="button--icon fa fa-border-all"></span><span class="button--label">边框</span></button>';
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicAddSignature" title="添加手写签名"><span class="button--icon fa fa-signature"></span><span class="button--label">手写签名</span></button>';
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicInsertText" title="添加艺术文本"><span class="button--icon fa fa-font"></span><span class="button--label">插入文本</span></button>';
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicOpenStickers" title="添加潮流贴纸"><span class="button--icon fa fa-icons"></span><span class="button--label">贴纸</span></button>';
+echo '</div>'; // .sidebar-section-buttons
+echo '</div>'; // .sidebar-section--edit
+
+// 2. 出片交付区 (Delivery Zone: Primary Print & Proofing)
+echo '<div class="sidebar-section sidebar-section--delivery">';
+echo '<div class="sidebar-section-title"><i class="fa fa-circle-check"></i> 出片交付</div>';
+echo '<div class="sidebar-section-buttons">';
+if ($config['print']['from_result']) {
+    echo ComponentUtility::renderButton('print', $config['icons']['print'], 'printbtn primary-delivery-btn');
+}
+echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnCommercialPrintPreview" title="业务冲印成片预览"><span class="button--icon fa fa-eye"></span><span class="button--label">冲印预览</span></button>';
+if ($config['ui']['result_buttons']) {
+    if ($config['mail']['enabled']) {
+        echo ComponentUtility::renderButton('mail', $config['icons']['mail'], 'mailbtn');
+    }
+}
+echo '</div>'; // .sidebar-section-buttons
+echo '</div>'; // .sidebar-section--delivery
+
+// 3. 重拍与辅助区 (Retake & Utility Zone)
+echo '<div class="sidebar-section sidebar-section--utility">';
+echo '<div class="sidebar-section-title"><i class="fa fa-camera-rotate"></i> 快捷辅助</div>';
+echo '<div class="sidebar-section-buttons">';
+if ($config['ui']['result_buttons'] && !$config['button']['force_buzzer']) {
+    if ($config['picture']['enabled']) {
+        echo ComponentUtility::renderButton('newPhoto', $config['icons']['take_picture'], 'newpic');
+    }
+    if ($config['custom']['enabled']) {
+        echo ComponentUtility::renderButton('newCustom', $config['icons']['take_custom'], 'newcustom');
+    }
+    if ($config['video']['enabled']) {
+        echo ComponentUtility::renderButton('newVideo', $config['icons']['take_video'], 'newvideo');
+    }
+}
+if ($config['ui']['result_buttons'] && $config['gallery']['enabled']) {
+    echo ComponentUtility::renderButton('gallery', $config['icons']['gallery'], 'gallerybtn');
+}
+if ($config['button']['homescreen']) {
+    echo ComponentUtility::renderButton('home', $config['icons']['home'], 'homebtn');
+}
+if ($config['picture']['allow_delete']) {
+    echo ComponentUtility::renderButton('delete', $config['icons']['delete'], 'deletebtn');
+}
+echo '</div>'; // .sidebar-section-buttons
+echo '</div>'; // .sidebar-section--utility
+
+echo '</aside>';
+echo '
+<div class="classic-paper-spec-badge" id="classicPaperSpecBadge">
+    <div class="paper-spec-content">
+        <i class="fa fa-print"></i>
+        <span class="paper-spec-title" id="lblResultPaperTitle">6寸标准相纸 (4" × 6")</span>
+        <span class="paper-spec-divider">·</span>
+        <span class="paper-spec-sub" id="lblResultPaperDetail">300 DPI 富士晶彩冲印 · 1800×1200px</span>
+    </div>
+    <button type="button" class="paper-spec-proof-btn" id="btnHeaderPrintProof">
+        <i class="fa fa-eye"></i> 业务冲印预览
+    </button>
+</div>
+';
+echo '</div>'; // .stage-inner
+
+// Photo overlays & interactive floating components directly under .stage--result
+echo '<img id="classicFrameOverlay" class="classic-frame-overlay" src="resources/img/frames/frame.png" alt="" aria-hidden="true" style="display:none;" />';
+echo '<div class="sticker-canvas-overlay" id="stickerCanvasOverlay" style="display:none;"></div>';
+echo '
 <!-- Floating Filter Quick Bar for Classic Mode -->
 <div class="classic-filter-quickbar" id="classicFilterQuickBar" style="display:none;">
     <button type="button" class="classic-qfilter-chip active" data-filter="plain">
@@ -103,66 +172,7 @@ echo '
         <i class="fa fa-times"></i>
     </button>
 </div>
-
-<!-- Interactive Sticker Canvas Overlay on Result Page -->
-<div class="sticker-canvas-overlay" id="stickerCanvasOverlay" style="display:none;"></div>
 ';
-
-// Left Sidebar for Results Action Buttons
-echo '<aside class="result-sidebar buttonbar buttonbar--sidebar" id="resultSidebar">';
-
-if ($config['button']['homescreen']) {
-    echo ComponentUtility::renderButton('home', $config['icons']['home'], 'homebtn');
-}
-
-if ($config['ui']['result_buttons']) {
-    if (!$config['button']['force_buzzer']) {
-        if ($config['picture']['enabled']) {
-            echo ComponentUtility::renderButton('newPhoto', $config['icons']['take_picture'], 'newpic');
-        }
-        if ($config['custom']['enabled']) {
-            echo ComponentUtility::renderButton('newCustom', $config['icons']['take_custom'], 'newcustom');
-        }
-        if ($config['video']['enabled']) {
-            echo ComponentUtility::renderButton('newVideo', $config['icons']['take_video'], 'newvideo');
-        }
-    }
-}
-
-// Commercial Photobooth: Background selection is done pre-capture; hide post-capture manual cutout button
-// if (!empty($config['rembg']['enabled'])) {
-//     echo ComponentUtility::renderButton('rembg', $config['icons']['rembg'], 'rembgbtn');
-// }
-
-// AI Beauty Retouch Button
-if (!empty($config['beauty']['enabled'])) {
-    echo ComponentUtility::renderButton('beauty', $config['icons']['beauty'] ?? 'fa fa-wand-magic-sparkles', 'beautybtn');
-}
-
-if ($config['ui']['result_buttons']) {
-    if ($config['qr']['enabled']) {
-        echo ComponentUtility::renderButton('qr', $config['icons']['qr'], 'qrbtn');
-    }
-    if ($config['gallery']['enabled']) {
-        echo ComponentUtility::renderButton('gallery', $config['icons']['gallery'], 'gallerybtn');
-    }
-    if ($config['mail']['enabled']) {
-        echo ComponentUtility::renderButton('mail', $config['icons']['mail'], 'mailbtn');
-    }
-}
-
-if ($config['print']['from_result']) {
-    echo ComponentUtility::renderButton('print', $config['icons']['print'], 'printbtn');
-}
-if ($config['filters']['enabled']) {
-    echo ComponentUtility::renderButton('selectFilter', $config['icons']['filter'], 'imageFilter');
-}
-if ($config['picture']['allow_delete']) {
-    echo ComponentUtility::renderButton('delete', $config['icons']['delete'], 'deletebtn');
-}
-
-echo '</aside>';
-echo '</div>'; // .stage-inner
 echo '</div>'; // .stage--result
 
 // Right-side Drawer for AI Cutout & Background Selection (Outside stage--result for root viewport positioning)
@@ -193,7 +203,7 @@ echo '
     
     <div class="rembg-drawer-footer">
         <button type="button" class="rembg-btn-footer rembg-btn-revert" id="btnRembgRevert">
-            <i class="fa fa-rotate-left"></i>
+            <i class="fa fa-undo"></i>
             <span>还原原图</span>
         </button>
         <button type="button" class="rembg-btn-footer rembg-btn-done" id="btnRembgDone">
@@ -264,17 +274,11 @@ echo '
             </div>
         </div>
 
-        <!-- Compare Button: 按住对比原图 -->
-        <div class="beauty-compare-wrap">
-            <button type="button" class="beauty-compare-btn" id="btnBeautyCompare">
-                <i class="fa fa-eye"></i> 按住对比原图
-            </button>
-        </div>
     </div>
     
     <div class="beauty-drawer-footer">
         <button type="button" class="beauty-btn-footer beauty-btn-reset" id="btnBeautyReset">
-            <i class="fa fa-rotate-left"></i>
+            <i class="fa fa-undo"></i>
             <span>重置为默认</span>
         </button>
         <button type="button" class="beauty-btn-footer beauty-btn-done" id="btnBeautyDone">
@@ -343,6 +347,209 @@ echo '
         <button type="button" class="sticker-footer-btn sticker-btn-done" id="btnStickerSave">
             <i class="fa fa-check"></i> <span>完成装扮</span>
         </button>
+    </div>
+</div>
+
+<!-- In-page Touch Signature Modal (Replaces window.prompt) -->
+<div class="signature-drawer rotarygroup" id="signatureModal" style="display:none;" aria-hidden="true">
+    <div class="signature-drawer-header">
+        <div class="signature-drawer-title">
+            <i class="fa fa-signature"></i>
+            <span>添加个性签名与寄语</span>
+        </div>
+        <button type="button" class="signature-drawer-close-btn rotaryfocus" id="btnSignatureClose" title="关闭">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+    <div class="signature-drawer-body"></div>
+    <div class="signature-drawer-footer">
+        <button type="button" class="signature-footer-btn signature-btn-cancel" id="btnSignatureCancel">
+            <i class="fa fa-times"></i> <span>取消</span>
+        </button>
+        <button type="button" class="signature-footer-btn signature-btn-confirm" id="btnSignatureConfirm">
+            <i class="fa fa-check"></i> <span>添加到照片</span>
+        </button>
+    </div>
+</div>
+
+<!-- In-page Touch Artistic Text Modal -->
+<div class="signature-drawer rotarygroup text-drawer" id="textModal" style="display:none;" aria-hidden="true">
+    <div class="signature-drawer-header">
+        <div class="signature-drawer-title">
+            <i class="fa fa-font"></i>
+            <span>插入艺术文本 · 56 款特效字体</span>
+        </div>
+        <button type="button" class="signature-drawer-close-btn rotaryfocus" id="btnTextClose" title="关闭">
+            <i class="fa fa-times"></i>
+        </button>
+    </div>
+    <div class="text-drawer-body">
+        <!-- Text Input Row -->
+        <div class="text-input-group" style="margin-bottom:12px;">
+            <label style="font-size:13px;font-weight:bold;color:#334155;margin-bottom:4px;display:block;"><i class="fa fa-pen-to-square"></i> 输入文字内容:</label>
+            <input type="text" id="textDrawerInput" value="Happy Photobooth ✨" placeholder="输入要印在照片上的文字..." style="width:100%;box-sizing:border-box;padding:10px 14px;border:1.5px solid #cbd5e1;border-radius:12px;font-size:16px;outline:none;background:#f8fafc;color:#0f172a;" />
+        </div>
+
+        <!-- Color Row -->
+        <div class="text-color-group" style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:bold;color:#334155;"><i class="fa fa-palette"></i> 字体颜色:</span>
+                <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748b;cursor:pointer;">
+                    自定义 <input type="color" id="textColorPicker" value="#ffffff" style="width:26px;height:26px;border:none;border-radius:6px;cursor:pointer;background:none;padding:0;" />
+                </label>
+            </div>
+            <div class="text-color-swatches" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button type="button" class="text-swatch active" data-color="#ffffff" style="background:#ffffff;border:2px solid #7555cd;width:26px;height:26px;border-radius:50%;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,0.2);" title="纯白"></button>
+                <button type="button" class="text-swatch" data-color="#111827" style="background:#111827;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;" title="曜石黑"></button>
+                <button type="button" class="text-swatch" data-color="#ff007f" style="background:#ff007f;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;box-shadow:0 0 6px #ff007f;" title="荧光粉"></button>
+                <button type="button" class="text-swatch" data-color="#00f5ff" style="background:#00f5ff;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;box-shadow:0 0 6px #00f5ff;" title="霓虹青"></button>
+                <button type="button" class="text-swatch" data-color="#ffe600" style="background:#ffe600;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;box-shadow:0 0 6px #ffe600;" title="亮黄"></button>
+                <button type="button" class="text-swatch" data-color="#ef4444" style="background:#ef4444;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;" title="中国红"></button>
+                <button type="button" class="text-swatch" data-color="#8b5cf6" style="background:#8b5cf6;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;" title="梦幻紫"></button>
+                <button type="button" class="text-swatch" data-color="#eab308" style="background:#eab308;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;" title="香槟金"></button>
+                <button type="button" class="text-swatch" data-color="#10b981" style="background:#10b981;border:2px solid transparent;width:26px;height:26px;border-radius:50%;cursor:pointer;" title="薄荷绿"></button>
+            </div>
+        </div>
+
+        <!-- Font Categories Filter -->
+        <div class="text-font-cat-row" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:bold;color:#334155;"><i class="fa fa-font"></i> 选择字体样式 (实时预览):</span>
+                <span id="fontCountBadge" style="font-size:11px;color:#64748b;background:#e2e8f0;padding:2px 6px;border-radius:8px;">56 款特效字体</span>
+            </div>
+            <div class="text-font-tabs" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;">
+                <button type="button" class="text-font-tab active" data-cat="all" style="padding:4px 10px;font-size:12px;border-radius:9999px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;white-space:nowrap;">全部 (56)</button>
+                <button type="button" class="text-font-tab" data-cat="script" style="padding:4px 10px;font-size:12px;border-radius:9999px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;white-space:nowrap;">艺术手写 (15)</button>
+                <button type="button" class="text-font-tab" data-cat="retro" style="padding:4px 10px;font-size:12px;border-radius:9999px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;white-space:nowrap;">潮流复古 (14)</button>
+                <button type="button" class="text-font-tab" data-cat="cyber" style="padding:4px 10px;font-size:12px;border-radius:9999px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;white-space:nowrap;">赛博像素 (9)</button>
+                <button type="button" class="text-font-tab" data-cat="cute" style="padding:4px 10px;font-size:12px;border-radius:9999px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;white-space:nowrap;">可爱涂鸦 (18)</button>
+            </div>
+        </div>
+
+        <!-- Search Font -->
+        <div style="margin-bottom:8px;">
+            <input type="text" id="fontSearchInput" placeholder="🔍 快速搜索字体名称或风格..." style="width:100%;box-sizing:border-box;padding:6px 10px;font-size:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;outline:none;" />
+        </div>
+
+        <!-- Font List with Rich Visual Previews -->
+        <div class="text-font-list" id="textFontList" style="max-height:220px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:12px;padding:6px;background:#f8fafc;display:flex;flex-direction:column;gap:6px;">
+            <!-- Generated dynamically with live font rendering -->
+        </div>
+    </div>
+    <div class="signature-drawer-footer" style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="signature-footer-btn signature-btn-cancel" id="btnTextCancel" style="padding:8px 16px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-weight:600;color:#64748b;">
+            <i class="fa fa-times"></i> 取消
+        </button>
+        <button type="button" class="signature-footer-btn signature-btn-confirm" id="btnTextAddOnPhoto" style="padding:8px 20px;border-radius:10px;border:none;background:#7555cd;color:#fff;cursor:pointer;font-weight:700;box-shadow:0 4px 12px rgba(117,85,205,0.35);">
+            <i class="fa fa-plus"></i> <span id="btnTextActionLabel">插入文字到照片</span>
+        </button>
+    </div>
+</div>
+
+<!-- 业务打印效果预览模态框 (Commercial Print Proofing Modal) -->
+<div class="commercial-print-modal rotarygroup" id="commercialPrintModal" style="display:none;" aria-hidden="true">
+    <div class="commercial-print-backdrop" id="commercialPrintBackdrop"></div>
+    <div class="commercial-print-dialog">
+        <div class="commercial-print-header">
+            <div class="print-header-title">
+                <i class="fa fa-print"></i>
+                <div>
+                    <h3>业务打印成片效果预览</h3>
+                    <p>专业相纸质感模拟 · 3mm 出血裁切线检测 · 工业冲印交付规格</p>
+                </div>
+            </div>
+            <button type="button" class="commercial-print-close-btn" id="btnCommercialPrintClose" title="关闭预览">
+                <i class="fa fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="commercial-print-body">
+            <!-- 左侧：真实相纸排版渲染与装裱打样 -->
+            <div class="commercial-print-stage">
+                <div class="print-paper-mockup print-paper-finish--glossy" id="printPaperMockup">
+                    <!-- 出血参考线 (3mm Bleed Reference Line) -->
+                    <div class="print-bleed-guide" id="printBleedGuide">
+                        <span class="bleed-label">3mm 工业冲印出血裁切线</span>
+                    </div>
+                    <!-- 真实照片成片内容 -->
+                    <div class="print-photo-container" id="printPhotoContainer">
+                        <img id="printProofPhotoImg" src="" alt="业务冲印成片打样" />
+                    </div>
+                    <!-- 相纸底部品牌微标水印 (富士/DNP 冲印标) -->
+                    <div class="print-paper-watermark" id="printPaperWatermark">
+                        <span>FUJIFILM Quality DryLab Print · Commercial Kiosk Edition</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：冲印质感切换与工业参数 -->
+            <div class="commercial-print-controls">
+                <!-- 相纸规格 -->
+                <div class="print-control-section">
+                    <span class="pcontrol-label"><i class="fa fa-ruler-combined"></i> 交付版式规格:</span>
+                    <div class="pcontrol-spec-card">
+                        <strong id="printSpecName">6寸标准相纸 (4" × 6")</strong>
+                        <span id="printSpecDimension">102mm × 152mm (300 DPI 印刷级)</span>
+                        <span id="printSpecResolution">有效像素: 1800 × 1200 px</span>
+                    </div>
+                </div>
+
+                <!-- 相纸材质模拟 -->
+                <div class="print-control-section">
+                    <span class="pcontrol-label"><i class="fa fa-layer-group"></i> 相纸表面质感:</span>
+                    <div class="print-finish-selector">
+                        <button type="button" class="finish-chip active" data-finish="glossy">
+                            <i class="fa fa-sun"></i> 富士晶彩光面
+                        </button>
+                        <button type="button" class="finish-chip" data-finish="matte">
+                            <i class="fa fa-cloud"></i> 柯达尊爵绒面
+                        </button>
+                        <button type="button" class="finish-chip" data-finish="pearl">
+                            <i class="fa fa-gem"></i> 艺术细砂珍珠面
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 视口与辅助线 -->
+                <div class="print-control-section">
+                    <span class="pcontrol-label"><i class="fa fa-crop-simple"></i> 印前校准辅助:</span>
+                    <div class="print-toggle-row">
+                        <label class="print-toggle-label">
+                            <input type="checkbox" id="chkShowBleed" checked>
+                            <span>显示 3mm 出血裁切线 (工业冲印标准)</span>
+                        </label>
+                    </div>
+                    <div class="print-toggle-row">
+                        <label class="print-toggle-label">
+                            <input type="checkbox" id="chkShowWatermark" checked>
+                            <span>底部装裱微标 (相纸真实边框)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 打印机设备状态 -->
+                <div class="print-control-section">
+                    <span class="pcontrol-label"><i class="fa fa-microchip"></i> 冲印硬件就绪状态:</span>
+                    <div class="printer-status-box">
+                        <div class="pstatus-dot dot-online"></div>
+                        <div class="pstatus-info">
+                            <strong>工业级热升华 / 干式相纸打印机</strong>
+                            <span>DNP / FUJIFILM · 自动色温补偿就绪</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 底部操作按钮 -->
+                <div class="print-action-row">
+                    <button type="button" class="print-modal-btn print-btn-confirm" id="btnModalTriggerPrint">
+                        <i class="fa fa-print"></i> 立即送入打印机
+                    </button>
+                    <button type="button" class="print-modal-btn print-btn-back" id="btnModalBackEdit">
+                        <i class="fa fa-arrow-left"></i> 返回继续修图
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 ';
