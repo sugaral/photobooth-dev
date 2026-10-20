@@ -332,7 +332,7 @@ $classicTemplates = [
                     <div class="wb-tpl-toolbar wb-tpl-toolbar--unified">
                         <div class="ai-catalog-controls">
                             <label>性别<select id="aiSexFilter" class="ai-catalog-select"><option value="all">全部性别</option><option value="male">👔 男士专区 (Man)</option><option value="female">🌸 女士专区 (Woman)</option></select></label>
-                            <label>风格/分类<select id="aiCategoryFilter" class="ai-catalog-select"><option value="all">全部风格</option><option value="man">👔 男士专区 (全部)</option><option value="woman">🌸 女士专区 (全部)</option><?php 
+                            <label>风格/分类<select id="aiCategoryFilter" class="ai-catalog-select"><option value="all">全部风格</option><?php 
                                 $catLabels = [
                                     'hanfu' => '🌸 汉服古风',
                                     'wedding' => '💍 浪漫婚纱',
