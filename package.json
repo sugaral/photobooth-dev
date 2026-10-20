@@ -34,7 +34,7 @@
     "watch:gulp": "gulp watch",
     "watch:lint": "npm-run-all --parallel watch:gulp eslint -- --watch"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "keywords": [
     "photobooth",
     "gphoto2",

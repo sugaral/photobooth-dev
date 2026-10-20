@@ -1,5 +1,14 @@
-LICENSE NOTE
+LICENSE NOTICE & THIRD-PARTY ATTRIBUTION
 
-Once build, Photobooth incorporates several parts and optimizations that are covered by a different license which could apply to Photobooth as well.
+1. Core Project & Commercial Enhancements:
+   The Photobooth AI Commercial Edition system, including all AI microservices,
+   BiRefNet portrait matting, 6-D live face beauty engine, Korea Life4Cuts burst mode,
+   commercial 300 DPI print proofing engine, Neo-brutalism UI overhaul, and custom
+   business routing, is copyright (c) 2026 sugaral and licensed under the
+   PolyForm Noncommercial License 1.0.0 & Commercial Dual-License (see LICENSE).
 
-All dependencies include their respective LICENSE files.
+2. Third-Party Libraries & Dependencies:
+   This project incorporates open-source libraries and components that are covered
+   by their respective licenses (e.g. MIT, Apache 2.0, BSD). All dependencies
+   retain their original copyright and license terms as documented in their
+   respective source packages.

@@ -1,21 +1,57 @@
-The MIT License (MIT)
+PolyForm Noncommercial License 1.0.0 & Commercial Dual-License
+https://polyformproject.org/licenses/noncommercial/1.0.0
 
-Copyright (c) 2026 sugaral
+Copyright (c) 2026 sugaral (https://github.com/sugaral/photobooth-dev)
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+==============================================================================
+1. Purpose & Non-Commercial Grant
+==============================================================================
+Subject to the terms below, the Licensor (sugaral) grants you a non-exclusive, 
+worldwide, royalty-free, perpetual license to use, copy, modify, and distribute 
+this software and associated documentation files (the "Software") for 
+NON-COMMERCIAL PURPOSES ONLY.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+==============================================================================
+2. Commercial Use Strictly Prohibited Without Authorization
+==============================================================================
+You may NOT use, deploy, reproduce, modify, merge, publish, distribute, sublicense, 
+bundle, or sell this Software, or any derivative work thereof, for any 
+COMMERCIAL PURPOSE without a valid written commercial license from the Licensor.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+"Commercial Purpose" includes, but is not limited to:
+  a. Deploying or operating commercial self-service photo kiosks, photobooths, 
+     pop-up event booths, or paid interactive photography systems;
+  b. Bundling, pre-installing, or distributing this Software with commercial 
+     hardware, computers, enclosures, touchscreens, or camera equipment for sale or lease;
+  c. Providing commercial photo-taking, AI face-swapping, photo printing, or digital 
+     photo retrieval services to paying customers;
+  d. Offering access to the Software or its APIs as a paid service, SaaS, or commercial backend;
+  e. Developing proprietary closed-source derivatives for commercial redistribution or resale.
+
+==============================================================================
+3. Commercial Licensing
+==============================================================================
+If you wish to use, distribute, integrate, or commercialize this Software for any 
+commercial enterprise, kiosk deployment, or revenue-generating activity, you MUST 
+obtain an official commercial license directly from the author and copyright holder:
+
+Author / Copyright Holder: sugaral
+GitHub Repository: https://github.com/sugaral/photobooth-dev
+Contact: Contact sugaral via GitHub (https://github.com/sugaral) or repository issues/inquiries.
+
+==============================================================================
+4. Attribution & Notice
+==============================================================================
+You must retain this copyright notice, permission notice, and all author attribution 
+in all copies or substantial portions of the Software.
+
+==============================================================================
+5. Disclaimer of Warranties & Limitation of Liability
+==============================================================================
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT 
+HOLDER (sugaral) BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN 
+ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH 
+THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
