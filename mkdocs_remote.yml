@@ -1,9 +1,9 @@
-site_name: Photobooth Project
-site_url: https://photoboothproject.github.io/
-site_description: Photobooth Project documentation
-site_author: Photobooth Team
+site_name: Photobooth Commercial Edition
+site_url: https://github.com/sugaral/photobooth-dev
+site_description: Photobooth Commercial Edition by sugaral
+site_author: sugaral
 
-repo_url: https://github.com/PhotoboothProject/photobooth
+repo_url: https://github.com/sugaral/photobooth-dev
 edit_uri: blob/dev/docs/
 
 docs_dir: docs
