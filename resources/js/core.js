@@ -1,5 +1,6 @@
 "use strict";
 
+function _typeof2(o) { "@babel/helpers - typeof"; return _typeof2 = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof2(o); }
 function _slicedToArray(r, e) {
   return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
 }
@@ -777,8 +778,7 @@ var photoBooth = function () {
       var hasBeauty = beautyEnabled && (p.smooth > 0 || p.white > 0 || p.rosy > 0 || p.clarity > 0 || p.eye > 0 || p.slim > 0);
       var currentMode = window.sessionPhotoboothMode || window.photoboothMode || $('body').attr('data-studio-mode');
       // For ai_swap, capture the pristine raw camera frame so Inswapper extracts true identity and natural skin tone without double-whitening
-      var sourceEl = (hasBeauty && currentMode !== 'ai_swap' && beautyCanvas && beautyCanvas.width > 0 && beautyCanvas.height > 0 && $(beautyCanvas).is(':visible')) ? beautyCanvas : vid;
-
+      var sourceEl = hasBeauty && currentMode !== 'ai_swap' && beautyCanvas && beautyCanvas.width > 0 && beautyCanvas.height > 0 && $(beautyCanvas).is(':visible') ? beautyCanvas : vid;
       if (sourceEl && (sourceEl.videoWidth > 0 || sourceEl.width > 0)) {
         var w = sourceEl.videoWidth || sourceEl.width;
         var h = sourceEl.videoHeight || sourceEl.height;
@@ -1250,7 +1250,6 @@ var photoBooth = function () {
           $('#classicLoaderTicker').html('<span class="ai-ticker-step active"><i class="fa fa-camera"></i> 正在读取快门原片，准备智能精修…</span>');
         }
       }
-
       api.callTakePicApi(data, retry);
     } catch (error) {
       photoboothTools.console.log('takePic: unexpected error:', error);
@@ -1566,7 +1565,7 @@ var photoBooth = function () {
             var beautyActive = recipe.beauty && recipe.beauty.enabled !== false && recipe.beauty.auto_apply !== false;
             for (_i = 0, _arr = ['smooth', 'white', 'rosy', 'clarity', 'eye', 'slim']; _i < _arr.length; _i++) {
               key = _arr[_i];
-              data[key] = beautyActive ? ((_recipe$beauty = (_recipe$beauty2 = recipe.beauty) === null || _recipe$beauty2 === void 0 ? void 0 : _recipe$beauty2['default_' + key]) !== null && _recipe$beauty !== void 0 ? _recipe$beauty : 0) : 0;
+              data[key] = beautyActive ? (_recipe$beauty = (_recipe$beauty2 = recipe.beauty) === null || _recipe$beauty2 === void 0 ? void 0 : _recipe$beauty2['default_' + key]) !== null && _recipe$beauty !== void 0 ? _recipe$beauty : 0 : 0;
             }
             _context6.n = 1;
             return photoboothTools.ajaxWithCsrf({
@@ -1710,11 +1709,7 @@ var photoBooth = function () {
             }
 
             // Fallback for tplPath: check selectedAiTemplate, active card in grid, first card, or default
-            tplPath = (window.selectedAiTemplate && window.selectedAiTemplate.id) ||
-                      $('#studioAiTplGrid .wb-tpl-card.active').data('id') ||
-                      $('#studioAiTplGrid .wb-tpl-card').first().data('id') ||
-                      'male_hanfu_01';
-
+            tplPath = window.selectedAiTemplate && window.selectedAiTemplate.id || $('#studioAiTplGrid .wb-tpl-card.active').data('id') || $('#studioAiTplGrid .wb-tpl-card').first().data('id') || 'male_hanfu_01';
             if (!window.selectedAiTemplate) {
               var fallbackCard = $('#studioAiTplGrid .wb-tpl-card.active').first();
               if (!fallbackCard.length) fallbackCard = $('#studioAiTplGrid .wb-tpl-card').first();
@@ -1727,19 +1722,12 @@ var photoBooth = function () {
                 };
               }
             }
-
             $('#classicLoaderOverlay').removeClass('is-active').hide();
             $('#aiShuttleOverlay').addClass('is-active').show();
             var aiProgress = 12;
             $('#aiShuttleProgressBar').css('width', aiProgress + '%');
             $('#aiShuttlePercent').text(aiProgress + '%');
-            var aiSteps = [
-              '正在定位面部 5 维几何关键点…',
-              '正在提取高精度人像身份特征…',
-              '正在对齐写真姿态与面部朝向…',
-              '正在融合骨相与光影材质…',
-              '正在增强发丝质感与高分辨率成片…'
-            ];
+            var aiSteps = ['正在定位面部 5 维几何关键点…', '正在提取高精度人像身份特征…', '正在对齐写真姿态与面部朝向…', '正在融合骨相与光影材质…', '正在增强发丝质感与高分辨率成片…'];
             var aiStepIdx = 0;
             $('#aiShuttleTicker').html('<span class="ai-ticker-step active"><i class="fa fa-wand-magic-sparkles"></i> ' + aiSteps[0] + '</span>');
             clearInterval(tickerTimer);
@@ -1749,60 +1737,48 @@ var photoBooth = function () {
                 if (aiProgress > 92) aiProgress = 92;
                 $('#aiShuttleProgressBar').css('width', aiProgress + '%');
                 $('#aiShuttlePercent').text(aiProgress + '%');
-                var stepTarget = Math.min(Math.floor((aiProgress / 90) * aiSteps.length), aiSteps.length - 1);
+                var stepTarget = Math.min(Math.floor(aiProgress / 90 * aiSteps.length), aiSteps.length - 1);
                 if (stepTarget !== aiStepIdx) {
                   aiStepIdx = stepTarget;
                   $('#aiShuttleTicker').html('<span class="ai-ticker-step active"><i class="fa fa-wand-magic-sparkles"></i> ' + aiSteps[aiStepIdx] + '</span>');
                 }
               }
             }, 380);
-
             _context7.n = 8;
             break;
           case 8:
-            var showAiErrorModal = function (errMsg) {
+            var showAiErrorModal = function showAiErrorModal(errMsg) {
               photoboothTools.modal.open('error');
               var mEl = $('.modal[data-type="error"]');
               var mBody = mEl.find('.modal-body');
               mBody.empty();
-              mBody.append(
-                $('<div style="text-align:center;padding:1.2rem 0.5rem;"></div>').append(
-                  $('<div style="font-size:3.2rem;margin-bottom:0.8rem;color:#EF4444;"><i class="fa fa-triangle-exclamation"></i></div>'),
-                  $('<h3 style="font-size:1.6rem;font-weight:900;margin-bottom:0.8rem;color:#1E293B;">变身拍照提示</h3>'),
-                  $('<p style="font-size:1.15rem;margin-bottom:1.8rem;color:#475569;line-height:1.6;max-width:440px;margin-left:auto;margin-right:auto;">').text(errMsg),
-                  $('<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:1.2rem;"></div>').append(
-                    $('<button type="button" class="button" style="background:#8B5CF6;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;box-shadow:0 4px 12px rgba(139,92,246,0.35);">📸 重新拍摄</button>').on('click', function () {
-                      photoboothTools.modal.close();
-                      api.enterStudio('ai_swap');
-                      setTimeout(function () { api.thrill(PhotoStyle.PHOTO); }, 300);
-                    }),
-                    $('<button type="button" class="button" style="background:#10B981;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;box-shadow:0 4px 12px rgba(16,185,129,0.35);">🎨 更换写真模板</button>').on('click', function () {
-                      photoboothTools.modal.close();
-                      api.enterStudio('ai_swap');
-                      $('#tabBtnTemplates').trigger('click');
-                    }),
-                    $('<button type="button" class="button" style="background:#64748B;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;">🏠 返回首页</button>').on('click', function () {
-                      photoboothTools.modal.close();
-                      api.exitStudio();
-                    })
-                  )
-                )
-              );
+              mBody.append($('<div style="text-align:center;padding:1.2rem 0.5rem;"></div>').append($('<div style="font-size:3.2rem;margin-bottom:0.8rem;color:#EF4444;"><i class="fa fa-triangle-exclamation"></i></div>'), $('<h3 style="font-size:1.6rem;font-weight:900;margin-bottom:0.8rem;color:#1E293B;">变身拍照提示</h3>'), $('<p style="font-size:1.15rem;margin-bottom:1.8rem;color:#475569;line-height:1.6;max-width:440px;margin-left:auto;margin-right:auto;">').text(errMsg), $('<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:1.2rem;"></div>').append($('<button type="button" class="button" style="background:#8B5CF6;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;box-shadow:0 4px 12px rgba(139,92,246,0.35);">📸 重新拍摄</button>').on('click', function () {
+                photoboothTools.modal.close();
+                api.enterStudio('ai_swap');
+                setTimeout(function () {
+                  api.thrill(PhotoStyle.PHOTO);
+                }, 300);
+              }), $('<button type="button" class="button" style="background:#10B981;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;box-shadow:0 4px 12px rgba(16,185,129,0.35);">🎨 更换写真模板</button>').on('click', function () {
+                photoboothTools.modal.close();
+                api.enterStudio('ai_swap');
+                $('#tabBtnTemplates').trigger('click');
+              }), $('<button type="button" class="button" style="background:#64748B;color:#fff;border-radius:9999px;padding:0.75rem 1.8rem;font-weight:800;cursor:pointer;border:none;">🏠 返回首页</button>').on('click', function () {
+                photoboothTools.modal.close();
+                api.exitStudio();
+              }))));
               mEl.find('.modal-button--close').off('click').on('click', function (e) {
                 e.preventDefault();
                 photoboothTools.modal.close();
                 api.enterStudio('ai_swap');
               });
             };
-
             beautyActive = recipe.beauty && recipe.beauty.enabled !== false && recipe.beauty.auto_apply !== false;
-            bSmooth = beautyActive ? (recipe.beauty && recipe.beauty.default_smooth !== undefined ? recipe.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10)) : 0;
-            bWhite = beautyActive ? (recipe.beauty && recipe.beauty.default_white !== undefined ? recipe.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10)) : 0;
-            bRosy = beautyActive ? (recipe.beauty && recipe.beauty.default_rosy !== undefined ? recipe.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10)) : 0;
-            bClarity = beautyActive ? (recipe.beauty && recipe.beauty.default_clarity !== undefined ? recipe.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10)) : 0;
-            bEye = beautyActive ? (recipe.beauty && recipe.beauty.default_eye !== undefined ? recipe.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10)) : 0;
-            bSlim = beautyActive ? (recipe.beauty && recipe.beauty.default_slim !== undefined ? recipe.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10)) : 0;
-
+            bSmooth = beautyActive ? recipe.beauty && recipe.beauty.default_smooth !== undefined ? recipe.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10) : 0;
+            bWhite = beautyActive ? recipe.beauty && recipe.beauty.default_white !== undefined ? recipe.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10) : 0;
+            bRosy = beautyActive ? recipe.beauty && recipe.beauty.default_rosy !== undefined ? recipe.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10) : 0;
+            bClarity = beautyActive ? recipe.beauty && recipe.beauty.default_clarity !== undefined ? recipe.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10) : 0;
+            bEye = beautyActive ? recipe.beauty && recipe.beauty.default_eye !== undefined ? recipe.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10) : 0;
+            bSlim = beautyActive ? recipe.beauty && recipe.beauty.default_slim !== undefined ? recipe.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10) : 0;
             photoboothTools.ajaxWithCsrf({
               method: 'POST',
               url: environment.publicFolders.api + '/faceswapProcess.php',
@@ -1856,12 +1832,12 @@ var photoBooth = function () {
             // Classic Photobooth Pipeline: Beauty Retouching + Background Template Matting
             classicTpl = window.selectedClassicTemplate && window.selectedClassicTemplate.id && window.selectedClassicTemplate.id !== 'none' ? window.selectedClassicTemplate.image || window.selectedClassicTemplate.path || '' : '';
             beautyActive = recipe.beauty && recipe.beauty.enabled !== false && recipe.beauty.auto_apply !== false;
-            bSmooth = beautyActive ? (recipe.beauty && recipe.beauty.default_smooth !== undefined ? recipe.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10)) : 0;
-            bWhite = beautyActive ? (recipe.beauty && recipe.beauty.default_white !== undefined ? recipe.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10)) : 0;
-            bRosy = beautyActive ? (recipe.beauty && recipe.beauty.default_rosy !== undefined ? recipe.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10)) : 0;
-            bClarity = beautyActive ? (recipe.beauty && recipe.beauty.default_clarity !== undefined ? recipe.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10)) : 0;
-            bEye = beautyActive ? (recipe.beauty && recipe.beauty.default_eye !== undefined ? recipe.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10)) : 0;
-            bSlim = beautyActive ? (recipe.beauty && recipe.beauty.default_slim !== undefined ? recipe.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10)) : 0;
+            bSmooth = beautyActive ? recipe.beauty && recipe.beauty.default_smooth !== undefined ? recipe.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10) : 0;
+            bWhite = beautyActive ? recipe.beauty && recipe.beauty.default_white !== undefined ? recipe.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10) : 0;
+            bRosy = beautyActive ? recipe.beauty && recipe.beauty.default_rosy !== undefined ? recipe.beauty.default_rosy : parseInt($('#studioRosySlider').val() || 20, 10) : 0;
+            bClarity = beautyActive ? recipe.beauty && recipe.beauty.default_clarity !== undefined ? recipe.beauty.default_clarity : parseInt($('#studioClaritySlider').val() || 15, 10) : 0;
+            bEye = beautyActive ? recipe.beauty && recipe.beauty.default_eye !== undefined ? recipe.beauty.default_eye : parseInt($('#studioEyeSlider').val() || 15, 10) : 0;
+            bSlim = beautyActive ? recipe.beauty && recipe.beauty.default_slim !== undefined ? recipe.beauty.default_slim : parseInt($('#studioSlimSlider').val() || 15, 10) : 0;
             $('#aiShuttleOverlay').removeClass('is-active').hide();
             $('#classicLoaderOverlay').addClass('is-active').show();
             var cProgress = Math.max(parseInt($('#classicProgressBar').css('width'), 10) || 15, 15);
@@ -2177,6 +2153,13 @@ var photoBooth = function () {
     if (resultPage[0]) resultPage[0].style.setProperty('--stage-result-filter', 'none');
     resultPage.css('--stage-result-filter', 'none');
     resultPage.removeClass(allFilterClasses);
+    resultPage.removeClass('has-classic-frame');
+    if (resultPage[0]) {
+      resultPage[0].style.removeProperty('--stage-frame-inner-left');
+      resultPage[0].style.removeProperty('--stage-frame-inner-top');
+      resultPage[0].style.removeProperty('--stage-frame-inner-width');
+      resultPage[0].style.removeProperty('--stage-frame-inner-height');
+    }
     $('#classicFrameOverlay').hide().css('visibility', '');
     $('#stickerCanvasOverlay').empty().css('visibility', '');
     $('.classic-result-action').removeClass('active');
@@ -3256,12 +3239,12 @@ var photoBooth = function () {
   var liveBeautyRaf = null;
   var initBeautyActive = config.beauty && config.beauty.enabled !== false && config.beauty.auto_apply !== false;
   var liveBeautyParams = {
-    smooth: initBeautyActive ? (config.beauty.default_smooth !== undefined ? config.beauty.default_smooth : 20) : 0,
-    white: initBeautyActive ? (config.beauty.default_white !== undefined ? config.beauty.default_white : 15) : 0,
-    rosy: initBeautyActive ? (config.beauty.default_rosy !== undefined ? config.beauty.default_rosy : 20) : 0,
-    clarity: initBeautyActive ? (config.beauty.default_clarity !== undefined ? config.beauty.default_clarity : 15) : 0,
-    eye: initBeautyActive ? (config.beauty.default_eye !== undefined ? config.beauty.default_eye : 15) : 0,
-    slim: initBeautyActive ? (config.beauty.default_slim !== undefined ? config.beauty.default_slim : 15) : 0,
+    smooth: initBeautyActive ? config.beauty.default_smooth !== undefined ? config.beauty.default_smooth : 20 : 0,
+    white: initBeautyActive ? config.beauty.default_white !== undefined ? config.beauty.default_white : 15 : 0,
+    rosy: initBeautyActive ? config.beauty.default_rosy !== undefined ? config.beauty.default_rosy : 20 : 0,
+    clarity: initBeautyActive ? config.beauty.default_clarity !== undefined ? config.beauty.default_clarity : 15 : 0,
+    eye: initBeautyActive ? config.beauty.default_eye !== undefined ? config.beauty.default_eye : 15 : 0,
+    slim: initBeautyActive ? config.beauty.default_slim !== undefined ? config.beauty.default_slim : 15 : 0,
     baseFilter: ''
   };
   var beautyGlInitialized = false;
@@ -3340,7 +3323,7 @@ var photoBooth = function () {
     }
   };
   api.applyStudioBeautyPreview = function () {
-    var bCfg = (window.config && window.config.beauty) || (typeof config !== 'undefined' && config.beauty) || {};
+    var bCfg = window.config && window.config.beauty || typeof config !== 'undefined' && config.beauty || {};
     var beautyEnabled = bCfg.enabled !== false;
     var autoApply = beautyEnabled && bCfg.auto_apply !== false;
     var defSmooth = bCfg.default_smooth !== undefined ? bCfg.default_smooth : 20;
@@ -3349,18 +3332,15 @@ var photoBooth = function () {
     var defClarity = bCfg.default_clarity !== undefined ? bCfg.default_clarity : 15;
     var defEye = bCfg.default_eye !== undefined ? bCfg.default_eye : 15;
     var defSlim = bCfg.default_slim !== undefined ? bCfg.default_slim : 15;
-
-    var smooth = beautyEnabled ? ($('#studioSmoothSlider').length ? parseInt($('#studioSmoothSlider').val(), 10) : defSmooth) : 0;
-    var white = beautyEnabled ? ($('#studioWhiteSlider').length ? parseInt($('#studioWhiteSlider').val(), 10) : defWhite) : 0;
-    var rosy = beautyEnabled ? ($('#studioRosySlider').length ? parseInt($('#studioRosySlider').val(), 10) : defRosy) : 0;
-    var clarity = beautyEnabled ? ($('#studioClaritySlider').length ? parseInt($('#studioClaritySlider').val(), 10) : defClarity) : 0;
-    var eye = beautyEnabled ? ($('#studioEyeSlider').length ? parseInt($('#studioEyeSlider').val(), 10) : defEye) : 0;
-    var slim = beautyEnabled ? ($('#studioSlimSlider').length ? parseInt($('#studioSlimSlider').val(), 10) : defSlim) : 0;
-
+    var smooth = beautyEnabled ? $('#studioSmoothSlider').length ? parseInt($('#studioSmoothSlider').val(), 10) : defSmooth : 0;
+    var white = beautyEnabled ? $('#studioWhiteSlider').length ? parseInt($('#studioWhiteSlider').val(), 10) : defWhite : 0;
+    var rosy = beautyEnabled ? $('#studioRosySlider').length ? parseInt($('#studioRosySlider').val(), 10) : defRosy : 0;
+    var clarity = beautyEnabled ? $('#studioClaritySlider').length ? parseInt($('#studioClaritySlider').val(), 10) : defClarity : 0;
+    var eye = beautyEnabled ? $('#studioEyeSlider').length ? parseInt($('#studioEyeSlider').val(), 10) : defEye : 0;
+    var slim = beautyEnabled ? $('#studioSlimSlider').length ? parseInt($('#studioSlimSlider').val(), 10) : defSlim : 0;
     var studioSliders = $('#studioSmoothSlider, #studioWhiteSlider, #studioRosySlider, #studioClaritySlider, #studioEyeSlider, #studioSlimSlider');
     var studioPresets = $('.wb-preset-pill, #btnResetStudioBeauty');
     var beautySection = $('.wb-section--beauty');
-
     if (!beautyEnabled) {
       studioSliders.prop('disabled', true);
       studioPresets.prop('disabled', true);
@@ -3394,15 +3374,14 @@ var photoBooth = function () {
     } else if (smooth === 40 && white === 45 && rosy === 10 && clarity === 30 && eye === 15 && slim === 25) {
       $('.wb-preset-pill[data-preset="cool"]').addClass('active');
     }
-
-    if (typeof window.config === 'object' && window.config !== null) {
+    if (_typeof2(window.config) === 'object' && window.config !== null) {
       window.config.beauty = window.config.beauty || {};
     }
-    if (typeof config === 'object' && config !== null) {
+    if ((typeof config === "undefined" ? "undefined" : _typeof2(config)) === 'object' && config !== null) {
       config.beauty = config.beauty || {};
     }
     if (beautyEnabled) {
-      if (typeof config === 'object' && config !== null) {
+      if ((typeof config === "undefined" ? "undefined" : _typeof2(config)) === 'object' && config !== null) {
         config.beauty.default_smooth = smooth;
         config.beauty.default_white = white;
         config.beauty.default_rosy = rosy;
@@ -3606,39 +3585,25 @@ var photoBooth = function () {
       category = ($('#aiCategoryFilter').val() || 'all').toLowerCase(),
       age = ($('#aiAgeFilter').val() || 'all').toLowerCase();
     var count = 0;
-
     $('#studioAiTplGrid .wb-tpl-card').each(function () {
       var cardSex = (this.dataset.sex || 'unisex').toLowerCase();
       var cardCat = (this.dataset.cat || 'custom').toLowerCase();
       var cardAge = (this.dataset.age || 'unspecified').toLowerCase();
-
-      var isCardMale = (cardSex === 'male' || cardSex === 'man');
-      var isCardFemale = (cardSex === 'female' || cardSex === 'woman');
+      var isCardMale = cardSex === 'male' || cardSex === 'man';
+      var isCardFemale = cardSex === 'female' || cardSex === 'woman';
 
       // Gender filter matching
-      var matchSex = (sex === 'all')
-        || (sex === 'male' && isCardMale)
-        || (sex === 'man' && isCardMale)
-        || (sex === 'female' && isCardFemale)
-        || (sex === 'woman' && isCardFemale)
-        || (cardSex === 'unisex');
+      var matchSex = sex === 'all' || sex === 'male' && isCardMale || sex === 'man' && isCardMale || sex === 'female' && isCardFemale || sex === 'woman' && isCardFemale || cardSex === 'unisex';
 
       // Category filter matching (also supports direct male/female category selection)
-      var matchCat = (category === 'all')
-        || (cardCat === category)
-        || (category === 'male' && isCardMale)
-        || (category === 'man' && isCardMale)
-        || (category === 'female' && isCardFemale)
-        || (category === 'woman' && isCardFemale);
+      var matchCat = category === 'all' || cardCat === category || category === 'male' && isCardMale || category === 'man' && isCardMale || category === 'female' && isCardFemale || category === 'woman' && isCardFemale;
 
       // Age filter matching
-      var matchAge = (age === 'all' || cardAge === age || cardAge === 'unspecified');
-
+      var matchAge = age === 'all' || cardAge === age || cardAge === 'unspecified';
       var visible = matchSex && matchCat && matchAge;
       $(this).toggle(visible);
       if (visible) count++;
     });
-
     $('#aiTemplateCount').text(count + ' 张模板');
     $('#aiTemplateEmpty').prop('hidden', count > 0);
 
@@ -3682,55 +3647,46 @@ var photoBooth = function () {
     var activeSex = $('.ai-sex-tab.active').data('sex') || 'all';
     var activeCat = $('.ai-cat-tab.active').data('category') || 'all';
     var count = 0;
-
     $('#aiTemplateGrid .ai-template-card').each(function () {
       var cardSex = $(this).data('sex') || 'unisex';
       var cardCat = $(this).data('category') || 'custom';
-      var matchSex = (activeSex === 'all' || cardSex === activeSex || cardSex === 'unisex');
-      var matchCat = (activeCat === 'all' || cardCat === activeCat);
-
+      var matchSex = activeSex === 'all' || cardSex === activeSex || cardSex === 'unisex';
+      var matchCat = activeCat === 'all' || cardCat === activeCat;
       var visible = matchSex && matchCat;
       $(this).toggle(visible);
       if (visible) count++;
     });
-
     if (count === 0) {
       $('#aiTemplateModalEmpty').show();
     } else {
       $('#aiTemplateModalEmpty').hide();
     }
   };
-
   $(document).on('click', '.ai-sex-tab', function (e) {
     e.preventDefault();
     $('.ai-sex-tab').removeClass('active');
     $(this).addClass('active');
     api.filterAiModalTemplates();
   });
-
   $(document).on('click', '.ai-cat-tab:not(.ai-cat-tab--upload)', function (e) {
     e.preventDefault();
     $('.ai-cat-tab').removeClass('active');
     $(this).addClass('active');
     api.filterAiModalTemplates();
   });
-
   $(document).on('click', '#aiTemplateGrid .ai-template-card', function (e) {
     e.preventDefault();
     $('#aiTemplateGrid .ai-template-card').removeClass('active');
     $(this).addClass('active');
-
     var tplId = $(this).data('id');
     var tplTitle = $(this).data('title');
     var tplImage = $(this).data('image') || $(this).find('.ai-tpl-thumb').attr('src');
-
     window.selectedAiTemplate = {
       id: tplId,
       title: tplTitle,
       image: tplImage,
       path: tplImage
     };
-
     $('#aiCurrentTemplateName').text(tplTitle);
     if (tplImage) {
       $('#aiCurrentTemplateThumb').attr('src', tplImage).show();
@@ -3744,7 +3700,6 @@ var photoBooth = function () {
     $('#studioAiTplGrid .wb-tpl-card').removeClass('active');
     $('#studioAiTplGrid .wb-tpl-card[data-id="' + tplId + '"]').addClass('active');
   });
-
   $(document).on('click', '#btnAiTemplateConfirm', function (e) {
     e.preventDefault();
     if (!window.selectedAiTemplate) {
@@ -3760,7 +3715,6 @@ var photoBooth = function () {
       api.enterStudio('ai_swap');
     });
   });
-
   $(document).on('click', '#btnAiTemplateClose, #btnAiTemplateBack, #aiTemplateBackdrop', function (e) {
     e.preventDefault();
     $('#aiTemplateModal').fadeOut(150);
@@ -3998,7 +3952,7 @@ var photoBooth = function () {
     if (id) overlay.attr('src', window.PhotoboothCatalog.svgUrl(window.PhotoboothCatalog.frameSvg(id, baseImageSize.width, baseImageSize.height)));
     api.frameId = id || null;
     overlay.toggle(!!id).css('visibility', '');
-    $('#btnClassicToggleFrame').toggleClass('active', !!id);
+    resultPage.toggleClass('has-classic-frame', !!id);
     $('[data-frame]').each(function () {
       $(this).toggleClass('active', (this.dataset.frame || null) === api.frameId);
     });
@@ -4178,6 +4132,28 @@ var photoBooth = function () {
     }
     frame.style.setProperty('right', 'auto', 'important');
     frame.style.setProperty('bottom', 'auto', 'important');
+    if (api.frameId && window.PhotoboothCatalog && typeof window.PhotoboothCatalog.frameGeometry === 'function') {
+      var geom = window.PhotoboothCatalog.frameGeometry(api.frameId, baseImageSize.width, baseImageSize.height);
+      var scaleX = photo.width / baseImageSize.width;
+      var scaleY = photo.height / baseImageSize.height;
+      var innerLeft = photo.left - stage.left + geom.innerX * scaleX;
+      var innerTop = photo.top - stage.top + geom.innerY * scaleY;
+      var innerW = geom.innerWidth * scaleX;
+      var innerH = geom.innerHeight * scaleY;
+      resultPage[0].style.setProperty('--stage-frame-inner-left', innerLeft + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-top', innerTop + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-width', innerW + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-height', innerH + 'px');
+      resultPage.addClass('has-classic-frame');
+    } else {
+      resultPage.removeClass('has-classic-frame');
+      if (resultPage[0]) {
+        resultPage[0].style.removeProperty('--stage-frame-inner-left');
+        resultPage[0].style.removeProperty('--stage-frame-inner-top');
+        resultPage[0].style.removeProperty('--stage-frame-inner-width');
+        resultPage[0].style.removeProperty('--stage-frame-inner-height');
+      }
+    }
     document.getElementById('stickerCanvasOverlay').style.clipPath = 'inset(' + (photo.top - overlay.top) + 'px ' + (overlay.right - photo.left - photo.width) + 'px ' + (overlay.bottom - photo.top - photo.height) + 'px ' + (photo.left - overlay.left) + 'px)';
     var layers = editHistory.present && editHistory.present.stickers || [];
     $('#stickerCanvasOverlay .placed-sticker').each(function (index) {
@@ -4437,6 +4413,7 @@ var photoBooth = function () {
       baseUrl: environment.publicFolders.images + '/' + state.base,
       filterCss: filterCssMap[state.filter] || 'none',
       frameUrl: state.frame ? window.PhotoboothCatalog.svgUrl(window.PhotoboothCatalog.frameSvg(state.frame, baseImageSize.width, baseImageSize.height)) : null,
+      frame: state.frame,
       previewHeight: photo.height,
       layers: state.stickers
     };

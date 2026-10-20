@@ -145,35 +145,18 @@ echo '</div>'; // .stage-inner
 // Photo overlays & interactive floating components directly under .stage--result
 echo '<img id="classicFrameOverlay" class="classic-frame-overlay" src="resources/img/frames/frame.png" alt="" aria-hidden="true" style="display:none;" />';
 echo '<div class="sticker-canvas-overlay" id="stickerCanvasOverlay" style="display:none;"></div>';
+echo '</div>'; // .stage--result
+
+// Filter Selection Drawer (Outside stage--result for root viewport positioning)
 echo '
-<!-- Floating Filter Quick Bar for Classic Mode -->
-<div class="classic-filter-quickbar" id="classicFilterQuickBar" style="display:none;">
-    <button type="button" class="classic-qfilter-chip active" data-filter="plain">
-        <span class="qfilter-preview qfilter-plain"></span>
-        <span class="qfilter-name">原画纯净</span>
-    </button>
-    <button type="button" class="classic-qfilter-chip" data-filter="cool">
-        <span class="qfilter-preview qfilter-cool"></span>
-        <span class="qfilter-name">韩系冷白</span>
-    </button>
-    <button type="button" class="classic-qfilter-chip" data-filter="grayscale">
-        <span class="qfilter-preview qfilter-grayscale"></span>
-        <span class="qfilter-name">黑白经典</span>
-    </button>
-    <button type="button" class="classic-qfilter-chip" data-filter="vintage">
-        <span class="qfilter-preview qfilter-vintage"></span>
-        <span class="qfilter-name">复古胶片</span>
-    </button>
-    <button type="button" class="classic-qfilter-chip" data-filter="washed">
-        <span class="qfilter-preview qfilter-washed"></span>
-        <span class="qfilter-name">奶油日系</span>
-    </button>
-    <button type="button" class="classic-qfilter-close" id="btnClassicFilterClose" title="关闭滤镜选单">
-        <i class="fa fa-times"></i>
-    </button>
+<div class="editor-drawer classic-filter-drawer rotarygroup" id="classicFilterQuickBar" style="display:none;" aria-hidden="true">
+    <div class="editor-drawer-heading">
+        <h2><i class="fa fa-sliders"></i> 滤镜 · 36 款</h2>
+        <button type="button" id="btnClassicFilterClose" class="rotaryfocus" aria-label="关闭滤镜">×</button>
+    </div>
+    <div class="editor-filter-grid"></div>
 </div>
 ';
-echo '</div>'; // .stage--result
 
 // Right-side Drawer for AI Cutout & Background Selection (Outside stage--result for root viewport positioning)
 echo '
@@ -432,7 +415,7 @@ echo '
         </div>
 
         <!-- Font List with Rich Visual Previews -->
-        <div class="text-font-list" id="textFontList" style="max-height:220px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:12px;padding:6px;background:#f8fafc;display:flex;flex-direction:column;gap:6px;">
+        <div class="text-font-list" id="textFontList" style="overflow-y:auto;border:1px solid #e2e8f0;border-radius:12px;padding:6px;background:#f8fafc;display:flex;flex-direction:column;gap:6px;">
             <!-- Generated dynamically with live font rendering -->
         </div>
     </div>

@@ -37,10 +37,15 @@ return [
     ],
     'sound' => [
         'enabled' => true,
+        'cheese_enabled' => false,
         'voice' => 'woman',
     ],
     'beauty' => [
-        'enabled' => false,
-        'auto_apply' => false,
+        'default_eye' => 21,
+        'default_slim' => 20,
+        'default_smooth' => 19,
+        'default_white' => 22,
+        'default_rosy' => 23,
+        'default_clarity' => 20,
     ],
 ];

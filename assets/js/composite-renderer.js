@@ -70,7 +70,16 @@
                 /([\d.]+)px/g,
                 (match, value) => (Number(value) * height) / state.previewHeight + 'px'
             );
-            ctx.drawImage(base, 0, 0);
+            let frameId = state.frame;
+            if (!frameId && state.frameUrl && state.frameUrl.includes('frame-')) {
+                const match = state.frameUrl.match(/frame-\d+/);
+                if (match) frameId = match[0];
+            }
+            const geom = (images[1] && frameId && root.PhotoboothCatalog && typeof root.PhotoboothCatalog.frameGeometry === 'function')
+                ? root.PhotoboothCatalog.frameGeometry(frameId, width, height)
+                : { innerX: 0, innerY: 0, innerWidth: width, innerHeight: height };
+
+            ctx.drawImage(base, geom.innerX, geom.innerY, geom.innerWidth, geom.innerHeight);
             ctx.filter = 'none';
             if (images[1]) {
                 const frame = images[1];

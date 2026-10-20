@@ -51,7 +51,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
   }
   function _render() {
     _render = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(state, context) {
-      var signal, check, images, layerImages, base, width, height, canvas, ctx, frame, _iterator, _step, _step$value, index, layer, h, w, fontSize, bw, bh, radius, _t;
+      var signal, check, images, layerImages, base, width, height, canvas, ctx, frameId, match, geom, frame, _iterator, _step, _step$value, index, layer, h, w, fontSize, bw, bh, radius, _t;
       return _regenerator().w(function (_context) {
         while (1) switch (_context.p = _context.n) {
           case 0:
@@ -109,7 +109,18 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             ctx.filter = state.filterCss.replace(/([\d.]+)px/g, function (match, value) {
               return Number(value) * height / state.previewHeight + 'px';
             });
-            ctx.drawImage(base, 0, 0);
+            frameId = state.frame;
+            if (!frameId && state.frameUrl && state.frameUrl.includes('frame-')) {
+              match = state.frameUrl.match(/frame-\d+/);
+              if (match) frameId = match[0];
+            }
+            geom = images[1] && frameId && root.PhotoboothCatalog && typeof root.PhotoboothCatalog.frameGeometry === 'function' ? root.PhotoboothCatalog.frameGeometry(frameId, width, height) : {
+              innerX: 0,
+              innerY: 0,
+              innerWidth: width,
+              innerHeight: height
+            };
+            ctx.drawImage(base, geom.innerX, geom.innerY, geom.innerWidth, geom.innerHeight);
             ctx.filter = 'none';
             if (images[1]) {
               frame = images[1];

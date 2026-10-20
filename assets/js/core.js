@@ -2177,6 +2177,13 @@ var photoBooth = function () {
     if (resultPage[0]) resultPage[0].style.setProperty('--stage-result-filter', 'none');
     resultPage.css('--stage-result-filter', 'none');
     resultPage.removeClass(allFilterClasses);
+    resultPage.removeClass('has-classic-frame');
+    if (resultPage[0]) {
+      resultPage[0].style.removeProperty('--stage-frame-inner-left');
+      resultPage[0].style.removeProperty('--stage-frame-inner-top');
+      resultPage[0].style.removeProperty('--stage-frame-inner-width');
+      resultPage[0].style.removeProperty('--stage-frame-inner-height');
+    }
     $('#classicFrameOverlay').hide().css('visibility', '');
     $('#stickerCanvasOverlay').empty().css('visibility', '');
     $('.classic-result-action').removeClass('active');
@@ -3998,7 +4005,7 @@ var photoBooth = function () {
     if (id) overlay.attr('src', window.PhotoboothCatalog.svgUrl(window.PhotoboothCatalog.frameSvg(id, baseImageSize.width, baseImageSize.height)));
     api.frameId = id || null;
     overlay.toggle(!!id).css('visibility', '');
-    $('#btnClassicToggleFrame').toggleClass('active', !!id);
+    resultPage.toggleClass('has-classic-frame', !!id);
     $('[data-frame]').each(function () {
       $(this).toggleClass('active', (this.dataset.frame || null) === api.frameId);
     });
@@ -4178,6 +4185,31 @@ var photoBooth = function () {
     }
     frame.style.setProperty('right', 'auto', 'important');
     frame.style.setProperty('bottom', 'auto', 'important');
+
+    if (api.frameId && window.PhotoboothCatalog && typeof window.PhotoboothCatalog.frameGeometry === 'function') {
+      var geom = window.PhotoboothCatalog.frameGeometry(api.frameId, baseImageSize.width, baseImageSize.height);
+      var scaleX = photo.width / baseImageSize.width;
+      var scaleY = photo.height / baseImageSize.height;
+      var innerLeft = photo.left - stage.left + geom.innerX * scaleX;
+      var innerTop = photo.top - stage.top + geom.innerY * scaleY;
+      var innerW = geom.innerWidth * scaleX;
+      var innerH = geom.innerHeight * scaleY;
+
+      resultPage[0].style.setProperty('--stage-frame-inner-left', innerLeft + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-top', innerTop + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-width', innerW + 'px');
+      resultPage[0].style.setProperty('--stage-frame-inner-height', innerH + 'px');
+      resultPage.addClass('has-classic-frame');
+    } else {
+      resultPage.removeClass('has-classic-frame');
+      if (resultPage[0]) {
+        resultPage[0].style.removeProperty('--stage-frame-inner-left');
+        resultPage[0].style.removeProperty('--stage-frame-inner-top');
+        resultPage[0].style.removeProperty('--stage-frame-inner-width');
+        resultPage[0].style.removeProperty('--stage-frame-inner-height');
+      }
+    }
+
     document.getElementById('stickerCanvasOverlay').style.clipPath = 'inset(' + (photo.top - overlay.top) + 'px ' + (overlay.right - photo.left - photo.width) + 'px ' + (overlay.bottom - photo.top - photo.height) + 'px ' + (photo.left - overlay.left) + 'px)';
     var layers = editHistory.present && editHistory.present.stickers || [];
     $('#stickerCanvasOverlay .placed-sticker').each(function (index) {
@@ -4437,6 +4469,7 @@ var photoBooth = function () {
       baseUrl: environment.publicFolders.images + '/' + state.base,
       filterCss: filterCssMap[state.filter] || 'none',
       frameUrl: state.frame ? window.PhotoboothCatalog.svgUrl(window.PhotoboothCatalog.frameSvg(state.frame, baseImageSize.width, baseImageSize.height)) : null,
+      frame: state.frame,
       previewHeight: photo.height,
       layers: state.stickers
     };

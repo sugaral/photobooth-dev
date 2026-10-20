@@ -27,9 +27,9 @@ $startpageTextPosition = StartpageTextPosition::resolve(
             </div>
             <div class="flat-brand-text">
                 <span class="flat-title"><?= htmlspecialchars(!empty($config['start_screen']['title']) ? $config['start_screen']['title'] : 'PHOTOBOOTH') ?></span>
-                <span class="flat-status">
-                    <span class="flat-status-dot"></span>
-                    <span>系统就绪</span>
+                <span class="flat-status is-online" id="networkStatusBadge" title="正在检测网络...">
+                    <span class="flat-status-dot is-online" id="networkStatusDot"></span>
+                    <span id="networkStatusText">在线</span>
                 </span>
             </div>
         </div>
@@ -72,7 +72,6 @@ $startpageTextPosition = StartpageTextPosition::resolve(
             <!-- 商用双模式选择大看板 (Dual Mode Portal) -->
             <div class="mode-portal">
                 <div class="mode-portal__header">
-                    <span class="mode-portal__tag"><i class="fa fa-wand-magic-sparkles"></i> 智能照相亭一体机 · 双重互娱体验</span>
                     <h2 class="mode-portal__title">请选择心仪的拍摄体验</h2>
                 </div>
 
@@ -533,6 +532,79 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
             }
             updateClock();
             setInterval(updateClock, 1000);
+
+            // Network ping monitor (Ping Baidu to verify connectivity)
+            var statusBadge = document.getElementById('networkStatusBadge');
+            var statusDot = document.getElementById('networkStatusDot');
+            var statusText = document.getElementById('networkStatusText');
+            var isChecking = false;
+
+            function setOnline(online, latency) {
+                if (!statusBadge || !statusDot || !statusText) return;
+                if (online) {
+                    statusBadge.classList.remove('is-offline');
+                    statusBadge.classList.add('is-online');
+                    statusDot.classList.remove('is-offline');
+                    statusDot.classList.add('is-online');
+                    statusText.textContent = '在线';
+                    statusBadge.title = '网络连接正常 · 百度 ping 成功' + (latency ? ' (' + latency + 'ms)' : '');
+                } else {
+                    statusBadge.classList.remove('is-online');
+                    statusBadge.classList.add('is-offline');
+                    statusDot.classList.remove('is-online');
+                    statusDot.classList.add('is-offline');
+                    statusText.textContent = '离线';
+                    statusBadge.title = '未联网 · 无法连接百度';
+                }
+            }
+
+            function checkNetwork() {
+                if (isChecking) return;
+                isChecking = true;
+
+                var controller = window.AbortController ? new AbortController() : null;
+                var timeoutId = setTimeout(function() {
+                    if (controller) controller.abort();
+                }, 2800);
+
+                fetch('api/checkNetwork.php?_=' + Date.now(), {
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined
+                })
+                .then(function(res) {
+                    clearTimeout(timeoutId);
+                    return res.json();
+                })
+                .then(function(data) {
+                    isChecking = false;
+                    setOnline(!!(data && data.online), data ? data.latency : null);
+                })
+                .catch(function() {
+                    clearTimeout(timeoutId);
+                    // Fallback: direct browser ping probe to Baidu
+                    var img = new Image();
+                    var imgTimer = setTimeout(function() {
+                        img.src = '';
+                        isChecking = false;
+                        setOnline(false);
+                    }, 2200);
+
+                    img.onload = function() {
+                        clearTimeout(imgTimer);
+                        isChecking = false;
+                        setOnline(true);
+                    };
+                    img.onerror = function() {
+                        clearTimeout(imgTimer);
+                        isChecking = false;
+                        setOnline(false);
+                    };
+                    img.src = 'https://www.baidu.com/favicon.ico?_=' + Date.now();
+                });
+            }
+
+            checkNetwork();
+            setInterval(checkNetwork, 3000);
         })();
     </script>
 </div>

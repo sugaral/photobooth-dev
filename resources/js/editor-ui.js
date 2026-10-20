@@ -214,12 +214,13 @@ function _arrayLikeToArray(r, a) {
 
   var api = photoBooth,
     catalog = PhotoboothCatalog;
-  var drawerSelectors = '.editor-drawer, #classicFilterQuickBar, #signatureModal, #stickerModal, #textModal';
+  var drawerSelectors = '.editor-drawer, #classicFilterQuickBar, #signatureModal, #stickerModal, #textModal, #rembgModal, #beautyModal';
   var drawerButtons = '#btnClassicToggleFilters, #btnClassicToggleFrame, #btnClassicAddSignature, #btnClassicInsertText, #btnClassicOpenStickers';
   var closeDrawers = function closeDrawers() {
     if (loading) exit();
-    $(drawerSelectors).stop(true, true).hide().attr('aria-hidden', 'true');
-    $(drawerButtons).attr('aria-expanded', 'false');
+    $(drawerSelectors).stop(true, true).hide().attr('aria-hidden', 'true').removeClass('active sidenav--open is-open');
+    $(drawerButtons).attr('aria-expanded', 'false').removeClass('active is-drawer-open');
+    $('.classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"]').removeClass('active is-drawer-open');
   };
   api.closeEditorDrawers = closeDrawers;
   var filterButtons = function filterButtons(className) {
@@ -227,11 +228,11 @@ function _arrayLikeToArray(r, a) {
       return "<button type=\"button\" class=\"".concat(className, "\" data-filter=\"").concat(f.id, "\" aria-label=\"").concat(f.name, "\"><img src=\"").concat(catalog.sample, "\" alt=\"\" style=\"filter:").concat(f.css, "\" loading=\"lazy\"><span>").concat(f.name, "</span></button>");
     }).join('');
   };
-  $('#classicFilterQuickBar').html('<div class="editor-drawer-heading"><h2>滤镜 · 36 款</h2><button type="button" id="btnClassicFilterClose" aria-label="关闭滤镜">×</button></div><div class="editor-filter-grid">' + filterButtons('classic-qfilter-chip') + '</div>');
+  $('#classicFilterQuickBar').addClass('editor-drawer').html('<div class="editor-drawer-heading"><h2><i class="fa fa-sliders"></i> 滤镜 · 36 款</h2><button type="button" id="btnClassicFilterClose" aria-label="关闭滤镜">×</button></div><div class="editor-filter-grid">' + filterButtons('classic-qfilter-chip') + '</div>');
   $('#studioFiltersGallery').html(filterButtons('wb-filter-item'));
   // The legacy navigation uses the same catalog and fixed preview too.
   $('#filternav .filternav-scrollable-list').first().html(filterButtons('filter-card'));
-  $('body').append('<aside class="editor-drawer" id="frameDrawer" style="display:none" aria-label="选择边框"><div class="editor-drawer-heading"><h2>边框 · 24 款</h2><button type="button" data-close-editor aria-label="关闭边框">×</button></div><div class="editor-frame-grid"><button type="button" data-frame=""><div class="frame-none-box"><i class="fa fa-ban"></i></div><span>无边框</span></button>' + catalog.frames.map(function (f) {
+  $('body').append('<aside class="editor-drawer" id="frameDrawer" style="display:none" aria-label="选择边框"><div class="editor-drawer-heading"><h2><i class="fa fa-border-all"></i> 边框 · 24 款</h2><button type="button" data-close-editor aria-label="关闭边框">×</button></div><div class="editor-frame-grid"><button type="button" data-frame=""><div class="frame-none-box"><i class="fa fa-ban"></i></div><span>无边框</span></button>' + catalog.frames.map(function (f) {
     return "<button type=\"button\" data-frame=\"".concat(f.id, "\"><img src=\"").concat(catalog.svgUrl(catalog.frameSvg(f.id, 240, 180, true)), "\" alt=\"\"><span>").concat(f.name, "</span></button>");
   }).join('') + '</div></aside>');
   var stickers = window.PhotoboothStickers;
@@ -250,7 +251,15 @@ function _arrayLikeToArray(r, a) {
       $(this).toggle(!category || this.dataset.category === category);
     });
   });
-  $(document).on('click', '[data-close-editor], #btnClassicFilterClose, #btnStickerClose, #btnStickerSave, #btnSignatureClose, #btnSignatureCancel, #btnTextClose, #btnTextCancel', closeDrawers);
+  $(document).on('click', '[data-close-editor], #btnClassicFilterClose, #btnStickerClose, #btnStickerSave, #btnSignatureClose, #btnSignatureCancel, #btnTextClose, #btnTextCancel, #btnRembgClose, #btnBeautyClose', closeDrawers);
+  $(document).on('pointerdown', function (e) {
+    var $openDrawers = $(drawerSelectors).filter(':visible');
+    if (!$openDrawers.length) return;
+    if ($(e.target).closest(drawerSelectors + ', ' + drawerButtons + ', .classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"], .swal2-container, .placed-sticker, #handwritingStage, .sp-container').length) {
+      return;
+    }
+    closeDrawers();
+  });
   $(document).on('click', '[data-frame]', function () {
     try {
       api.setFrame(this.dataset.frame || null);
@@ -275,11 +284,12 @@ function _arrayLikeToArray(r, a) {
   $(document).on('click', drawerButtons, function (e) {
     e.preventDefault();
     var target = drawerTargets[this.id];
+    if (!target) return;
     var visible = $(target).is(':visible');
     closeDrawers();
     if (!visible) {
-      $(target).show().attr('aria-hidden', 'false');
-      $(this).attr('aria-expanded', 'true');
+      $(target).stop(true, true).show().attr('aria-hidden', 'false');
+      $(this).attr('aria-expanded', 'true').addClass('active is-drawer-open');
       if (this.id === 'btnClassicOpenStickers' || this.id === 'btnClassicInsertText') $('#stickerCanvasOverlay').show();
     }
   });
@@ -397,7 +407,6 @@ function _arrayLikeToArray(r, a) {
     }
     return pts;
   }
-
   function buildSmoothSpline(points) {
     if (!points || !points.length) return '';
     var pts = chaikinSmooth(points, points.length > 5 ? 1 : 0);
@@ -679,73 +688,346 @@ function _arrayLikeToArray(r, a) {
   // Special Artistic Fonts & Text Drawer (56 fonts)
   // ----------------------------------------------------
   var specialFonts = [
-    // 艺术手写 (15)
-    { id: 'Pacifico', name: 'Pacifico', zh: '太平洋手写体', cat: 'script', sample: 'Sweet Romance' },
-    { id: 'Caveat', name: 'Caveat', zh: '随性手绘便签', cat: 'script', sample: 'Love & Peace' },
-    { id: 'Dancing Script', name: 'Dancing Script', zh: '舞动韵律花体', cat: 'script', sample: 'Forever Youth' },
-    { id: 'Lobster', name: 'Lobster', zh: '龙虾招牌体', cat: 'script', sample: 'Golden Memories' },
-    { id: 'Sacramento', name: 'Sacramento', zh: '萨克拉门托纤细体', cat: 'script', sample: 'Elegant Touch' },
-    { id: 'Great Vibes', name: 'Great Vibes', zh: '华丽宫廷手写体', cat: 'script', sample: 'Pure Happiness' },
-    { id: 'Allura', name: 'Allura', zh: '浪漫丝带花体', cat: 'script', sample: 'Sweet Melody' },
-    { id: 'Alex Brush', name: 'Alex Brush', zh: '亚历克斯毛笔花体', cat: 'script', sample: 'Beautiful Soul' },
-    { id: 'Cookie', name: 'Cookie', zh: '甜心曲奇手写体', cat: 'script', sample: 'Cute Memories' },
-    { id: 'Satisfy', name: 'Satisfy', zh: '惬意行书体', cat: 'script', sample: 'Joyful Time' },
-    { id: 'Yellowtail', name: 'Yellowtail', zh: '复古平头水笔体', cat: 'script', sample: 'Sunny Days' },
-    { id: 'Parisienne', name: 'Parisienne', zh: '巴黎罗曼蒂克体', cat: 'script', sample: 'Bonjour Paris' },
-    { id: 'Courgette', name: 'Courgette', zh: '地中海花草手写体', cat: 'script', sample: 'Warm Breeze' },
-    { id: 'Damion', name: 'Damion', zh: '自由随性笔触体', cat: 'script', sample: 'Charming Night' },
-    { id: 'Marck Script', name: 'Marck Script', zh: '马克羽毛笔花体', cat: 'script', sample: 'Magical Moment' },
-
-    // 潮流复古 (14)
-    { id: 'Righteous', name: 'Righteous', zh: '复古迪斯科圆角体', cat: 'retro', sample: 'RETRO VIBES' },
-    { id: 'Cinzel', name: 'Cinzel', zh: '古罗马石刻铭文体', cat: 'retro', sample: 'ROYAL HIGHNESS' },
-    { id: 'Abril Fatface', name: 'Abril Fatface', zh: '时尚大刊粗衬线体', cat: 'retro', sample: 'VOGUE STYLE' },
-    { id: 'Playfair Display', name: 'Playfair Display', zh: '古典名媛衬线体', cat: 'retro', sample: 'Classic Elegance' },
-    { id: 'Fredericka the Great', name: 'Fredericka the Great', zh: '手绘速写阴影体', cat: 'retro', sample: 'SKETCH ART' },
-    { id: 'Rye', name: 'Rye', zh: '西部牛仔复古体', cat: 'retro', sample: 'WILD WEST' },
-    { id: 'Sancreek', name: 'Sancreek', zh: '19世纪马戏团木版体', cat: 'retro', sample: 'CIRCUS DREAMS' },
-    { id: 'Vast Shadow', name: 'Vast Shadow', zh: '立体浮雕投影体', cat: 'retro', sample: 'SHADOW REALM' },
-    { id: 'Bungee', name: 'Bungee', zh: '美式都市街头招牌体', cat: 'retro', sample: 'BIG CITY' },
-    { id: 'Bungee Shade', name: 'Bungee Shade', zh: '立体斜纹街头体', cat: 'retro', sample: 'POP CULTURE' },
-    { id: 'Faster One', name: 'Faster One', zh: '极速拉丝拖影体', cat: 'retro', sample: 'SPEED TURBO' },
-    { id: 'Monoton', name: 'Monoton', zh: '同心霓虹线条体', cat: 'retro', sample: 'NEON WAVE' },
-    { id: 'Limelight', name: 'Limelight', zh: '好莱坞黄金年代体', cat: 'retro', sample: 'GOLDEN AGE' },
-    { id: 'Megrim', name: 'Megrim', zh: '几何极简艺术折线体', cat: 'retro', sample: 'GEOMETRIC' },
-
-    // 赛博像素 (9)
-    { id: 'Orbitron', name: 'Orbitron', zh: '赛博空间机甲体', cat: 'cyber', sample: 'CYBERPUNK 2077' },
-    { id: 'Press Start 2P', name: 'Press Start 2P', zh: '8-Bit红白机像素体', cat: 'cyber', sample: 'PLAYER 1' },
-    { id: 'VT323', name: 'VT323', zh: 'CRT终端复古绿显体', cat: 'cyber', sample: 'SYSTEM ONLINE' },
-    { id: 'Audiowide', name: 'Audiowide', zh: '未来音效合成器体', cat: 'cyber', sample: 'FUTURE BASS' },
-    { id: 'Russo One', name: 'Russo One', zh: '重装机甲硬朗体', cat: 'cyber', sample: 'HEAVY METAL' },
-    { id: 'Black Ops One', name: 'Black Ops One', zh: '特种作战钢印模板体', cat: 'cyber', sample: 'TACTICAL OPS' },
-    { id: 'Wallpoet', name: 'Wallpoet', zh: '科幻军工点阵体', cat: 'cyber', sample: 'MATRIX SHIELD' },
-    { id: 'Share Tech Mono', name: 'Share Tech Mono', zh: '黑客终端等宽代码体', cat: 'cyber', sample: 'DEBUG_SUCCESS' },
-    { id: 'Chakra Petch', name: 'Chakra Petch', zh: '太空战舰仪表体', cat: 'cyber', sample: 'SPACE SHIP' },
-
-    // 可爱涂鸦 (18)
-    { id: 'Sniglet', name: 'Sniglet', zh: '棉花糖软萌圆体', cat: 'cute', sample: 'Cute Candy' },
-    { id: 'Comfortaa', name: 'Comfortaa', zh: '极简北欧圆角体', cat: 'cute', sample: 'Cozy Morning' },
-    { id: 'Chewy', name: 'Chewy', zh: 'QQ泡泡糖软糖体', cat: 'cute', sample: 'Bubble Pop' },
-    { id: 'Patrick Hand', name: 'Patrick Hand', zh: '清新手帐涂鸦体', cat: 'cute', sample: 'My Secret Diary' },
-    { id: 'Amatic SC', name: 'Amatic SC', zh: '文艺插画手撕体', cat: 'cute', sample: 'STAY WEIRD' },
-    { id: 'Kalam', name: 'Kalam', zh: '手写彩笔涂鸦体', cat: 'cute', sample: 'Happy Moments' },
-    { id: 'Permanent Marker', name: 'Permanent Marker', zh: '粗头油性麦克笔体', cat: 'cute', sample: 'ROCK ON!' },
-    { id: 'Rock Salt', name: 'Rock Salt', zh: '街头摇滚炭笔体', cat: 'cute', sample: 'Rock & Roll' },
-    { id: 'Bangers', name: 'Bangers', zh: '美漫英雄爆炸标语体', cat: 'cute', sample: 'BOOM! WOW!' },
-    { id: 'Boogaloo', name: 'Boogaloo', zh: '阳光摇摆复古卡通体', cat: 'cute', sample: 'Summer Groove' },
-    { id: 'Luckiest Guy', name: 'Luckiest Guy', zh: '胖嘟嘟快乐幸运体', cat: 'cute', sample: 'HAPPY LUCKY' },
-    { id: 'Gloria Hallelujah', name: 'Gloria Hallelujah', zh: '青春手记字迹体', cat: 'cute', sample: 'Never Grow Up' },
-    { id: 'Shadows Into Light', name: 'Shadows Into Light', zh: '灵动仙气手写体', cat: 'cute', sample: 'Pure Magic' },
-    { id: 'Gochi Hand', name: 'Gochi Hand', zh: '童趣黑板粉笔手写体', cat: 'cute', sample: 'Little Star' },
-    { id: 'Indie Flower', name: 'Indie Flower', zh: '文艺雏菊花语体', cat: 'cute', sample: 'Blooming Flower' },
-    { id: 'Henny Penny', name: 'Henny Penny', zh: '跳跃童话派对体', cat: 'cute', sample: 'Fairy Tale' },
-    { id: 'Short Stack', name: 'Short Stack', zh: '卡哇伊趣味漫画体', cat: 'cute', sample: 'Comic Life' }
-  ];
-
+  // 艺术手写 (15)
+  {
+    id: 'Pacifico',
+    name: 'Pacifico',
+    zh: '太平洋手写体',
+    cat: 'script',
+    sample: 'Sweet Romance'
+  }, {
+    id: 'Caveat',
+    name: 'Caveat',
+    zh: '随性手绘便签',
+    cat: 'script',
+    sample: 'Love & Peace'
+  }, {
+    id: 'Dancing Script',
+    name: 'Dancing Script',
+    zh: '舞动韵律花体',
+    cat: 'script',
+    sample: 'Forever Youth'
+  }, {
+    id: 'Lobster',
+    name: 'Lobster',
+    zh: '龙虾招牌体',
+    cat: 'script',
+    sample: 'Golden Memories'
+  }, {
+    id: 'Sacramento',
+    name: 'Sacramento',
+    zh: '萨克拉门托纤细体',
+    cat: 'script',
+    sample: 'Elegant Touch'
+  }, {
+    id: 'Great Vibes',
+    name: 'Great Vibes',
+    zh: '华丽宫廷手写体',
+    cat: 'script',
+    sample: 'Pure Happiness'
+  }, {
+    id: 'Allura',
+    name: 'Allura',
+    zh: '浪漫丝带花体',
+    cat: 'script',
+    sample: 'Sweet Melody'
+  }, {
+    id: 'Alex Brush',
+    name: 'Alex Brush',
+    zh: '亚历克斯毛笔花体',
+    cat: 'script',
+    sample: 'Beautiful Soul'
+  }, {
+    id: 'Cookie',
+    name: 'Cookie',
+    zh: '甜心曲奇手写体',
+    cat: 'script',
+    sample: 'Cute Memories'
+  }, {
+    id: 'Satisfy',
+    name: 'Satisfy',
+    zh: '惬意行书体',
+    cat: 'script',
+    sample: 'Joyful Time'
+  }, {
+    id: 'Yellowtail',
+    name: 'Yellowtail',
+    zh: '复古平头水笔体',
+    cat: 'script',
+    sample: 'Sunny Days'
+  }, {
+    id: 'Parisienne',
+    name: 'Parisienne',
+    zh: '巴黎罗曼蒂克体',
+    cat: 'script',
+    sample: 'Bonjour Paris'
+  }, {
+    id: 'Courgette',
+    name: 'Courgette',
+    zh: '地中海花草手写体',
+    cat: 'script',
+    sample: 'Warm Breeze'
+  }, {
+    id: 'Damion',
+    name: 'Damion',
+    zh: '自由随性笔触体',
+    cat: 'script',
+    sample: 'Charming Night'
+  }, {
+    id: 'Marck Script',
+    name: 'Marck Script',
+    zh: '马克羽毛笔花体',
+    cat: 'script',
+    sample: 'Magical Moment'
+  },
+  // 潮流复古 (14)
+  {
+    id: 'Righteous',
+    name: 'Righteous',
+    zh: '复古迪斯科圆角体',
+    cat: 'retro',
+    sample: 'RETRO VIBES'
+  }, {
+    id: 'Cinzel',
+    name: 'Cinzel',
+    zh: '古罗马石刻铭文体',
+    cat: 'retro',
+    sample: 'ROYAL HIGHNESS'
+  }, {
+    id: 'Abril Fatface',
+    name: 'Abril Fatface',
+    zh: '时尚大刊粗衬线体',
+    cat: 'retro',
+    sample: 'VOGUE STYLE'
+  }, {
+    id: 'Playfair Display',
+    name: 'Playfair Display',
+    zh: '古典名媛衬线体',
+    cat: 'retro',
+    sample: 'Classic Elegance'
+  }, {
+    id: 'Fredericka the Great',
+    name: 'Fredericka the Great',
+    zh: '手绘速写阴影体',
+    cat: 'retro',
+    sample: 'SKETCH ART'
+  }, {
+    id: 'Rye',
+    name: 'Rye',
+    zh: '西部牛仔复古体',
+    cat: 'retro',
+    sample: 'WILD WEST'
+  }, {
+    id: 'Sancreek',
+    name: 'Sancreek',
+    zh: '19世纪马戏团木版体',
+    cat: 'retro',
+    sample: 'CIRCUS DREAMS'
+  }, {
+    id: 'Vast Shadow',
+    name: 'Vast Shadow',
+    zh: '立体浮雕投影体',
+    cat: 'retro',
+    sample: 'SHADOW REALM'
+  }, {
+    id: 'Bungee',
+    name: 'Bungee',
+    zh: '美式都市街头招牌体',
+    cat: 'retro',
+    sample: 'BIG CITY'
+  }, {
+    id: 'Bungee Shade',
+    name: 'Bungee Shade',
+    zh: '立体斜纹街头体',
+    cat: 'retro',
+    sample: 'POP CULTURE'
+  }, {
+    id: 'Faster One',
+    name: 'Faster One',
+    zh: '极速拉丝拖影体',
+    cat: 'retro',
+    sample: 'SPEED TURBO'
+  }, {
+    id: 'Monoton',
+    name: 'Monoton',
+    zh: '同心霓虹线条体',
+    cat: 'retro',
+    sample: 'NEON WAVE'
+  }, {
+    id: 'Limelight',
+    name: 'Limelight',
+    zh: '好莱坞黄金年代体',
+    cat: 'retro',
+    sample: 'GOLDEN AGE'
+  }, {
+    id: 'Megrim',
+    name: 'Megrim',
+    zh: '几何极简艺术折线体',
+    cat: 'retro',
+    sample: 'GEOMETRIC'
+  },
+  // 赛博像素 (9)
+  {
+    id: 'Orbitron',
+    name: 'Orbitron',
+    zh: '赛博空间机甲体',
+    cat: 'cyber',
+    sample: 'CYBERPUNK 2077'
+  }, {
+    id: 'Press Start 2P',
+    name: 'Press Start 2P',
+    zh: '8-Bit红白机像素体',
+    cat: 'cyber',
+    sample: 'PLAYER 1'
+  }, {
+    id: 'VT323',
+    name: 'VT323',
+    zh: 'CRT终端复古绿显体',
+    cat: 'cyber',
+    sample: 'SYSTEM ONLINE'
+  }, {
+    id: 'Audiowide',
+    name: 'Audiowide',
+    zh: '未来音效合成器体',
+    cat: 'cyber',
+    sample: 'FUTURE BASS'
+  }, {
+    id: 'Russo One',
+    name: 'Russo One',
+    zh: '重装机甲硬朗体',
+    cat: 'cyber',
+    sample: 'HEAVY METAL'
+  }, {
+    id: 'Black Ops One',
+    name: 'Black Ops One',
+    zh: '特种作战钢印模板体',
+    cat: 'cyber',
+    sample: 'TACTICAL OPS'
+  }, {
+    id: 'Wallpoet',
+    name: 'Wallpoet',
+    zh: '科幻军工点阵体',
+    cat: 'cyber',
+    sample: 'MATRIX SHIELD'
+  }, {
+    id: 'Share Tech Mono',
+    name: 'Share Tech Mono',
+    zh: '黑客终端等宽代码体',
+    cat: 'cyber',
+    sample: 'DEBUG_SUCCESS'
+  }, {
+    id: 'Chakra Petch',
+    name: 'Chakra Petch',
+    zh: '太空战舰仪表体',
+    cat: 'cyber',
+    sample: 'SPACE SHIP'
+  },
+  // 可爱涂鸦 (18)
+  {
+    id: 'Sniglet',
+    name: 'Sniglet',
+    zh: '棉花糖软萌圆体',
+    cat: 'cute',
+    sample: 'Cute Candy'
+  }, {
+    id: 'Comfortaa',
+    name: 'Comfortaa',
+    zh: '极简北欧圆角体',
+    cat: 'cute',
+    sample: 'Cozy Morning'
+  }, {
+    id: 'Chewy',
+    name: 'Chewy',
+    zh: 'QQ泡泡糖软糖体',
+    cat: 'cute',
+    sample: 'Bubble Pop'
+  }, {
+    id: 'Patrick Hand',
+    name: 'Patrick Hand',
+    zh: '清新手帐涂鸦体',
+    cat: 'cute',
+    sample: 'My Secret Diary'
+  }, {
+    id: 'Amatic SC',
+    name: 'Amatic SC',
+    zh: '文艺插画手撕体',
+    cat: 'cute',
+    sample: 'STAY WEIRD'
+  }, {
+    id: 'Kalam',
+    name: 'Kalam',
+    zh: '手写彩笔涂鸦体',
+    cat: 'cute',
+    sample: 'Happy Moments'
+  }, {
+    id: 'Permanent Marker',
+    name: 'Permanent Marker',
+    zh: '粗头油性麦克笔体',
+    cat: 'cute',
+    sample: 'ROCK ON!'
+  }, {
+    id: 'Rock Salt',
+    name: 'Rock Salt',
+    zh: '街头摇滚炭笔体',
+    cat: 'cute',
+    sample: 'Rock & Roll'
+  }, {
+    id: 'Bangers',
+    name: 'Bangers',
+    zh: '美漫英雄爆炸标语体',
+    cat: 'cute',
+    sample: 'BOOM! WOW!'
+  }, {
+    id: 'Boogaloo',
+    name: 'Boogaloo',
+    zh: '阳光摇摆复古卡通体',
+    cat: 'cute',
+    sample: 'Summer Groove'
+  }, {
+    id: 'Luckiest Guy',
+    name: 'Luckiest Guy',
+    zh: '胖嘟嘟快乐幸运体',
+    cat: 'cute',
+    sample: 'HAPPY LUCKY'
+  }, {
+    id: 'Gloria Hallelujah',
+    name: 'Gloria Hallelujah',
+    zh: '青春手记字迹体',
+    cat: 'cute',
+    sample: 'Never Grow Up'
+  }, {
+    id: 'Shadows Into Light',
+    name: 'Shadows Into Light',
+    zh: '灵动仙气手写体',
+    cat: 'cute',
+    sample: 'Pure Magic'
+  }, {
+    id: 'Gochi Hand',
+    name: 'Gochi Hand',
+    zh: '童趣黑板粉笔手写体',
+    cat: 'cute',
+    sample: 'Little Star'
+  }, {
+    id: 'Indie Flower',
+    name: 'Indie Flower',
+    zh: '文艺雏菊花语体',
+    cat: 'cute',
+    sample: 'Blooming Flower'
+  }, {
+    id: 'Henny Penny',
+    name: 'Henny Penny',
+    zh: '跳跃童话派对体',
+    cat: 'cute',
+    sample: 'Fairy Tale'
+  }, {
+    id: 'Short Stack',
+    name: 'Short Stack',
+    zh: '卡哇伊趣味漫画体',
+    cat: 'cute',
+    sample: 'Comic Life'
+  }];
   var currentSelectedFont = 'Pacifico';
   var currentSelectedTextColor = '#ffffff';
-
   function renderFontCards(filterCat, filterQuery) {
     var $list = $('#textFontList');
     if (!$list.length) return;
@@ -758,17 +1040,10 @@ function _arrayLikeToArray(r, a) {
     filtered.forEach(function (f) {
       var isActive = f.id === currentSelectedFont;
       var catName = f.cat === 'script' ? '手写' : f.cat === 'retro' ? '复古' : f.cat === 'cyber' ? '赛博' : '可爱';
-      var $card = $('<div class="font-preview-card ' + (isActive ? 'active' : '') + '" data-font="' + f.id + '">' +
-        '<div class="font-card-meta">' +
-          '<span class="font-card-title">' + f.name + ' <span style="font-weight:normal;color:#64748b;">(' + f.zh + ')</span></span>' +
-          '<span class="font-card-tag">' + catName + '</span>' +
-        '</div>' +
-        '<div class="font-card-sample" style="font-family:\'' + f.id + '\', cursive, sans-serif;">' + f.sample + '</div>' +
-      '</div>');
+      var $card = $('<div class="font-preview-card ' + (isActive ? 'active' : '') + '" data-font="' + f.id + '">' + '<div class="font-card-meta">' + '<span class="font-card-title">' + f.name + ' <span style="font-weight:normal;color:#64748b;">(' + f.zh + ')</span></span>' + '<span class="font-card-tag">' + catName + '</span>' + '</div>' + '<div class="font-card-sample" style="font-family:\'' + f.id + '\', cursive, sans-serif;">' + f.sample + '</div>' + '</div>');
       $list.append($card);
     });
   }
-
   function getActiveTextSticker() {
     var $active = $('#stickerCanvasOverlay .placed-sticker--text.is-active');
     if ($active.length) return $active;
@@ -780,47 +1055,30 @@ function _arrayLikeToArray(r, a) {
     }
     return null;
   }
-
   function insertNewTextSticker(customText, font, color) {
     var text = customText || $('#textDrawerInput').val() || 'Happy Photobooth ✨';
     var chosenFont = font || currentSelectedFont || 'Pacifico';
     var chosenColor = color || currentSelectedTextColor || '#ffffff';
     $('#stickerCanvasOverlay').show();
     var overlay = $('#stickerCanvasOverlay');
-
-    var $sticker = $('<div class="placed-sticker placed-sticker--text is-active">' +
-      '<button type="button" class="sticker-del-btn" title="删除"><i class="fa fa-times"></i></button>' +
-      '<div class="sticker-rotate-btn" title="旋转"><i class="fa fa-rotate"></i></div>' +
-      '<div class="placed-sticker-content"></div>' +
-      '<div class="sticker-resize-btn" title="缩放"><i class="fa fa-up-right-and-down-left-from-center"></i></div>' +
-    '</div>');
-
-    $sticker.attr('data-type', 'text')
-      .attr('data-content', text)
-      .attr('data-font', chosenFont)
-      .attr('data-color', chosenColor);
-
-    $sticker.find('.placed-sticker-content')
-      .text(text)
-      .css({
-        'font-family': chosenFont + ', cursive, sans-serif',
-        'color': chosenColor,
-        'font-size': '44px'
-      });
-
+    var $sticker = $('<div class="placed-sticker placed-sticker--text is-active">' + '<button type="button" class="sticker-del-btn" title="删除"><i class="fa fa-times"></i></button>' + '<div class="sticker-rotate-btn" title="旋转"><i class="fa fa-rotate"></i></div>' + '<div class="placed-sticker-content"></div>' + '<div class="sticker-resize-btn" title="缩放"><i class="fa fa-up-right-and-down-left-from-center"></i></div>' + '</div>');
+    $sticker.attr('data-type', 'text').attr('data-content', text).attr('data-font', chosenFont).attr('data-color', chosenColor);
+    $sticker.find('.placed-sticker-content').text(text).css({
+      'font-family': chosenFont + ', cursive, sans-serif',
+      'color': chosenColor,
+      'font-size': '44px'
+    });
     $('.placed-sticker').removeClass('is-active');
     overlay.append($sticker);
     api.constrainLayer($sticker[0]);
     api.initPlacedStickerInteraction($sticker);
     window.lastRenderedComposite = null;
     api.pushEditState();
-
     if (window.photoboothTools && window.photoboothTools.showNotification) {
       photoboothTools.showNotification('success', '✨ 艺术文字已生成！可拖拽、旋转及缩放');
     }
     return $sticker;
   }
-
   $(document).on('click', '#btnClassicInsertText', function (e) {
     e.preventDefault();
     renderFontCards('all', '');
@@ -848,13 +1106,11 @@ function _arrayLikeToArray(r, a) {
       $('#btnTextActionLabel').text('完成并应用');
     }
   });
-
   $(document).on('click', '.font-preview-card', function (e) {
     e.preventDefault();
     $('.font-preview-card').removeClass('active');
     $(this).addClass('active');
     currentSelectedFont = $(this).data('font') || 'Pacifico';
-
     var $activeText = getActiveTextSticker();
     if ($activeText && $activeText.length) {
       $activeText.find('.placed-sticker-content').css('font-family', currentSelectedFont + ', cursive, sans-serif');
@@ -863,7 +1119,6 @@ function _arrayLikeToArray(r, a) {
       api.pushEditState();
     }
   });
-
   $(document).on('click', '.text-font-tab', function (e) {
     e.preventDefault();
     $('.text-font-tab').removeClass('active');
@@ -872,13 +1127,11 @@ function _arrayLikeToArray(r, a) {
     var q = ($('#fontSearchInput').val() || '').trim().toLowerCase();
     renderFontCards(cat, q);
   });
-
   $(document).on('input', '#fontSearchInput', function () {
     var q = ($(this).val() || '').trim().toLowerCase();
     var cat = $('.text-font-tab.active').data('cat') || 'all';
     renderFontCards(cat, q);
   });
-
   $(document).on('click', '.text-swatch', function (e) {
     e.preventDefault();
     $('.text-swatch').removeClass('active');
@@ -893,7 +1146,6 @@ function _arrayLikeToArray(r, a) {
       api.pushEditState();
     }
   });
-
   $(document).on('input', '#textColorPicker', function () {
     var col = $(this).val();
     $('.text-swatch').removeClass('active');
@@ -905,7 +1157,6 @@ function _arrayLikeToArray(r, a) {
       api.pushEditState();
     }
   });
-
   $(document).on('input', '#textDrawerInput', function () {
     var text = $(this).val() || '';
     var $activeText = getActiveTextSticker();
@@ -916,21 +1167,16 @@ function _arrayLikeToArray(r, a) {
       api.pushEditState();
     }
   });
-
   $(document).on('click', '#btnTextAddOnPhoto', function (e) {
     e.preventDefault();
     var $activeText = $('#stickerCanvasOverlay .placed-sticker--text.is-active');
     var textVal = ($('#textDrawerInput').val() || '').trim() || 'Happy Photobooth ✨';
     if ($activeText.length) {
-      $activeText.find('.placed-sticker-content')
-        .text(textVal)
-        .css({
-          'font-family': currentSelectedFont + ', cursive, sans-serif',
-          'color': currentSelectedTextColor
-        });
-      $activeText.attr('data-content', textVal)
-        .attr('data-font', currentSelectedFont)
-        .attr('data-color', currentSelectedTextColor);
+      $activeText.find('.placed-sticker-content').text(textVal).css({
+        'font-family': currentSelectedFont + ', cursive, sans-serif',
+        'color': currentSelectedTextColor
+      });
+      $activeText.attr('data-content', textVal).attr('data-font', currentSelectedFont).attr('data-color', currentSelectedTextColor);
       api.constrainLayer($activeText[0]);
       api.pushEditState();
       closeDrawers();
@@ -939,7 +1185,6 @@ function _arrayLikeToArray(r, a) {
       closeDrawers();
     }
   });
-
   $(document).on('click', '.placed-sticker--text', function (e) {
     if ($(e.target).closest('.sticker-del-btn, .sticker-rotate-btn, .sticker-resize-btn').length) return;
     var $s = $(this);
@@ -961,7 +1206,6 @@ function _arrayLikeToArray(r, a) {
       $('.text-swatch[data-color="' + col + '"]').addClass('active');
     }
   });
-
   $(document).on('dblclick', '.placed-sticker--text', function (e) {
     e.preventDefault();
     e.stopPropagation();

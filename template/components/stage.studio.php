@@ -112,7 +112,7 @@ $classicTemplates = [
             </button>
 
             <div class="studio-hud-center">
-                <div class="studio-live-pill" id="studioLivePill">
+                <div class="studio-live-pill" id="studioLivePill" style="display:none !important;" aria-hidden="true">
                     <span class="studio-live-dot"></span>
                     <span>LIVE 实时取景</span>
                 </div>
@@ -120,7 +120,7 @@ $classicTemplates = [
                     <i class="fa fa-masks-theater"></i>
                     <span id="studioModePillText">AI 魔法变身照</span>
                 </div>
-                <div class="studio-beauty-pill" id="studioBeautyPill" style="display:none;">
+                <div class="studio-beauty-pill" id="studioBeautyPill" style="display:none !important;" aria-hidden="true">
                     <i class="fa fa-wand-magic-sparkles"></i>
                     <span id="studioBeautyPillText">美颜生效中</span>
                 </div>

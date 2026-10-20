@@ -38,11 +38,6 @@
             "Photobooth\\": ["src/", "private/src/"]
         }
     },
-    "autoload-dev": {
-        "psr-4": {
-            "Photobooth\\Tests\\": "tests"
-        }
-    },
     "scripts": {
         "post-install-cmd": [
             "@tools:install"

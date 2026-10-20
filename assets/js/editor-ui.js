@@ -214,12 +214,13 @@ function _arrayLikeToArray(r, a) {
 
   var api = photoBooth,
     catalog = PhotoboothCatalog;
-  var drawerSelectors = '.editor-drawer, #classicFilterQuickBar, #signatureModal, #stickerModal, #textModal';
+  var drawerSelectors = '.editor-drawer, #classicFilterQuickBar, #signatureModal, #stickerModal, #textModal, #rembgModal, #beautyModal';
   var drawerButtons = '#btnClassicToggleFilters, #btnClassicToggleFrame, #btnClassicAddSignature, #btnClassicInsertText, #btnClassicOpenStickers';
   var closeDrawers = function closeDrawers() {
     if (loading) exit();
-    $(drawerSelectors).stop(true, true).hide().attr('aria-hidden', 'true');
-    $(drawerButtons).attr('aria-expanded', 'false');
+    $(drawerSelectors).stop(true, true).hide().attr('aria-hidden', 'true').removeClass('active sidenav--open is-open');
+    $(drawerButtons).attr('aria-expanded', 'false').removeClass('active is-drawer-open');
+    $('.classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"]').removeClass('active is-drawer-open');
   };
   api.closeEditorDrawers = closeDrawers;
   var filterButtons = function filterButtons(className) {
@@ -227,11 +228,11 @@ function _arrayLikeToArray(r, a) {
       return "<button type=\"button\" class=\"".concat(className, "\" data-filter=\"").concat(f.id, "\" aria-label=\"").concat(f.name, "\"><img src=\"").concat(catalog.sample, "\" alt=\"\" style=\"filter:").concat(f.css, "\" loading=\"lazy\"><span>").concat(f.name, "</span></button>");
     }).join('');
   };
-  $('#classicFilterQuickBar').html('<div class="editor-drawer-heading"><h2>滤镜 · 36 款</h2><button type="button" id="btnClassicFilterClose" aria-label="关闭滤镜">×</button></div><div class="editor-filter-grid">' + filterButtons('classic-qfilter-chip') + '</div>');
+  $('#classicFilterQuickBar').addClass('editor-drawer').html('<div class="editor-drawer-heading"><h2><i class="fa fa-sliders"></i> 滤镜 · 36 款</h2><button type="button" id="btnClassicFilterClose" aria-label="关闭滤镜">×</button></div><div class="editor-filter-grid">' + filterButtons('classic-qfilter-chip') + '</div>');
   $('#studioFiltersGallery').html(filterButtons('wb-filter-item'));
   // The legacy navigation uses the same catalog and fixed preview too.
   $('#filternav .filternav-scrollable-list').first().html(filterButtons('filter-card'));
-  $('body').append('<aside class="editor-drawer" id="frameDrawer" style="display:none" aria-label="选择边框"><div class="editor-drawer-heading"><h2>边框 · 24 款</h2><button type="button" data-close-editor aria-label="关闭边框">×</button></div><div class="editor-frame-grid"><button type="button" data-frame=""><div class="frame-none-box"><i class="fa fa-ban"></i></div><span>无边框</span></button>' + catalog.frames.map(function (f) {
+  $('body').append('<aside class="editor-drawer" id="frameDrawer" style="display:none" aria-label="选择边框"><div class="editor-drawer-heading"><h2><i class="fa fa-border-all"></i> 边框 · 24 款</h2><button type="button" data-close-editor aria-label="关闭边框">×</button></div><div class="editor-frame-grid"><button type="button" data-frame=""><div class="frame-none-box"><i class="fa fa-ban"></i></div><span>无边框</span></button>' + catalog.frames.map(function (f) {
     return "<button type=\"button\" data-frame=\"".concat(f.id, "\"><img src=\"").concat(catalog.svgUrl(catalog.frameSvg(f.id, 240, 180, true)), "\" alt=\"\"><span>").concat(f.name, "</span></button>");
   }).join('') + '</div></aside>');
   var stickers = window.PhotoboothStickers;
@@ -250,7 +251,15 @@ function _arrayLikeToArray(r, a) {
       $(this).toggle(!category || this.dataset.category === category);
     });
   });
-  $(document).on('click', '[data-close-editor], #btnClassicFilterClose, #btnStickerClose, #btnStickerSave, #btnSignatureClose, #btnSignatureCancel, #btnTextClose, #btnTextCancel', closeDrawers);
+  $(document).on('click', '[data-close-editor], #btnClassicFilterClose, #btnStickerClose, #btnStickerSave, #btnSignatureClose, #btnSignatureCancel, #btnTextClose, #btnTextCancel, #btnRembgClose, #btnBeautyClose', closeDrawers);
+  $(document).on('pointerdown', function (e) {
+    var $openDrawers = $(drawerSelectors).filter(':visible');
+    if (!$openDrawers.length) return;
+    if ($(e.target).closest(drawerSelectors + ', ' + drawerButtons + ', .classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"], .swal2-container, .placed-sticker, #handwritingStage, .sp-container').length) {
+      return;
+    }
+    closeDrawers();
+  });
   $(document).on('click', '[data-frame]', function () {
     try {
       api.setFrame(this.dataset.frame || null);
@@ -275,11 +284,12 @@ function _arrayLikeToArray(r, a) {
   $(document).on('click', drawerButtons, function (e) {
     e.preventDefault();
     var target = drawerTargets[this.id];
+    if (!target) return;
     var visible = $(target).is(':visible');
     closeDrawers();
     if (!visible) {
-      $(target).show().attr('aria-hidden', 'false');
-      $(this).attr('aria-expanded', 'true');
+      $(target).stop(true, true).show().attr('aria-hidden', 'false');
+      $(this).attr('aria-expanded', 'true').addClass('active is-drawer-open');
       if (this.id === 'btnClassicOpenStickers' || this.id === 'btnClassicInsertText') $('#stickerCanvasOverlay').show();
     }
   });

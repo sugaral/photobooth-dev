@@ -87,12 +87,11 @@
     var oldCenter = faceCenter(previous);
     var newCenter = faceCenter(next);
     var distance = Math.hypot(oldCenter[0] - newCenter[0], oldCenter[1] - newCenter[1]);
-    
+
     // Dynamic adaptive alpha: when moving fast, snap quickly (up to 0.88); when static, stabilize at 0.55
     var alpha = Math.min(0.88, Math.max(0.55, distance * 6.0));
     var now = Date.now();
     var dt = Math.max(0.016, (now - (previous._time || now)) / 1000);
-    
     var result = {
       contour: [],
       protect: next.protect || (previous ? previous.protect : []),

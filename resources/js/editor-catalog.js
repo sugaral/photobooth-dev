@@ -42,29 +42,318 @@ function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
   var svgUrl = function svgUrl(svg) {
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   };
-  function frameSvg(id, width, height) {
+  function frameGeometry(id, width, height) {
+    var f = frames.find(function (item) {
+      return item.id === id;
+    });
+    var w = Math.round(width),
+      h = Math.round(height);
+    if (!f) {
+      return {
+        innerX: 0,
+        innerY: 0,
+        innerWidth: w,
+        innerHeight: h,
+        padLeft: 0,
+        padTop: 0,
+        padRight: 0,
+        padBottom: 0,
+        u: Math.min(w, h) / 100
+      };
+    }
+    var u = Math.min(w, h) / 100;
+    var isPolaroid = f.pattern === 3;
+    // Keep exact aspect ratio so photo is 100% undistorted and 0% covered
+    var scale = isPolaroid ? 0.84 : 0.90;
+    var innerWidth = Math.max(1, Math.round(w * scale));
+    var innerHeight = Math.max(1, Math.round(h * scale));
+    var innerX = Math.round((w - innerWidth) / 2);
+    var innerY = isPolaroid ? Math.round(h * 0.05) : Math.round((h - innerHeight) / 2);
+    var padBottom = h - innerY - innerHeight;
+    return {
+      innerX: innerX,
+      innerY: innerY,
+      innerWidth: innerWidth,
+      innerHeight: innerHeight,
+      padLeft: innerX,
+      padTop: innerY,
+      padRight: w - innerX - innerWidth,
+      padBottom: padBottom,
+      u: u
+    };
+  }
+  function frameSvg(id, width, height, isThumb) {
     var f = frames.find(function (item) {
       return item.id === id;
     });
     if (!f) throw new Error('边框不存在，请重新选择');
+    var geom = frameGeometry(id, width, height);
+    var innerX = geom.innerX,
+      innerY = geom.innerY,
+      innerWidth = geom.innerWidth,
+      innerHeight = geom.innerHeight,
+      u = geom.u;
     var w = Math.round(width),
-      h = Math.round(height),
-      u = Math.min(w, h) / 100;
-    var shapes = "<rect x=\"".concat(u, "\" y=\"").concat(u, "\" width=\"").concat(w - 2 * u, "\" height=\"").concat(h - 2 * u, "\" rx=\"").concat(f.pattern === 2 ? 6 * u : 0, "\" fill=\"none\" stroke=\"").concat(f.color, "\" stroke-width=\"").concat(f.pattern === 3 ? 5 * u : 2 * u, "\" ").concat(f.pattern === 4 ? "stroke-dasharray=\"".concat(3 * u, " ").concat(2 * u, "\"") : '', "/>");
-    if ([1, 3, 10, 11].includes(f.pattern)) shapes += "<rect x=\"".concat(4 * u, "\" y=\"").concat(4 * u, "\" width=\"").concat(w - 8 * u, "\" height=\"").concat(h - 8 * u, "\" fill=\"none\" stroke=\"").concat(f.color, "\" stroke-width=\"").concat(.5 * u, "\"/>");
-    if (f.pattern === 3) shapes += "<rect x=\"0\" y=\"".concat(h - 9 * u, "\" width=\"").concat(w, "\" height=\"").concat(9 * u, "\" fill=\"").concat(f.color, "\"/>");
-    if (f.pattern >= 5) {
-      for (var x = 6 * u; x < w - 4 * u; x += 8 * u) {
-        for (var _i = 0, _arr = [2 * u, h - 2 * u]; _i < _arr.length; _i++) {
-          var y = _arr[_i];
-          if (f.pattern === 5) shapes += "<rect x=\"".concat(x, "\" y=\"").concat(y - u, "\" width=\"").concat(2 * u, "\" height=\"").concat(2 * u, "\" rx=\"").concat(u / 3, "\" fill=\"").concat(f.color, "\"/>");else if ([8, 9, 11].includes(f.pattern)) shapes += "<path d=\"M".concat(x - u, ",").concat(y - u, " l").concat(2 * u, ",").concat(2 * u, "\" stroke=\"").concat(f.color, "\" stroke-width=\"").concat(u, "\"/>");else shapes += "<circle cx=\"".concat(x, "\" cy=\"").concat(y, "\" r=\"").concat(u, "\" fill=\"").concat(f.color, "\"/>");
-        }
+      h = Math.round(height);
+    var darkPalettes = {
+      'frame-2': {
+        bg: '#171923',
+        accent: '#E2E8F0',
+        stroke: 'rgba(255,255,255,0.22)'
+      },
+      'frame-4': {
+        bg: '#1A1D24',
+        accent: '#C5D1DE',
+        stroke: 'rgba(255,255,255,0.22)'
+      },
+      'frame-11': {
+        bg: '#181A20',
+        accent: '#F3F4F6',
+        stroke: 'rgba(255,255,255,0.25)'
+      },
+      'frame-13': {
+        bg: '#131620',
+        accent: '#F59E0B',
+        stroke: 'rgba(255,255,255,0.18)'
+      },
+      'frame-14': {
+        bg: '#151D2C',
+        accent: '#93C5FD',
+        stroke: 'rgba(255,255,255,0.18)'
+      },
+      'frame-21': {
+        bg: '#1E1B18',
+        accent: '#D4AF37',
+        stroke: 'rgba(255,255,255,0.2)'
+      },
+      'frame-22': {
+        bg: '#131E2A',
+        accent: '#7DD3FC',
+        stroke: 'rgba(255,255,255,0.2)'
+      },
+      'frame-24': {
+        bg: '#1E192B',
+        accent: '#C084FC',
+        stroke: 'rgba(255,255,255,0.2)'
       }
-      if ([6, 7, 10].includes(f.pattern)) for (var _i2 = 0, _arr2 = [[5 * u, 5 * u], [w - 5 * u, 5 * u], [5 * u, h - 5 * u], [w - 5 * u, h - 5 * u]]; _i2 < _arr2.length; _i2++) {
-        var _arr2$_i = _slicedToArray(_arr2[_i2], 2),
-          _x = _arr2$_i[0],
-          _y = _arr2$_i[1];
-        shapes += "<path d=\"M".concat(_x - 3 * u, ",").concat(_y, " Q").concat(_x, ",").concat(_y - 7 * u, " ").concat(_x + 3 * u, ",").concat(_y, " Q").concat(_x, ",").concat(_y + 7 * u, " ").concat(_x - 3 * u, ",").concat(_y, "Z\" fill=\"").concat(f.color, "\"/>");
+    };
+    var lightPalettes = {
+      'frame-1': {
+        bg: '#FFFFFF',
+        accent: '#111827',
+        stroke: 'rgba(0,0,0,0.15)'
+      },
+      'frame-3': {
+        bg: '#FDFBF7',
+        accent: '#D4A853',
+        stroke: 'rgba(0,0,0,0.1)'
+      },
+      'frame-5': {
+        bg: '#FFF1F3',
+        accent: '#F472B6',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-6': {
+        bg: '#F0FDF9',
+        accent: '#34D399',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-7': {
+        bg: '#FDFCF7',
+        accent: '#374151',
+        stroke: 'rgba(0,0,0,0.12)'
+      },
+      'frame-8': {
+        bg: '#FFF7F2',
+        accent: '#FB923C',
+        stroke: 'rgba(0,0,0,0.1)'
+      },
+      'frame-9': {
+        bg: '#F0F9FF',
+        accent: '#38BDF8',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-10': {
+        bg: '#FDF2F8',
+        accent: '#EC4899',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-12': {
+        bg: '#EFECE6',
+        accent: '#1F2937',
+        stroke: 'rgba(0,0,0,0.15)'
+      },
+      'frame-15': {
+        bg: '#FFF5F7',
+        accent: '#FB7185',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-16': {
+        bg: '#F2FBF5',
+        accent: '#4ADE80',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-17': {
+        bg: '#FDF4F9',
+        accent: '#F472B6',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-18': {
+        bg: '#F0FDFA',
+        accent: '#2DD4BF',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-19': {
+        bg: '#FAF6F0',
+        accent: '#B45309',
+        stroke: 'rgba(0,0,0,0.1)'
+      },
+      'frame-20': {
+        bg: '#FFF6F4',
+        accent: '#F87171',
+        stroke: 'rgba(0,0,0,0.08)'
+      },
+      'frame-23': {
+        bg: '#FAF8FC',
+        accent: '#E879F9',
+        stroke: 'rgba(0,0,0,0.08)'
+      }
+    };
+    var pal = darkPalettes[f.id] || lightPalettes[f.id] || {
+      bg: f.color || '#FFFFFF',
+      accent: '#111827',
+      stroke: 'rgba(0,0,0,0.12)'
+    };
+    var isDark = !!darkPalettes[f.id];
+
+    // 1. Mat background with empty cutout for the photo
+    var matPath = "M0,0 L".concat(w, ",0 L").concat(w, ",").concat(h, " L0,").concat(h, " Z M").concat(innerX, ",").concat(innerY, " L").concat(innerX + innerWidth, ",").concat(innerY, " L").concat(innerX + innerWidth, ",").concat(innerY + innerHeight, " L").concat(innerX, ",").concat(innerY + innerHeight, " Z");
+    var shapes = "<path d=\"".concat(matPath, "\" fill=\"").concat(pal.bg, "\" fill-rule=\"evenodd\"/>");
+
+    // If rendering thumbnail for drawer, fill photo aperture with light gray so the mat is obvious
+    if (isThumb) {
+      shapes += "<rect x=\"".concat(innerX, "\" y=\"").concat(innerY, "\" width=\"").concat(innerWidth, "\" height=\"").concat(innerHeight, "\" fill=\"").concat(isDark ? '#2D3748' : '#F1F5F9', "\"/>");
+    }
+
+    // Inner aperture border (bordering the photo without covering it)
+    shapes += "<rect x=\"".concat(innerX, "\" y=\"").concat(innerY, "\" width=\"").concat(innerWidth, "\" height=\"").concat(innerHeight, "\" fill=\"none\" stroke=\"").concat(pal.stroke, "\" stroke-width=\"").concat(Math.max(1, Math.round(0.18 * u)), "\"/>");
+
+    // Outer canvas border
+    shapes += "<rect x=\"0.5\" y=\"0.5\" width=\"".concat(w - 1, "\" height=\"").concat(h - 1, "\" fill=\"none\" stroke=\"").concat(isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)', "\" stroke-width=\"1\"/>");
+
+    // Pattern-specific decorative details strictly inside outer mat:
+    if (f.pattern === 1) {
+      // 金色双线 / 银色双线
+      var m1x = Math.round(innerX * 0.35),
+        m1y = Math.round(innerY * 0.35);
+      var m2x = Math.round(innerX * 0.65),
+        m2y = Math.round(innerY * 0.65);
+      shapes += "<rect x=\"".concat(m1x, "\" y=\"").concat(m1y, "\" width=\"").concat(w - 2 * m1x, "\" height=\"").concat(h - 2 * m1y, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(Math.max(1.5, Math.round(0.25 * u)), "\"/>");
+      shapes += "<rect x=\"".concat(m2x, "\" y=\"").concat(m2y, "\" width=\"").concat(w - 2 * m2x, "\" height=\"").concat(h - 2 * m2y, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(Math.max(1, Math.round(0.12 * u)), "\"/>");
+    } else if (f.pattern === 2) {
+      // 樱花圆角 / 薄荷圆角
+      var cr = Math.max(2, Math.round(0.4 * u));
+      var corners = [[Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)]];
+      for (var _i = 0, _corners = corners; _i < _corners.length; _i++) {
+        var _corners$_i = _slicedToArray(_corners[_i], 2),
+          cx = _corners$_i[0],
+          cy = _corners$_i[1];
+        shapes += "<circle cx=\"".concat(cx, "\" cy=\"").concat(cy, "\" r=\"").concat(cr, "\" fill=\"").concat(pal.accent, "\"/>");
+      }
+      var midX = Math.round(innerX * 0.5),
+        midY = Math.round(innerY * 0.5);
+      shapes += "<rect x=\"".concat(midX, "\" y=\"").concat(midY, "\" width=\"").concat(w - 2 * midX, "\" height=\"").concat(h - 2 * midY, "\" rx=\"").concat(Math.round(2 * u), "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(Math.max(1, Math.round(0.15 * u)), "\" stroke-opacity=\"0.6\"/>");
+    } else if (f.pattern === 3) {
+      // 奶油相纸 / 落日相纸 (Polaroid style)
+      var bottomAreaH = h - innerY - innerHeight;
+      var lineY = innerY + innerHeight + Math.round(bottomAreaH * 0.22);
+      shapes += "<line x1=\"".concat(innerX, "\" y1=\"").concat(lineY, "\" x2=\"").concat(innerX + innerWidth, "\" y2=\"").concat(lineY, "\" stroke=\"").concat(isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)', "\" stroke-width=\"1\"/>");
+      var textY = innerY + innerHeight + Math.round(bottomAreaH * 0.65);
+      var fontSize = Math.max(9, Math.round(0.85 * u));
+      shapes += "<text x=\"".concat(w / 2, "\" y=\"").concat(textY, "\" text-anchor=\"middle\" font-family=\"'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif\" font-size=\"").concat(fontSize, "\" font-weight=\"700\" fill=\"").concat(isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)', "\" letter-spacing=\"").concat(Math.round(0.15 * u), "\">PHOTOBOOTH \xB7 MEMORY</text>");
+    } else if (f.pattern === 4) {
+      // 天空虚线 / 莓果虚线
+      var _midX = Math.round(innerX * 0.5),
+        _midY = Math.round(innerY * 0.5);
+      var dash = Math.max(4, Math.round(0.8 * u));
+      shapes += "<rect x=\"".concat(_midX, "\" y=\"").concat(_midY, "\" width=\"").concat(w - 2 * _midX, "\" height=\"").concat(h - 2 * _midY, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(Math.max(1.5, Math.round(0.22 * u)), "\" stroke-dasharray=\"").concat(dash, " ").concat(dash * 0.75, "\"/>");
+    } else if (f.pattern === 5) {
+      // 胶片齿孔 / 黑白齿孔 (35mm film)
+      var sw = Math.max(7, Math.round(1.1 * u));
+      var sh = Math.max(9, Math.round(1.4 * u));
+      var step = Math.round(sw * 2.3);
+      var topY = Math.round((innerY - sh) / 2);
+      var botY = innerY + innerHeight + Math.round((h - innerY - innerHeight - sh) / 2);
+      for (var x = innerX; x <= innerX + innerWidth - sw; x += step) {
+        shapes += "<rect x=\"".concat(x, "\" y=\"").concat(topY, "\" width=\"").concat(sw, "\" height=\"").concat(sh, "\" rx=\"").concat(Math.round(sw * 0.2), "\" fill=\"").concat(pal.accent, "\" opacity=\"0.88\"/>");
+        shapes += "<rect x=\"".concat(x, "\" y=\"").concat(botY, "\" width=\"").concat(sw, "\" height=\"").concat(sh, "\" rx=\"").concat(Math.round(sw * 0.2), "\" fill=\"").concat(pal.accent, "\" opacity=\"0.88\"/>");
+      }
+    } else if (f.pattern === 6) {
+      // 星光角饰 / 月夜角饰
+      var sr = Math.max(5, Math.round(1.0 * u));
+      var _corners2 = [[Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)]];
+      for (var _i2 = 0, _corners3 = _corners2; _i2 < _corners3.length; _i2++) {
+        var _corners3$_i = _slicedToArray(_corners3[_i2], 2),
+          _cx = _corners3$_i[0],
+          _cy = _corners3$_i[1];
+        shapes += "<path d=\"M".concat(_cx, ",").concat(_cy - sr, " Q").concat(_cx, ",").concat(_cy, " ").concat(_cx + sr, ",").concat(_cy, " Q").concat(_cx, ",").concat(_cy, " ").concat(_cx, ",").concat(_cy + sr, " Q").concat(_cx, ",").concat(_cy, " ").concat(_cx - sr, ",").concat(_cy, " Q").concat(_cx, ",").concat(_cy, " ").concat(_cx, ",").concat(_cy - sr, " Z\" fill=\"").concat(pal.accent, "\"/>");
+      }
+    } else if (f.pattern === 7) {
+      // 花语 / 春芽
+      var fr = Math.max(2.5, Math.round(0.35 * u));
+      var _corners4 = [[Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), Math.round(innerY * 0.5)], [Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)], [w - Math.round(innerX * 0.5), h - Math.round(innerY * 0.5)]];
+      for (var _i3 = 0, _corners5 = _corners4; _i3 < _corners5.length; _i3++) {
+        var _corners5$_i = _slicedToArray(_corners5[_i3], 2),
+          _cx2 = _corners5$_i[0],
+          _cy2 = _corners5$_i[1];
+        shapes += "<circle cx=\"".concat(_cx2 - fr, "\" cy=\"").concat(_cy2, "\" r=\"").concat(fr, "\" fill=\"").concat(pal.accent, "\" opacity=\"0.8\"/>");
+        shapes += "<circle cx=\"".concat(_cx2 + fr, "\" cy=\"").concat(_cy2, "\" r=\"").concat(fr, "\" fill=\"").concat(pal.accent, "\" opacity=\"0.8\"/>");
+        shapes += "<circle cx=\"".concat(_cx2, "\" cy=\"").concat(_cy2 - fr, "\" r=\"").concat(fr, "\" fill=\"").concat(pal.accent, "\" opacity=\"0.8\"/>");
+        shapes += "<circle cx=\"".concat(_cx2, "\" cy=\"").concat(_cy2 + fr, "\" r=\"").concat(fr, "\" fill=\"").concat(pal.accent, "\" opacity=\"0.8\"/>");
+        shapes += "<circle cx=\"".concat(_cx2, "\" cy=\"").concat(_cy2, "\" r=\"").concat(fr * 0.55, "\" fill=\"").concat(isDark ? '#FFFFFF' : '#FFD93D', "\"/>");
+      }
+    } else if (f.pattern === 8) {
+      // 糖果波点 / 海盐波点
+      var dotR = Math.max(2, Math.round(0.25 * u));
+      var _step = Math.max(12, Math.round(1.8 * u));
+      var _topY = Math.round(innerY * 0.5);
+      var _botY = innerY + innerHeight + Math.round((h - innerY - innerHeight) * 0.5);
+      for (var _x = innerX + Math.round(_step * 0.5); _x < innerX + innerWidth; _x += _step) {
+        shapes += "<circle cx=\"".concat(_x, "\" cy=\"").concat(_topY, "\" r=\"").concat(dotR, "\" fill=\"").concat(pal.accent, "\"/>");
+        shapes += "<circle cx=\"".concat(_x, "\" cy=\"").concat(_botY, "\" r=\"").concat(dotR, "\" fill=\"").concat(pal.accent, "\"/>");
+      }
+    } else if (f.pattern === 9) {
+      // 复古斜纹 / 珊瑚斜纹
+      var _step2 = Math.max(10, Math.round(1.5 * u));
+      var strokeW = Math.max(1, Math.round(0.18 * u));
+      var _topY2 = Math.round(innerY * 0.5);
+      var _botY2 = innerY + innerHeight + Math.round((h - innerY - innerHeight) * 0.5);
+      for (var _x2 = innerX; _x2 <= innerX + innerWidth - _step2; _x2 += _step2) {
+        shapes += "<line x1=\"".concat(_x2, "\" y1=\"").concat(_topY2 - Math.round(0.5 * u), "\" x2=\"").concat(_x2 + Math.round(0.8 * u), "\" y2=\"").concat(_topY2 + Math.round(0.5 * u), "\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(strokeW, "\" stroke-linecap=\"round\"/>");
+        shapes += "<line x1=\"".concat(_x2, "\" y1=\"").concat(_botY2 - Math.round(0.5 * u), "\" x2=\"").concat(_x2 + Math.round(0.8 * u), "\" y2=\"").concat(_botY2 + Math.round(0.5 * u), "\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(strokeW, "\" stroke-linecap=\"round\"/>");
+      }
+    } else if (f.pattern === 10) {
+      // 典雅四角 / 冰蓝四角
+      var arm = Math.max(10, Math.round(1.8 * u));
+      var _strokeW = Math.max(1.5, Math.round(0.25 * u));
+      var mX = Math.round(innerX * 0.4),
+        mY = Math.round(innerY * 0.4);
+      shapes += "<path d=\"M".concat(mX, ",").concat(mY + arm, " L").concat(mX, ",").concat(mY, " L").concat(mX + arm, ",").concat(mY, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW, "\"/>");
+      shapes += "<path d=\"M".concat(w - mX - arm, ",").concat(mY, " L").concat(w - mX, ",").concat(mY, " L").concat(w - mX, ",").concat(mY + arm, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW, "\"/>");
+      shapes += "<path d=\"M".concat(mX, ",").concat(h - mY - arm, " L").concat(mX, ",").concat(h - mY, " L").concat(mX + arm, ",").concat(h - mY, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW, "\"/>");
+      shapes += "<path d=\"M".concat(w - mX - arm, ",").concat(h - mY, " L").concat(w - mX, ",").concat(h - mY, " L").concat(w - mX, ",").concat(h - mY - arm, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW, "\"/>");
+    } else if (f.pattern === 11) {
+      // 彩虹阶梯 / 暮色阶梯
+      var _strokeW2 = Math.max(1, Math.round(0.18 * u));
+      for (var _step3 = 1; _step3 <= 3; _step3++) {
+        var off = _step3 * Math.round(0.35 * u);
+        var _arm = Math.max(6, Math.round(1.4 * u)) - _step3 * Math.round(0.25 * u);
+        var _mX = Math.round(innerX * 0.3) + off,
+          _mY = Math.round(innerY * 0.3) + off;
+        shapes += "<path d=\"M".concat(_mX, ",").concat(_mY + _arm, " L").concat(_mX, ",").concat(_mY, " L").concat(_mX + _arm, ",").concat(_mY, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW2, "\" opacity=\"").concat(1 - _step3 * 0.2, "\"/>");
+        shapes += "<path d=\"M".concat(w - _mX - _arm, ",").concat(_mY, " L").concat(w - _mX, ",").concat(_mY, " L").concat(w - _mX, ",").concat(_mY + _arm, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW2, "\" opacity=\"").concat(1 - _step3 * 0.2, "\"/>");
+        shapes += "<path d=\"M".concat(_mX, ",").concat(h - _mY - _arm, " L").concat(_mX, ",").concat(h - _mY, " L").concat(_mX + _arm, ",").concat(h - _mY, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW2, "\" opacity=\"").concat(1 - _step3 * 0.2, "\"/>");
+        shapes += "<path d=\"M".concat(w - _mX - _arm, ",").concat(h - _mY, " L").concat(w - _mX, ",").concat(h - _mY, " L").concat(w - _mX, ",").concat(h - _mY - _arm, "\" fill=\"none\" stroke=\"").concat(pal.accent, "\" stroke-width=\"").concat(_strokeW2, "\" opacity=\"").concat(1 - _step3 * 0.2, "\"/>");
       }
     }
     return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"".concat(w, "\" height=\"").concat(h, "\" viewBox=\"0 0 ").concat(w, " ").concat(h, "\">").concat(shapes, "</svg>");
@@ -75,7 +364,8 @@ function _arrayWithHoles(r) { if (Array.isArray(r)) return r; }
     frames: frames,
     sample: sample,
     svgUrl: svgUrl,
-    frameSvg: frameSvg
+    frameSvg: frameSvg,
+    frameGeometry: frameGeometry
   });
   if ((typeof module === "undefined" ? "undefined" : _typeof(module)) === 'object') module.exports = root.PhotoboothCatalog;
 })(globalThis);

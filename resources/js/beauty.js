@@ -2,6 +2,7 @@
 
 /* Photobooth AI Real-time Parameterized Beauty Retouching System */
 /* globals photoboothTools */
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
 (function ($) {
   'use strict';
 
@@ -100,26 +101,24 @@
      Part 1: Quick Settings on Start Page
   ---------------------------------------------------- */
   function syncBeautyToRuntime(cfg) {
-    if (typeof window.config !== 'object' || window.config === null) {
+    if (_typeof(window.config) !== 'object' || window.config === null) {
       window.config = {};
     }
     window.config.beauty = $.extend(window.config.beauty || {}, cfg);
-    if (typeof config === 'object' && config !== null) {
+    if ((typeof config === "undefined" ? "undefined" : _typeof(config)) === 'object' && config !== null) {
       config.beauty = $.extend(config.beauty || {}, cfg);
     }
     var isEnabled = cfg.enabled !== false;
     var isAuto = isEnabled && cfg.auto_apply !== false;
-    var eye = isAuto ? (cfg.default_eye !== undefined ? parseInt(cfg.default_eye, 10) : 15) : 0;
-    var slim = isAuto ? (cfg.default_slim !== undefined ? parseInt(cfg.default_slim, 10) : 15) : 0;
-    var smooth = isAuto ? (cfg.default_smooth !== undefined ? parseInt(cfg.default_smooth, 10) : 20) : 0;
-    var white = isAuto ? (cfg.default_white !== undefined ? parseInt(cfg.default_white, 10) : 15) : 0;
-    var rosy = isAuto ? (cfg.default_rosy !== undefined ? parseInt(cfg.default_rosy, 10) : 20) : 0;
-    var clarity = isAuto ? (cfg.default_clarity !== undefined ? parseInt(cfg.default_clarity, 10) : 15) : 0;
-
+    var eye = isAuto ? cfg.default_eye !== undefined ? parseInt(cfg.default_eye, 10) : 15 : 0;
+    var slim = isAuto ? cfg.default_slim !== undefined ? parseInt(cfg.default_slim, 10) : 15 : 0;
+    var smooth = isAuto ? cfg.default_smooth !== undefined ? parseInt(cfg.default_smooth, 10) : 20 : 0;
+    var white = isAuto ? cfg.default_white !== undefined ? parseInt(cfg.default_white, 10) : 15 : 0;
+    var rosy = isAuto ? cfg.default_rosy !== undefined ? parseInt(cfg.default_rosy, 10) : 20 : 0;
+    var clarity = isAuto ? cfg.default_clarity !== undefined ? parseInt(cfg.default_clarity, 10) : 15 : 0;
     var studioSliders = $('#studioSmoothSlider, #studioWhiteSlider, #studioRosySlider, #studioClaritySlider, #studioEyeSlider, #studioSlimSlider');
     var studioPresets = $('.wb-preset-pill, #btnResetStudioBeauty');
     var beautySection = $('.wb-section--beauty');
-
     if (!isEnabled) {
       studioSliders.prop('disabled', true);
       studioPresets.prop('disabled', true);
@@ -171,13 +170,11 @@
     } else if (smooth === 40 && white === 45 && rosy === 10 && clarity === 30 && eye === 15 && slim === 25) {
       $('.wb-preset-pill[data-preset="cool"]').addClass('active');
     }
-
     if (window.api && typeof window.api.applyStudioBeautyPreview === 'function') {
       window.api.applyStudioBeautyPreview();
     }
   }
   window.syncBeautyToRuntime = syncBeautyToRuntime;
-
   function loadQuickSettingsBeauty(callback) {
     var autoApplyCb = $('#settingBeautyAutoApply');
     var slidersBox = $('#settingBeautySlidersBox');
@@ -194,7 +191,6 @@
     var lblWhite = $('#lblSettingBeautyWhite');
     var lblRosy = $('#lblSettingBeautyRosy');
     var lblClarity = $('#lblSettingBeautyClarity');
-
     $.ajax({
       url: getApiUrl('beautyConfig.php'),
       method: 'GET',
@@ -214,12 +210,30 @@
             slidersBox.hide();
             if (hintEl.length) hintEl.html('<i class="fa fa-circle-info" style="color:#94a3b8;"></i> 已停用美颜 · 拍照将保留原始生动镜头画面');
           }
-          if (eyeSlider.length) { eyeSlider.val(res.default_eye); lblEye.text(res.default_eye + '%'); }
-          if (slimSlider.length) { slimSlider.val(res.default_slim); lblSlim.text(res.default_slim + '%'); }
-          if (smoothSlider.length) { smoothSlider.val(res.default_smooth); lblSmooth.text(res.default_smooth + '%'); }
-          if (whiteSlider.length) { whiteSlider.val(res.default_white); lblWhite.text(res.default_white + '%'); }
-          if (rosySlider.length) { rosySlider.val(res.default_rosy); lblRosy.text(res.default_rosy + '%'); }
-          if (claritySlider.length) { claritySlider.val(res.default_clarity); lblClarity.text(res.default_clarity + '%'); }
+          if (eyeSlider.length) {
+            eyeSlider.val(res.default_eye);
+            lblEye.text(res.default_eye + '%');
+          }
+          if (slimSlider.length) {
+            slimSlider.val(res.default_slim);
+            lblSlim.text(res.default_slim + '%');
+          }
+          if (smoothSlider.length) {
+            smoothSlider.val(res.default_smooth);
+            lblSmooth.text(res.default_smooth + '%');
+          }
+          if (whiteSlider.length) {
+            whiteSlider.val(res.default_white);
+            lblWhite.text(res.default_white + '%');
+          }
+          if (rosySlider.length) {
+            rosySlider.val(res.default_rosy);
+            lblRosy.text(res.default_rosy + '%');
+          }
+          if (claritySlider.length) {
+            claritySlider.val(res.default_clarity);
+            lblClarity.text(res.default_clarity + '%');
+          }
         }
         syncBeautyToRuntime(res);
         if (typeof callback === 'function') callback(res);
@@ -227,7 +241,6 @@
     });
   }
   window.loadQuickSettingsBeauty = loadQuickSettingsBeauty;
-
   function initQuickSettingsBeauty() {
     var autoApplyCb = $('#settingBeautyAutoApply');
     var slidersBox = $('#settingBeautySlidersBox');
@@ -245,9 +258,7 @@
     var lblRosy = $('#lblSettingBeautyRosy');
     var lblClarity = $('#lblSettingBeautyClarity');
     if (!autoApplyCb.length) return;
-
     loadQuickSettingsBeauty();
-
     function saveConfigToServer() {
       if (configDebounceTimer) {
         clearTimeout(configDebounceTimer);
@@ -262,8 +273,8 @@
           default_slim: parseInt(slimSlider.val(), 10) || 0,
           default_smooth: parseInt(smoothSlider.val(), 10) || 0,
           default_white: parseInt(whiteSlider.val(), 10) || 0,
-          default_rosy: rosySlider.length ? (parseInt(rosySlider.val(), 10) || 0) : 0,
-          default_clarity: claritySlider.length ? (parseInt(claritySlider.val(), 10) || 0) : 0
+          default_rosy: rosySlider.length ? parseInt(rosySlider.val(), 10) || 0 : 0,
+          default_clarity: claritySlider.length ? parseInt(claritySlider.val(), 10) || 0 : 0
         };
         defaultBeautyConfig = $.extend(defaultBeautyConfig, payload);
         window.defaultBeautyConfig = defaultBeautyConfig;
@@ -276,9 +287,7 @@
           dataType: 'json'
         }).done(function (res) {
           if (res && res.success && hintEl.length) {
-            hintEl.html(isChecked
-              ? '<i class="fa fa-circle-check" style="color:#10b981;"></i> 默认美颜参数已生效 · 新拍照片自动同步初修'
-              : '<i class="fa fa-circle-info" style="color:#94a3b8;"></i> 已停用美颜 · 拍照将保留原始生动镜头画面');
+            hintEl.html(isChecked ? '<i class="fa fa-circle-check" style="color:#10b981;"></i> 默认美颜参数已生效 · 新拍照片自动同步初修' : '<i class="fa fa-circle-info" style="color:#94a3b8;"></i> 已停用美颜 · 拍照将保留原始生动镜头画面');
           }
         });
       }, 300);
@@ -300,8 +309,8 @@
         default_slim: parseInt(slimSlider.val(), 10) || 0,
         default_smooth: parseInt(smoothSlider.val(), 10) || 0,
         default_white: parseInt(whiteSlider.val(), 10) || 0,
-        default_rosy: rosySlider.length ? (parseInt(rosySlider.val(), 10) || 0) : 0,
-        default_clarity: claritySlider.length ? (parseInt(claritySlider.val(), 10) || 0) : 0
+        default_rosy: rosySlider.length ? parseInt(rosySlider.val(), 10) || 0 : 0,
+        default_clarity: claritySlider.length ? parseInt(claritySlider.val(), 10) || 0 : 0
       };
       defaultBeautyConfig = $.extend(defaultBeautyConfig, payload);
       window.defaultBeautyConfig = defaultBeautyConfig;
