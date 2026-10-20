@@ -97,11 +97,6 @@ $startpageTextPosition = StartpageTextPosition::resolve(
                             <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnClassicStart" title="点击开始经典美颜大头贴">
                                 <i class="fa fa-camera"></i> 点击
                             </button>
-                            <?php if ($config['rembg']['enabled'] ?? true): ?>
-                            <button type="button" class="mode-action-btn mode-action-btn--secondary uploadBtn" id="btnClassicUpload" title="上传相册已有照片">
-                                <i class="fa fa-cloud-arrow-up"></i> 上传照片
-                            </button>
-                            <?php endif; ?>
                         </div>
                     </div>
 
