@@ -120,12 +120,13 @@ rem ========================================================
 rem [2/4] 清理旧端口占用 (8000 / 8001)
 rem ========================================================
 echo [2/4] 清理旧端口占用与残留进程 (8000 / 8001)...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 " 2^>nul') do (
-    if not "%%a"=="0" taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr /i /r /c:":8000 .*LISTENING" 2^>nul') do (
+    taskkill /f /t /pid %%a >nul 2>&1
 )
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 " 2^>nul') do (
-    if not "%%a"=="0" taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr /i /r /c:":8001 .*LISTENING" 2^>nul') do (
+    taskkill /f /t /pid %%a >nul 2>&1
 )
+powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { ($_.ProcessId -ne $PID) -and ($_.Name -notlike '*powershell*') -and (($_.CommandLine -like '*rembg_service*') -or ($_.CommandLine -like '*-S 127.0.0.1:8000*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 rem ========================================================
 rem [3/4] 启动 Python AI 算法微服务 (8001)
@@ -154,9 +155,10 @@ set "EXIT_CODE=%ERRORLEVEL%"
 rem 当用户关闭 PHP 时，联动关闭 AI 服务
 echo.
 echo 正在停止 Photobooth 关联服务...
-for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 " 2^>nul') do (
-    if not "%%a"=="0" taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr /i /r /c:":8001 .*LISTENING" 2^>nul') do (
+    taskkill /f /t /pid %%a >nul 2>&1
 )
+powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { ($_.ProcessId -ne $PID) -and ($_.Name -notlike '*powershell*') -and ($_.CommandLine -like '*rembg_service*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 if not "%EXIT_CODE%"=="0" (
     echo.
