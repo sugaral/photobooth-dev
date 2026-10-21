@@ -11,7 +11,7 @@ $startpageTextPosition = StartpageTextPosition::resolve(
 );
 ?>
 <!-- Start Page -->
-<div class="stage stage--start rotarygroup" data-stage="start">
+<div class="stage stage--start stage--active rotarygroup" data-stage="start">
     <!-- Flat Design Poster Background Shapes -->
     <div class="flat-background-decorations" aria-hidden="true">
         <div class="flat-shape flat-shape--circle-1"></div>
