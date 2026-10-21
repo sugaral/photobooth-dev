@@ -111,7 +111,6 @@ if ($config['ui']['selfie_mode']) {
     <script src="<?=$assetService->getUrl('resources/js/rembg.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/beauty.js')?>"></script>
 
-<?php include PathUtility::getAbsolutePath('template/components/start.adminshortcut.php'); ?>
 <?php ProcessService::getInstance()->boot(); ?>
 
 <?php if ($noCacheFlag): ?>

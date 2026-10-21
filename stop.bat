@@ -1,38 +1,39 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions
-title Photobooth ÅÄÕÕÏµÍ³ Ò»¼ü¹Ø±Õ
+title Photobooth æ‹ç…§ç³»ç»Ÿ ä¸€é”®å…³é—­
 
 cd /d "%~dp0"
 
 echo ========================================================
-echo   Photobooth ÅÄÕÕÏµÍ³ Ò»¼üÍêÈ«¹Ø±Õ
+echo   Photobooth æ‹ç…§ç³»ç»Ÿ ä¸€é”®å®Œå…¨å…³é—­
 echo ========================================================
 echo.
-echo ÕýÔÚÍ£Ö¹ Photobooth ËùÓÐ·þÎñÓë½ø³Ì...
+echo æ­£åœ¨åœæ­¢ Photobooth æ‰€æœ‰æœåŠ¡ä¸Žè¿›ç¨‹...
 echo.
 
-rem 1. Í£Ö¹ PHP Web ·þÎñ (¶Ë¿Ú 8000)
+rem 1. åœæ­¢ PHP Web æœåŠ¡ (ç«¯å£ 8000)
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000 " 2^>nul') do (
     if not "%%a"=="0" (
         taskkill /f /pid %%a >nul 2>&1
-        echo   [ÒÑÍ£Ö¹] ÊÍ·Å Web ·þÎñ [PID: %%a, ¶Ë¿Ú 8000]
+        echo   [å·²åœæ­¢] é‡Šæ”¾ Web æœåŠ¡ [PID: %%a, ç«¯å£ 8000]
     )
 )
 
-rem 2. Í£Ö¹ Python AI Î¢·þÎñ (¶Ë¿Ú 8001)
+rem 2. åœæ­¢ Python AI å¾®æœåŠ¡ (ç«¯å£ 8001)
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8001 " 2^>nul') do (
     if not "%%a"=="0" (
         taskkill /f /pid %%a >nul 2>&1
-        echo   [ÒÑÍ£Ö¹] ÊÍ·Å AI Î¢·þÎñ [PID: %%a, ¶Ë¿Ú 8001]
+        echo   [å·²åœæ­¢] é‡Šæ”¾ AI å¾®æœåŠ¡ [PID: %%a, ç«¯å£ 8001]
     )
 )
 
-rem 3. ÇåÀí²ÐÁôºóÌ¨ AI ½ø³Ì
+rem 3. æ¸…ç†æ®‹ç•™åŽå° AI è¿›ç¨‹
 powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*rembg_service*' -or $_.CommandLine -like '*photobooth_kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 
 echo.
 echo ========================================================
-echo   [³É¹¦] Photobooth ËùÓÐ·þÎñÒÑÍêÈ«¹Ø±Õ²¢ÊÍ·Å¶Ë¿Ú£¡
+echo   [æˆåŠŸ] Photobooth æ‰€æœ‰æœåŠ¡å·²å®Œå…¨å…³é—­å¹¶é‡Šæ”¾ç«¯å£ï¼
 echo ========================================================
 echo.
 timeout /t 2 /nobreak >nul 2>&1
