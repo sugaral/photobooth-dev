@@ -94,7 +94,7 @@ if not exist "%~dp0vendor\autoload.php" (
 
 rem 1.5 检查并自动安装前端依赖 (node_modules)
 if not exist "%~dp0node_modules\jquery\dist\jquery.min.js" (
-    echo   [提示] 检测到前端核心依赖 (node_modules) 缺失...
+    echo   [提示] 检测到前端核心依赖 node_modules 缺失...
     where npm >nul 2>&1
     if not errorlevel 1 (
         echo   [自动修复] 正在运行 npm install 安装必要前端资源，请稍候...
@@ -106,7 +106,7 @@ if not exist "%~dp0node_modules\jquery\dist\jquery.min.js" (
         )
         echo   [成功] 前端依赖库安装完成！
     ) else (
-        echo [错误] 前端基础库 (node_modules\jquery) 缺失且系统未安装 Node.js/npm。
+        echo [错误] 前端基础库 node_modules\jquery 缺失且系统未安装 Node.js/npm。
         echo        请安装 Node.js 后执行 npm install，或解压包含完整依赖的发布包。
         pause
         exit /b 1
