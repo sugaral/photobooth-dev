@@ -29,8 +29,182 @@
         let screensaverSwitchTimeout;
         let screensaverFlip = false;
         let screensaverLastGallerySource = '';
+        let generation = 0;
+        let playlistRequest;
+        let previousFocus;
+        let activityBound = false;
+        let suppressUntil = 0;
+        const wakingKeys = new Set();
+        let wakingPointer = false;
+        let screensaverClockInterval = null;
+        const viewport = $('<div class="screensaver-overlay__viewport" aria-hidden="true"></div>').hide().appendTo(overlay);
+        // Keep the full-screen layer outside the start stage's stacking context.
+        overlay.appendTo(document.body);
 
         const api = {};
+
+        const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        const kenBurns = (photo, durationMs) => {
+            if (!photo || reducedMotion()) return;
+            photo.animate(
+                [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }],
+                { duration: Math.max(2000, durationMs), easing: 'ease-out', fill: 'forwards' }
+            );
+        };
+
+        const startClock = () => {
+            const clockTime = overlay.find('.screensaver-overlay__clock-time');
+            if (!clockTime.length) return;
+            const tick = () => {
+                const now = new Date();
+                clockTime.text(String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'));
+            };
+            tick();
+            clearInterval(screensaverClockInterval);
+            screensaverClockInterval = setInterval(tick, 1000);
+        };
+
+        const decorateWakeText = () => {
+            [textTop, textCenter, textBottom].forEach(($slot) => {
+                if ($slot.css('display') !== 'none' && $.trim($slot.text()) && !$slot.find('.screensaver-overlay__wake-icon').length) {
+                    $slot.prepend($('<i class="fa fa-hand-pointer screensaver-overlay__wake-icon" aria-hidden="true"></i>'));
+                }
+            });
+        };
+
+        const canShow = () => startPage.hasClass('stage--active') && !document.hidden &&
+            !$('#quickSettingsModal:visible, #payGateModal:visible, #burstWorkbenchModal:visible, .pswp--open, .gallery--open, .sidenav--open').length;
+
+        const activate = () => {
+            if (!overlay.hasClass('screensaver-overlay--active')) previousFocus = document.activeElement;
+            startPage.addClass('stage--screensaver');
+            overlay.addClass('screensaver-overlay--active').attr('aria-hidden', 'false').css('display', 'flex');
+            overlay.get(0).focus({ preventScroll: true });
+        };
+
+        const loadPhoto = (url) => new Promise((resolve) => {
+            const photo = new Image();
+            photo.alt = '';
+            photo.className = 'screensaver-overlay__slide';
+            let timeout;
+            const done = (result) => {
+                clearTimeout(timeout);
+                photo.onload = photo.onerror = null;
+                resolve(result);
+            };
+            photo.onload = () => {
+                const frame = document.createElement('div');
+                frame.className = 'screensaver-overlay__frame';
+                frame.dataset.src = photo.src;
+                const backdrop = document.createElement('div');
+                backdrop.className = 'screensaver-overlay__backdrop';
+                backdrop.style.backgroundImage = 'url("' + photo.src + '")';
+                frame.append(backdrop, photo);
+                done(frame);
+            };
+            photo.onerror = () => done(null);
+            timeout = setTimeout(() => done(null), 8000);
+            photo.src = url;
+        });
+
+        const showFolder = async (requestId, force) => {
+            playlistRequest = new AbortController();
+            const controller = playlistRequest;
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            let photos;
+            try {
+                const response = await fetch(environment.publicFolders.api + '/screensaverMedia.php', {
+                    signal: controller.signal, cache: 'no-store'
+                });
+                if (!response.ok) throw new Error('Screensaver playlist unavailable');
+                const result = await response.json();
+                photos = Array.isArray(result.images) ? result.images : [];
+            } catch (error) {
+                photoboothTools.console.logDev('Screensaver playlist: ' + error.message);
+                photos = [];
+            } finally {
+                clearTimeout(timeout);
+            }
+            if (requestId !== generation) return;
+            let index = 0;
+            let current = null;
+            const dotsBox = overlay.find('.screensaver-overlay__dots').empty();
+            if (photos.length > 1) {
+                photos.forEach(() => dotsBox.append($('<span class="screensaver-overlay__dot"></span>')));
+            }
+            const setActiveDot = (activeIndex) => {
+                dotsBox.children().each(function (dotIndex) {
+                    $(this).toggleClass('screensaver-overlay__dot--active', dotIndex === activeIndex);
+                });
+            };
+            // Bad/deleted media is skipped without replacing a good frame with black.
+            const nextPhoto = async () => {
+                while (photos.length && requestId === generation) {
+                    index %= photos.length;
+                    const photo = await loadPhoto(photos[index].url);
+                    if (requestId !== generation) return null;
+                    if (photo) {
+                        index = (index + 1) % photos.length;
+                        return photo;
+                    }
+                    photos.splice(index, 1);
+                }
+                return null;
+            };
+            current = await nextPhoto();
+            if (requestId !== generation) return;
+            overlay.removeAttr('aria-busy');
+            if (!canShow()) { api.resetTimer(); return; }
+            if (!current) {
+                if (force) {
+                    overlay.addClass('screensaver-overlay--folder');
+                    textCenter.text(photoboothTools.getTranslation('screensaver_empty')).show();
+                    textBottom.text(photoboothTools.getTranslation('screensaver_wake')).show();
+                    activate();
+                } else {
+                    api.resetTimer();
+                }
+                return;
+            }
+            overlay.addClass('screensaver-overlay--folder').css('background-image', 'none');
+            videoEl.hide();
+            imageEl.hide();
+            viewport.empty().append(current).show();
+            api.toggleGalleryText();
+            if (!config.screensaver.text) {
+                textBottom.text(photoboothTools.getTranslation('screensaver_wake')).show();
+            }
+            activate();
+            setActiveDot((index + photos.length - 1) % photos.length);
+            decorateWakeText();
+            startClock();
+            kenBurns(current.querySelector('.screensaver-overlay__slide'), screensaverSwitchMs);
+            const step = async () => {
+                if (requestId !== generation) return;
+                if (!canShow()) { api.resetTimer(); return; }
+                if (photos.length > 1) {
+                    const next = await nextPhoto();
+                    if (requestId !== generation) return;
+                    if (!canShow()) { api.resetTimer(); return; }
+                    if (next && next.dataset.src !== current.dataset.src) {
+                        viewport.append(next);
+                        const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 700;
+                        const options = { duration, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' };
+                        const incoming = next.animate([{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }], options);
+                        const outgoing = current.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-100%)' }], options);
+                        await Promise.all([incoming.finished, outgoing.finished]).catch(() => {});
+                        if (requestId !== generation) return;
+                        current.remove();
+                        current = next;
+                        setActiveDot((index + photos.length - 1) % photos.length);
+                        kenBurns(next.querySelector('.screensaver-overlay__slide'), screensaverSwitchMs);
+                    }
+                }
+                screensaverSwitchTimeout = setTimeout(step, Math.max(1000, screensaverSwitchMs));
+            };
+            screensaverSwitchTimeout = setTimeout(step, Math.max(1000, screensaverSwitchMs));
+        };
 
         api.resolveSource = function resolveSource() {
             const base = environment.publicFolders.api;
@@ -55,13 +229,25 @@
         };
 
         api.hide = function hide() {
+            generation++;
+            if (playlistRequest) playlistRequest.abort();
+            const wasActive = overlay.hasClass('screensaver-overlay--active');
+            clearTimeout(screensaverTimeout);
             if (!overlay.length) {
                 return;
             }
             overlay.removeClass('screensaver-overlay--active');
+            overlay.removeClass('screensaver-overlay--folder').attr('aria-hidden', 'true');
+            overlay.removeAttr('aria-busy');
             overlay.css('display', 'none');
             startPage.removeClass('stage--screensaver');
             clearInterval(screensaverSwitchTimeout);
+            viewport.find('.screensaver-overlay__frame, .screensaver-overlay__slide').each(function () { this.getAnimations().forEach((animation) => animation.cancel()); });
+            viewport.empty().hide();
+            overlay.find('.screensaver-overlay__dots').empty();
+            clearInterval(screensaverClockInterval);
+            screensaverClockInterval = null;
+            if (wasActive && previousFocus && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
 
             if (videoEl.length) {
                 const vid = videoEl.get(0);
@@ -188,7 +374,7 @@
 
             let nextSource = api.resolveSource();
             if (!nextSource && mode === 'gallery') {
-                nextSource = galleryFallbackSource();
+                nextSource = fallbackSource();
             }
 
             if (mode === 'gallery' || mode === 'folder') {
@@ -207,7 +393,7 @@
                 } else if (mode === 'gallery') {
                     imageEl
                         .one('error', function () {
-                            const fallback = galleryFallbackSource();
+                            const fallback = fallbackSource();
                             if (fallback && fallback !== nextSource) {
                                 screensaverLastGallerySource = fallback;
                                 $(this).attr('src', urlSafe(fallback));
@@ -227,8 +413,25 @@
                 return;
             }
             const mode = screensaverMode;
-            if (!startPage.hasClass('stage--active')) {
+            if (!canShow()) {
                 api.resetTimer();
+                return;
+            }
+            api.hide();
+            const requestId = generation;
+            if (mode === 'folder') {
+                if (force) {
+                    // Manual entry owns the screen immediately. Otherwise a
+                    // mousemove during the first image fetch cancels entry.
+                    overlay.addClass('screensaver-overlay--folder').attr('aria-busy', 'true').css('background-image', 'none');
+                    videoEl.hide();
+                    imageEl.hide();
+                    textCenter.text('正在加载屏保…').show();
+                    textBottom.text(photoboothTools.getTranslation('screensaver_wake')).show();
+                    activate();
+                    startClock();
+                }
+                showFolder(requestId, force);
                 return;
             }
 
@@ -283,9 +486,7 @@
                 overlay.css('background-size', 'cover');
             }
 
-            startPage.addClass('stage--screensaver');
-            overlay.addClass('screensaver-overlay--active');
-            overlay.css('display', 'flex');
+            activate();
 
             clearInterval(screensaverSwitchTimeout);
             if ((mode === 'folder' || mode === 'gallery') && screensaverSwitchMs > 0) {
@@ -296,12 +497,48 @@
         };
 
         api.resetTimer = function resetTimer() {
+            api.hide();
             if (!screensaverEnabled) {
                 return;
             }
             clearTimeout(screensaverTimeout);
-            api.hide();
             screensaverTimeout = setTimeout(api.show, screensaverTimeoutMs);
+        };
+
+        api.bindActivity = function bindActivity() {
+            if (activityBound) return;
+            activityBound = true;
+            const wake = (event) => {
+                const active = overlay.hasClass('screensaver-overlay--active');
+                const wakingGesture = wakingPointer || wakingKeys.has(event.code);
+                if (active || wakingGesture || Date.now() < suppressUntil) {
+                    // Consume the whole waking gesture, including its synthetic click.
+                    if (event.cancelable) event.preventDefault();
+                    event.stopImmediatePropagation();
+                    if (event.type === 'keydown') wakingKeys.add(event.code);
+                    if (event.type === 'keyup') wakingKeys.delete(event.code);
+                    if (['pointerdown', 'mousedown', 'touchstart'].includes(event.type)) wakingPointer = true;
+                    if (['pointerup', 'mouseup', 'touchend', 'pointercancel', 'touchcancel', 'click'].includes(event.type)) wakingPointer = false;
+                    suppressUntil = Date.now() + 600;
+                    if (active) {
+                        api.resetTimer();
+                    }
+                    return;
+                }
+                if (screensaverEnabled) api.resetTimer();
+            };
+            ['pointerdown', 'pointerup', 'pointercancel', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchcancel', 'click', 'keydown', 'keyup'].forEach((name) => {
+                document.addEventListener(name, wake, { capture: true, passive: false });
+            });
+            document.addEventListener('mousemove', () => {
+                if (screensaverEnabled && !overlay.hasClass('screensaver-overlay--active')) api.resetTimer();
+            }, { passive: true });
+            document.addEventListener('visibilitychange', () => {
+                wakingPointer = false;
+                wakingKeys.clear();
+                if (document.hidden) api.hide(); else api.resetTimer();
+            });
+            window.addEventListener('blur', () => { wakingPointer = false; wakingKeys.clear(); });
         };
 
         return api;

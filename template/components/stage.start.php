@@ -34,6 +34,10 @@ $startpageTextPosition = StartpageTextPosition::resolve(
             </div>
         </div>
         <div class="flat-widgets">
+            <button type="button" id="btnEnterStandby" class="flat-settings-btn rotaryfocus" title="立即进入待机屏保">
+                <i class="fa fa-moon" aria-hidden="true"></i>
+                <span>进入待机</span>
+            </button>
             <button type="button" id="btnQuickSettings" class="flat-settings-btn" title="快捷设置">
                 <i class="fa fa-gear"></i>
                 <span class="settings-btn-text">设置</span>
@@ -132,6 +136,20 @@ $startpageTextPosition = StartpageTextPosition::resolve(
                             </button>
                         </div>
                     </div>
+                    <?php if (!$config['ui']['selfie_mode']): ?>
+                    <div class="mode-card mode-card--workshop" id="cardModeWorkshop" role="button" tabindex="0" aria-label="进入创意工坊">
+                        <div class="mode-card__icon-box"><i class="fa fa-table-cells-large" aria-hidden="true"></i></div>
+                        <div class="mode-card__body">
+                            <h3 class="mode-card__heading">创意工坊</h3>
+                            <p class="mode-card__sub">先选拼图模板 · 自动倒数连拍 · 合成完整相纸</p>
+                            <div class="workshop-portal-preview" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+                            <div class="mode-card__pills"><span class="mode-pill">四宫格</span><span class="mode-pill">多种拼法</span></div>
+                        </div>
+                        <div class="mode-card__footer">
+                            <button type="button" class="mode-action-btn" id="btnWorkshopStart"><i class="fa fa-table-cells-large" aria-hidden="true"></i> 挑模板，开始连拍</button>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- 底部辅助工具栏 (相册/自定义/视频/刷新/解锁) -->
@@ -196,14 +214,33 @@ if ($screensaverMode === 'image' && $screensaverImageSource) {
     <div
         id="screensaver-overlay"
         class="screensaver-overlay"
+        role="button"
+        tabindex="0"
+        aria-label="<?= htmlspecialchars(\Photobooth\Service\LanguageService::getInstance()->translate('screensaver_wake'), ENT_QUOTES, 'UTF-8') ?>"
+        aria-hidden="true"
         data-mode="<?= $screensaverMode ?>"
         data-source="<?= $screensaverSource ?>"
         style="display: none;"
     >
         <div id="screensaver-text-top" class="screensaver-overlay__text screensaver-overlay__text--top"></div>
         <div id="screensaver-text-center" class="screensaver-overlay__text screensaver-overlay__text--center"></div>
+        <div id="screensaver-text-bottom" class="screensaver-overlay__text screensaver-overlay__text--bottom"></div>
         <img id="screensaver-image" class="screensaver-overlay__image" alt="screensaver">
         <video id="screensaver-video" loop muted playsinline></video>
+        <div class="screensaver-overlay__bar" aria-hidden="true">
+            <div class="screensaver-overlay__brand">
+                <div class="screensaver-overlay__logo"><i class="fa fa-camera"></i></div>
+                <div class="screensaver-overlay__brand-text">
+                    <span class="screensaver-overlay__title"><?= htmlspecialchars(!empty($config['start_screen']['title']) ? $config['start_screen']['title'] : 'PHOTOBOOTH') ?></span>
+                    <span class="screensaver-overlay__status"><span class="screensaver-overlay__status-dot"></span>待机展示中 · 精彩瞬间轮播</span>
+                </div>
+            </div>
+            <div class="screensaver-overlay__clock">
+                <i class="fa fa-clock"></i>
+                <span class="screensaver-overlay__clock-time">--:--</span>
+            </div>
+        </div>
+        <div class="screensaver-overlay__dots" aria-hidden="true"></div>
     </div>
 
     <!-- Quick Settings Modal (多摄像头选择与偏好设置) -->

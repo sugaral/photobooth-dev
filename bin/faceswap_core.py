@@ -42,7 +42,7 @@ except ImportError:
     onnx = None
     numpy_helper = None
 
-DEFAULT_FACE_DIR = os.path.expanduser(r"~/.insightface/models")
+DEFAULT_FACE_DIR = os.environ.get("PHOTOBOOTH_FACE_MODELS_DIR", os.path.expanduser("~/.insightface/models"))
 BUFFALO_L_DIR = os.path.join(DEFAULT_FACE_DIR, "buffalo_l")
 PIPELINE_REVISION = "inswapper-alignment-v2"
 

@@ -84,6 +84,10 @@ $(function () {
     window.open('../?screensaverPreview=1', '_blank');
     return false;
   });
+  $('#screensaver-photos-btn').on('click', function (e) {
+    e.preventDefault();
+    window.open('../admin/upload/?folder=screensavers', '_blank');
+  });
   $('#layout-generator').on('click', function (ev) {
     ev.preventDefault();
     window.open('../admin/generator');

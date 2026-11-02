@@ -106,7 +106,7 @@ class BeautyEngine:
         self._init_bisenet()
 
     def _init_bisenet(self):
-        bisenet_path = os.path.expanduser(r"~/.insightface/models/bisenet_resnet_34.onnx")
+        bisenet_path = os.path.join(os.environ.get("PHOTOBOOTH_FACE_MODELS_DIR", os.path.expanduser("~/.insightface/models")), "bisenet_resnet_34.onnx")
         if not os.path.exists(bisenet_path):
             return
         try:

@@ -91,6 +91,9 @@ if ($config['print']['from_result']) {
     echo ComponentUtility::renderButton('print', $config['icons']['print'], 'printbtn primary-delivery-btn');
 }
 echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnCommercialPrintPreview" title="业务冲印成片预览"><span class="button--icon fa fa-eye"></span><span class="button--label">冲印预览</span></button>';
+if ($config['qr']['enabled']) {
+    echo '<button type="button" class="button rotaryfocus classic-result-action qrbtn" data-command="qrbtn" title="手机扫码下载照片"><span class="button--icon fa fa-qrcode"></span><span class="button--label">扫码下载</span></button>';
+}
 if ($config['ui']['result_buttons']) {
     if ($config['mail']['enabled']) {
         echo ComponentUtility::renderButton('mail', $config['icons']['mail'], 'mailbtn');

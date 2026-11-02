@@ -78,6 +78,7 @@ $stageStart = PathUtility::getAbsolutePath('template/components/stage.start.php'
 include file_exists($privateStageStart) ? $privateStageStart : $stageStart;
 if (!$config['ui']['selfie_mode']) {
     include PathUtility::getAbsolutePath('template/components/stage.studio.php');
+    include PathUtility::getAbsolutePath('template/components/stage.workshop.php');
     include PathUtility::getAbsolutePath('template/components/stage.loader.php');
     include PathUtility::getAbsolutePath('template/components/stage.results.php');
 }
@@ -107,6 +108,7 @@ if ($config['ui']['selfie_mode']) {
     <script src="<?=$assetService->getUrl('resources/js/edit-session.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/composite-renderer.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/core.js')?>"></script>
+    <script src="<?=$assetService->getUrl('resources/js/workshop.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/editor-ui.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/rembg.js')?>"></script>
     <script src="<?=$assetService->getUrl('resources/js/beauty.js')?>"></script>

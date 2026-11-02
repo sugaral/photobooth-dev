@@ -384,6 +384,7 @@ var photoBooth = function () {
     }
   };
   api.reset = function () {
+    if (window.creativeWorkshop) window.creativeWorkshop.reset();
     window.photoEditState.revision += 1;
     window.photoEditState.rawFile = '';
     window.photoEditState.currentFile = '';
@@ -1056,6 +1057,7 @@ var photoBooth = function () {
         while (1) switch (_context.p = _context.n) {
           case 0:
             retry = _args.length > 1 && _args[1] !== undefined ? _args[1] : 0;
+            if (window.creativeWorkshop && window.creativeWorkshop.active) return _context.a(2);
             if (!api.takingPic) {
               _context.n = 1;
               break;
@@ -2117,13 +2119,62 @@ var photoBooth = function () {
     }
     photoboothTools.modal.open();
     var body = photoboothTools.modal.element.querySelector('.modal-body');
-    var image = document.createElement('img');
-    image.src = environment.publicFolders.api + '/qrcode.php?filename=' + filename;
-    body.appendChild(image);
-    var qrHelpText = config.qr.custom_text ? config.qr.text : photoboothTools.getTranslation('qrHelp') + '<br><b>' + config.webserver.ssid + '</b>';
-    var text = document.createElement('p');
-    text.innerHTML = qrHelpText;
-    body.appendChild(text);
+    var wifiPassword = config.qr.wifi_password || '';
+    if (wifiPassword !== '') {
+      var wrap = document.createElement('div');
+      wrap.className = 'qr-dual-modal';
+      var title = document.createElement('div');
+      title.className = 'qr-dual-title';
+      title.textContent = '手机扫码，带走照片';
+      wrap.appendChild(title);
+      var grid = document.createElement('div');
+      grid.className = 'qr-dual-grid';
+      var stepWifi = document.createElement('div');
+      stepWifi.className = 'qr-dual-step';
+      var wifiCreds = document.createElement('div');
+      wifiCreds.className = 'qr-wifi-creds';
+      wifiCreds.innerHTML = '<div class="qr-wifi-row"><i class="fa fa-wifi"></i><span class="qr-wifi-key">名称</span><span class="qr-wifi-val">' + config.webserver.ssid + '</span></div>' + '<div class="qr-wifi-row"><i class="fa fa-key"></i><span class="qr-wifi-key">密码</span><span class="qr-wifi-val">' + wifiPassword + '</span></div>';
+      stepWifi.appendChild(wifiCreds);
+      var wifiImg = document.createElement('img');
+      wifiImg.className = 'qr-wifi-img';
+      wifiImg.src = environment.publicFolders.api + '/qrcode.php?wifi=1';
+      wifiImg.alt = 'Wi-Fi 二维码';
+      stepWifi.appendChild(wifiImg);
+      var wifiLabel = document.createElement('div');
+      wifiLabel.className = 'qr-dual-label';
+      wifiLabel.innerHTML = '<b>第一步</b>连接 Wi-Fi';
+      stepWifi.appendChild(wifiLabel);
+      var wifiTip = document.createElement('div');
+      wifiTip.className = 'qr-wifi-tip';
+      wifiTip.textContent = '手动输入密码，或用系统相机扫码连接';
+      stepWifi.appendChild(wifiTip);
+      grid.appendChild(stepWifi);
+      var stepPhoto = document.createElement('div');
+      stepPhoto.className = 'qr-dual-step';
+      var photoImg = document.createElement('img');
+      photoImg.src = environment.publicFolders.api + '/qrcode.php?filename=' + filename;
+      photoImg.alt = '照片下载二维码';
+      stepPhoto.appendChild(photoImg);
+      var photoLabel = document.createElement('div');
+      photoLabel.className = 'qr-dual-label';
+      photoLabel.innerHTML = '<b>第二步</b>扫码下载照片';
+      stepPhoto.appendChild(photoLabel);
+      grid.appendChild(stepPhoto);
+      wrap.appendChild(grid);
+      var hint = document.createElement('div');
+      hint.className = 'qr-dual-hint';
+      hint.innerHTML = '<i class="fa fa-circle-info"></i> 已连接过本机 Wi-Fi 的手机，直接扫右侧二维码即可（微信扫一扫亦可）';
+      wrap.appendChild(hint);
+      body.appendChild(wrap);
+    } else {
+      var image = document.createElement('img');
+      image.src = environment.publicFolders.api + '/qrcode.php?filename=' + filename;
+      body.appendChild(image);
+      var qrHelpText = config.qr.custom_text ? config.qr.text : photoboothTools.getTranslation('qrHelp') + '<br><b>' + config.webserver.ssid + '</b>';
+      var text = document.createElement('p');
+      text.innerHTML = qrHelpText;
+      body.appendChild(text);
+    }
   };
   api.resetEditSession = function () {
     editSession++;
@@ -2820,15 +2871,20 @@ var photoBooth = function () {
     photoboothTools.reloadPage();
     rotaryController.focusSet(startPage);
   });
-  if (screensaverEnabled) {
-    $(document).on('click touchstart keydown mousemove', function () {
-      api.screensaver.resetTimer();
-    });
-    screensaverOverlay.on('click touchstart', function (e) {
-      e.preventDefault();
-      api.screensaver.resetTimer();
-    });
-  }
+  api.screensaver.bindActivity();
+  $('#btnEnterStandby').on('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    api.screensaver.show(true);
+  }).on('keydown', function (event) {
+    // Activate on release so the opening key's keyup cannot wake the screen.
+    if (event.key === 'Enter' || event.key === ' ') event.preventDefault();
+  }).on('keyup', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      $(this).trigger('click');
+    }
+  });
   $('.cups-button').on('click', function (ev) {
     ev.preventDefault();
     var url = "http://".concat(location.hostname, ":631/jobs/");
@@ -3033,7 +3089,9 @@ var photoBooth = function () {
     e.stopPropagation();
     $('#studioPoseCard').toggleClass('is-collapsed');
   });
-  api.enterStudio = function (mode) {
+  api.enterStudio = function (mode, options) {
+    options = options || {};
+    if (!options.workshop && window.creativeWorkshop) window.creativeWorkshop.reset();
     mode = mode || 'ai_swap';
     api.setPhotoboothMode(mode);
     $('body').attr('data-studio-mode', mode);
@@ -3048,7 +3106,7 @@ var photoBooth = function () {
     $('body').addClass('mode--studio');
 
     // Start live camera in left viewport
-    photoboothPreview.startVideo(CameraDisplayMode.BACKGROUND);
+    if (!options.workshop) photoboothPreview.startVideo(CameraDisplayMode.BACKGROUND);
     if (mode === 'ai_swap') {
       $('#studioPaperGuide').hide();
       $('#studioModePill').removeClass('classic');
@@ -3201,6 +3259,10 @@ var photoBooth = function () {
   // Studio Back Button -> Return Home
   $(document).on('click', '#btnStudioBack', function (e) {
     e.preventDefault();
+    if (window.creativeWorkshop && window.creativeWorkshop.active) {
+      window.creativeWorkshop.back();
+      return;
+    }
     api.exitStudio();
   });
 
@@ -3911,6 +3973,10 @@ var photoBooth = function () {
   // Studio "完成 · 开始拍照" Done & Capture Button
   $(document).on('click', '#btnStudioDoneCapture', function (e) {
     e.preventDefault();
+    if (window.creativeWorkshop && window.creativeWorkshop.active) {
+      window.creativeWorkshop.start();
+      return;
+    }
 
     // Synchronize selected countdown time
     var customSec = parseInt($('#studioCountdownSelect').val() || localStorage.getItem('photobooth_custom_countdown') || 3, 10);
@@ -3997,6 +4063,9 @@ var photoBooth = function () {
     }, geometry));
     api.restoreEditState(state);
     $('#stickerCanvasOverlay').show();
+    var $placedStickers = $('#stickerCanvasOverlay .placed-sticker');
+    $placedStickers.removeClass('is-active');
+    $placedStickers.last().addClass('is-active');
     api.pushEditState();
   };
 
@@ -4572,6 +4641,10 @@ var photoBooth = function () {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
+    if (window.creativeWorkshop && window.creativeWorkshop.resultLayout) {
+      window.creativeWorkshop.open();
+      return;
+    }
     api.enterStudio(window.photoboothMode || 'classic');
   });
 
@@ -4906,6 +4979,12 @@ var photoBooth = function () {
       $('#printSpecResolution').text('有效像素: 1800 × 1200 px');
     }
     $('#commercialPrintModal').fadeIn(200);
+    if (window.creativeWorkshop && window.creativeWorkshop.resultLayout) {
+      var workshopLayout = window.creativeWorkshop.resultLayout;
+      $('#printSpecName').text('创意工坊 · ' + workshopLayout.name);
+      $('#printSpecDimension').text(workshopLayout.background ? '保留原版报纸比例，打印时请适合纸张' : '4 × 6 英寸（约 102 × 152 mm）');
+      $('#printSpecResolution').text("".concat(workshopLayout.width || 1200, " \xD7 ").concat(workshopLayout.height || 1800, " px \xB7 ").concat(workshopLayout.dpi || 300, " DPI"));
+    }
   });
   $(document).on('click', '#btnCommercialPrintClose, #commercialPrintBackdrop, #btnModalBackEdit', function (e) {
     e.preventDefault();

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Photobooth\Utility\ImageUtility;
 

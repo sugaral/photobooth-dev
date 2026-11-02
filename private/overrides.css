@@ -341,6 +341,14 @@ svg.octo,
   transform: rotate(45deg);
 }
 
+.stage--start #btnEnterStandby { min-height: 44px; white-space: nowrap; }
+.stage--start #btnEnterStandby:focus-visible { outline: 3px solid var(--pg-accent); outline-offset: 4px; }
+.stage--start #btnEnterStandby:hover i { transform: none; }
+@media (max-width: 700px) {
+  .stage--start .flat-header { flex-wrap: wrap; row-gap: 12px; }
+  .stage--start .flat-widgets { margin-left: auto; flex-wrap: wrap; gap: 8px; }
+}
+
 /* Stage Inner & Typography */
 .stage--start .stage-inner {
   position: relative;
@@ -652,6 +660,9 @@ svg.octo,
    ======================================================== */
 .stage--result {
   position: relative !important;
+  --result-stage-pad: 1.5rem;
+  --result-sidebar-w: clamp(196px, 14vw, 236px);
+  --result-photo-left: calc(var(--result-stage-pad) + var(--result-sidebar-w) + 10px);
   background-color: #FFFDF5 !important;
   background-image: radial-gradient(#000000 1.5px, transparent 1.5px) !important;
   background-size: 24px 24px !important;
@@ -687,7 +698,7 @@ body .stage--result.stage--active::after,
 @media (min-width: 769px) {
   body .stage--result::after,
   body .stage--result.stage--active::after {
-    left: 270px !important;
+    left: var(--result-photo-left) !important;
     right: 1.5rem !important;
     top: 1.5rem !important;
     bottom: 1.5rem !important;
@@ -722,7 +733,7 @@ body .stage--result.stage--active.has-classic-frame::after,
 
 @media (min-width: 769px) {
   body .stage--result .classic-frame-overlay {
-    left: 270px !important;
+    left: var(--result-photo-left) !important;
     right: 1.5rem !important;
     top: 1.5rem !important;
     bottom: 1.5rem !important;
@@ -885,9 +896,9 @@ body .stage--result {
   justify-content: flex-start !important;
   align-items: stretch !important;
   gap: 0.75rem !important;
-  width: 236px !important;
-  min-width: 236px !important;
-  max-width: 260px !important;
+  width: var(--result-sidebar-w) !important;
+  min-width: var(--result-sidebar-w) !important;
+  max-width: var(--result-sidebar-w) !important;
   height: auto !important;
   max-height: calc(100vh - 3rem) !important;
   padding: 1.2rem 1rem !important;
@@ -1057,22 +1068,81 @@ body .stage--result {
 
 /* Responsive adjustment for Mobile */
 @media (max-width: 768px) {
+  .stage--result {
+    --result-bar-h: 128px;
+  }
   .stage--result .stage-inner {
     flex-direction: column !important;
     justify-content: flex-end !important;
+    align-items: stretch !important;
+    padding: 0.75rem !important;
   }
   .stage--result .result-sidebar {
     width: 100% !important;
+    min-width: 0 !important;
     max-width: 100% !important;
-    height: auto !important;
-    max-height: 38vh !important;
+    height: var(--result-bar-h) !important;
+    max-height: var(--result-bar-h) !important;
     flex-direction: row !important;
-    flex-wrap: wrap !important;
-    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 0.5rem !important;
+    padding: 0.5rem !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  .stage--result .result-sidebar .sidebar-section {
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    padding: 6px !important;
+  }
+  .stage--result .result-sidebar .sidebar-section-title {
+    display: none !important;
+  }
+  .stage--result .result-sidebar .sidebar-section-buttons {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    height: 100% !important;
   }
   .stage--result .result-sidebar .button {
     width: auto !important;
-    flex: 1 1 120px !important;
+    flex: 0 0 auto !important;
+    min-width: 92px !important;
+    min-height: 44px !important;
+    margin-top: 0 !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  .stage--result .result-sidebar .button.deletebtn {
+    margin-top: 0 !important;
+  }
+  body .stage--result::after,
+  body .stage--result.stage--active::after {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    top: 0.75rem !important;
+    bottom: calc(var(--result-bar-h) + 1.5rem) !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  body .stage--result .classic-frame-overlay {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    top: 0.75rem !important;
+    bottom: calc(var(--result-bar-h) + 1.5rem) !important;
+    width: auto !important;
+    height: auto !important;
+  }
+  body .stage--result .sticker-canvas-overlay {
+    left: 0.75rem !important;
+    right: 0.75rem !important;
+    top: 0.75rem !important;
+    bottom: calc(var(--result-bar-h) + 1.5rem) !important;
+    width: auto !important;
+    height: auto !important;
   }
 }
 
@@ -2183,7 +2253,7 @@ body:has(.stage--result.stage--active) {
 /* ========================================================
    8. Modals, Popups & Toast Notifications
    ======================================================== */
-.modal,
+.modal-inner,
 .modal-dialog,
 .modal-content,
 .popup,
@@ -6629,7 +6699,7 @@ body.mode--studio #aiPoseGuide {
 
 @media (min-width: 769px) {
   body .stage--result .sticker-canvas-overlay {
-    left: 270px !important;
+    left: var(--result-photo-left) !important;
     right: 1.5rem !important;
     top: 1.5rem !important;
     bottom: 1.5rem !important;
@@ -6657,6 +6727,18 @@ body.mode--studio #aiPoseGuide {
 .placed-sticker.is-active {
   border: 2px dashed #000000 !important;
   background: rgba(255, 217, 61, 0.2) !important;
+}
+
+/* 图片贴纸内容随 em 尺寸缩放（容器宽高分em，图片填满） */
+.placed-sticker .placed-sticker-content img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* 控制把手：未处于 is-active 选中态时全部隐藏 */
@@ -6713,7 +6795,7 @@ body.mode--studio #aiPoseGuide {
 
 @media (min-width: 769px) {
   .sticker-drawer {
-    left: 270px !important;
+    left: var(--result-photo-left) !important;
   }
 }
 
@@ -7810,4 +7892,152 @@ body.mode--studio #aiPoseGuide {
   background-color: #FFD93D !important;
   transform: translate(-3px, -3px) !important;
   box-shadow: 10px 10px 0 0 #000000 !important;
+}
+
+/* 双二维码下载引导弹窗（Wi-Fi + 照片） */
+.qr-dual-modal {
+  text-align: center;
+  color: #1a1a1a;
+}
+
+.modal-inner:has(.qr-dual-modal) {
+  width: auto;
+  min-width: 0;
+  max-width: min(94vw, 46em);
+}
+
+.qr-dual-title {
+  display: inline-block;
+  font-size: 1.4em;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  background: #FFD93D;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 4px 4px 0 #1a1a1a;
+  padding: 0.3em 1em;
+  margin-bottom: 1.2em;
+  transform: rotate(-1.5deg);
+}
+
+.qr-dual-grid {
+  display: flex;
+  gap: 1.5em;
+  justify-content: center;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.qr-dual-step {
+  background: #ffffff;
+  border: 2.5px solid #1a1a1a;
+  box-shadow: 6px 6px 0 #1a1a1a;
+  padding: 0.9em;
+  width: 13em;
+}
+
+.qr-dual-step img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 2px solid #1a1a1a;
+  background: #f3f0e6;
+  margin: 0;
+}
+
+.qr-dual-label {
+  margin-top: 0.7em;
+  font-size: 0.95em;
+  line-height: 1.6;
+}
+
+.qr-dual-label b {
+  display: inline-block;
+  background: #FF6B6B;
+  color: #ffffff;
+  border: 2px solid #1a1a1a;
+  padding: 0 0.5em;
+  margin-right: 0.4em;
+  font-weight: 800;
+}
+
+.qr-dual-ssid {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+/* Wi-Fi 凭据大字显示（手动连接为主，二维码为辅） */
+.qr-wifi-creds {
+  border: 2px solid #1a1a1a;
+  background: #FFFDF5;
+  padding: 0.6em 0.7em;
+  margin-bottom: 0.7em;
+  text-align: left;
+}
+
+.qr-wifi-row {
+  display: block;
+  line-height: 1.4;
+}
+
+.qr-wifi-row + .qr-wifi-row {
+  margin-top: 0.5em;
+}
+
+.qr-wifi-row i {
+  color: #FF6B6B;
+  margin-right: 0.3em;
+}
+
+.qr-wifi-key {
+  font-size: 0.8em;
+  color: #666666;
+}
+
+.qr-wifi-val {
+  display: block;
+  font-size: 1.2em;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.qr-dual-step img.qr-wifi-img {
+  width: 62%;
+  margin: 0 auto;
+}
+
+.qr-wifi-tip {
+  margin-top: 0.5em;
+  font-size: 0.78em;
+  color: #888888;
+  line-height: 1.5;
+}
+
+.qr-dual-hint {
+  margin-top: 1.3em;
+  font-size: 0.85em;
+  color: #666666;
+}
+
+/* 通用弹窗按钮与整体风格统一（新粗野主义） */
+.modal-buttonbar {
+  background: transparent !important;
+  padding: 0 2rem 1.5rem;
+}
+
+.modal-button {
+  border: 2.5px solid #1a1a1a !important;
+  box-shadow: 4px 4px 0 #1a1a1a !important;
+  background: #FFD93D !important;
+  color: #1a1a1a !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+}
+
+.modal-button:hover,
+.modal-button:focus,
+.modal-button.focused {
+  background: #FF6B6B !important;
+  color: #ffffff !important;
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 #1a1a1a !important;
 }

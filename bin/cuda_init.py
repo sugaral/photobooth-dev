@@ -63,6 +63,8 @@ def setup_cuda_dll_paths(verbose=False):
         # nvidia-cudnn-cu12 pip package binaries
         candidates.append(sp / "nvidia" / "cudnn" / "bin")
         candidates.append(sp / "nvidia" / "cublas" / "bin")
+        candidates.append(sp / "nvidia" / "cufft" / "bin")
+        candidates.append(sp / "nvidia" / "nvjitlink" / "bin")
         candidates.append(sp / "nvidia" / "cuda_nvrtc" / "bin")
         candidates.append(sp / "nvidia" / "cuda_runtime" / "bin")
         candidates.append(sp / "cv2")

@@ -72,7 +72,7 @@ import gc
 import numpy as np
 from PIL import Image
 
-MODELS_ROOT = os.path.expanduser(r"~\.rembg\models")
+MODELS_ROOT = os.environ.get("PHOTOBOOTH_MODELS_DIR", os.path.join(os.path.expanduser("~"), ".rembg", "models"))
 BIREFNET_MODEL_PATH = os.path.join(MODELS_ROOT, "birefnet-portrait", "birefnet-portrait.onnx")
 RMBG2_MODEL_PATH = os.path.join(MODELS_ROOT, "rmbg-2.0", "rmbg-2.0.onnx")
 

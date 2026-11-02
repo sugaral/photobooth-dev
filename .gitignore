@@ -4,6 +4,7 @@ config/*
 !config/config.inc.php
 !config/my.config.inc.php
 !config/tailwind.admin.config.js
+!config/tailwind.admin.config.mjs
 data/
 digicamcontrol/
 HEAD
@@ -71,3 +72,4 @@ models/
 
 *.whl
 packages/*.whl
+/.runtime/

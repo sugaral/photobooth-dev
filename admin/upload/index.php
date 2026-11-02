@@ -7,6 +7,7 @@ use Photobooth\Service\ApplicationService;
 use Photobooth\Service\LanguageService;
 use Photobooth\Utility\PathUtility;
 use Photobooth\Service\LoggerService;
+use Photobooth\Service\ScreensaverMediaService;
 
 // CSRF token helper
 if (!isset($_SESSION['csrf_token'])) {
@@ -25,7 +26,7 @@ include PathUtility::getAbsolutePath('admin/helper/index.php');
 $errors = [];
 $failedFiles = [];
 $success = false;
-$folderName = null;
+$folderName = ($_GET['folder'] ?? '') === 'screensavers' ? 'private/screensavers' : null;
 $labelClass = 'w-full flex flex-col mb-1';
 $inputClass = 'w-full h-10 border border-solid border-gray-300 focus:border-brand-1 rounded-md px-3 mb-3 mt-auto';
 $btnClass = 'w-full h-12 rounded-full bg-brand-1 text-white flex items-center justify-center relative ml-auto border-2 border-solid border-brand-1 hover:bg-white hover:text-brand-1 transition font-bold px-4';
@@ -59,13 +60,13 @@ if (isset($_POST['submit'])) {
         <div class="w-full max-w-xl rounded-lg p-8 bg-white flex flex-col shadow-xl">
             <form action="<?php echo $_SERVER['PHP_SELF']; ?>" method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
-                <div class="w-full flex flex-col items-center justify-center text-2xl font-bold text-brand-1 mb-2">
-                    File uploader
-                </div>
+                <h1 class="w-full flex flex-col items-center justify-center text-2xl font-bold text-brand-1 mb-2">
+                    <?= $folderName === 'private/screensavers' ? $languageService->translate('screensaver_photos') : 'File uploader' ?>
+                </h1>
 
                 <div class="relative">
                     <label class="<?= $labelClass ?>" for="folder_name"><?=$languageService->translate('upload_folder')?></label>
-                    <select class="<?= $inputClass ?>" name="folder_name">
+                    <select class="<?= $inputClass ?>" name="folder_name" id="folder_name">
                         <option value="private/images/background" <?= $folderName === 'private/images/background' ? 'selected' : '' ?>>images/background</option>
                         <option value="private/images/keyingBackgrounds" <?= $folderName === 'private/images/keyingBackgrounds' ? 'selected' : '' ?>>images/keyingBackgrounds</option>
                         <option value="private/images/frames" <?= $folderName === 'private/images/frames' ? 'selected' : '' ?>>images/frames</option>
@@ -74,9 +75,10 @@ if (isset($_POST['submit'])) {
                         <option value="private/images/cheese" <?= $folderName === 'private/images/cheese' ? 'selected' : '' ?>>images/cheese</option>
                         <option value="private/images/demo" <?= $folderName === 'private/images/demo' ? 'selected' : '' ?>>images/demo</option>
                         <option value="private/videos/background" <?= $folderName === 'private/videos/background' ? 'selected' : '' ?>>videos/background</option>
-                        <option value="private/screensavers" <?= $folderName === 'private/screensavers' ? 'selected' : '' ?>>screensavers</option>
+                        <option value="private/screensavers" <?= $folderName === 'private/screensavers' ? 'selected' : '' ?>><?= $languageService->translate('screensaver_photos') ?></option>
                         <option value="private/fonts" <?= $folderName === 'private/fonts' ? 'selected' : '' ?>>fonts</option>
                     </select>
+                    <p id="screensaver-upload-help" class="my-2" <?= $folderName !== 'private/screensavers' ? 'hidden' : '' ?>><?= $languageService->translate('screensaver_upload_help') ?></p>
                     <label class="<?= $labelClass ?>" for="files"><?=$languageService->translate('upload_selection')?></label>
                     <input class="<?= $labelClass ?>" type="file" name="files[]" id="files" multiple accept="image/*, video/*, .ttf" required>
                     <div class="my-2"><?= $languageService->translate('file_upload_max_size') ?> <?= $max_file_size ?></div>
@@ -98,9 +100,30 @@ if (count($failedFiles) > 0) {
 ?>
 
                 <div class="mt-6">
-                    <input class="<?= $btnClass ?>" type="submit" name="submit" value="Upload">
+                    <input class="<?= $btnClass ?>" type="submit" name="submit" value="<?= $languageService->translate('screensaver_upload') ?>">
                 </div>
             </form>
+            <?php if ($folderName === 'private/screensavers'): ?>
+                <section class="mt-6" aria-labelledby="screensaver-list-title">
+                    <h2 id="screensaver-list-title" class="text-xl font-bold mb-3"><?= $languageService->translate('screensaver_playlist') ?></h2>
+                    <?php $screenPhotos = ScreensaverMediaService::images(); ?>
+                    <?php if (!$screenPhotos): ?>
+                        <p><?= $languageService->translate('screensaver_upload_empty') ?></p>
+                    <?php else: ?>
+                        <ol class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <?php foreach ($screenPhotos as $photo): ?>
+                                <li class="min-w-0">
+                                    <img src="<?= htmlspecialchars($photo['url'], ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy" style="width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;">
+                                    <p style="overflow-wrap:anywhere"><?= htmlspecialchars($photo['name'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <p><?= $photo['width'] ?> × <?= $photo['height'] ?> · <?= abs($photo['width'] / $photo['height'] - 16 / 9) < 0.02 ? '16:9' : $languageService->translate('screensaver_letterbox') ?></p>
+                                </li>
+                            <?php endforeach; ?>
+                        </ol>
+                    <?php endif; ?>
+                    <a class="<?= $btnClass ?> mt-6" href="<?= PathUtility::getPublicPath('') ?>?screensaverPreview=1" target="_blank" rel="noopener"><?= $languageService->translate('screensaver_preview') ?></a>
+                    <p class="mt-3"><?= $languageService->translate('screensaver_saved_settings') ?></p>
+                </section>
+            <?php endif; ?>
         </div>
 
         <div class="w-full max-w-xl my-12 border-b border-solid border-white border-opacity-20">
@@ -119,6 +142,11 @@ if (isset($_SESSION['auth']) && $_SESSION['auth'] === true) {
         </div>
     </div>
 </div>
+<script>
+    document.getElementById('folder_name').addEventListener('change', function () {
+        document.getElementById('screensaver-upload-help').hidden = this.value !== 'private/screensavers';
+    });
+</script>
 <?php
 
 include PathUtility::getAbsolutePath('admin/components/footer.scripts.php');

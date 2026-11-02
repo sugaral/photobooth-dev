@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 /** @var array $config */
 
@@ -7,6 +7,32 @@ use Photobooth\Utility\PathUtility;
 use Photobooth\Utility\QrCodeUtility;
 
 require_once __DIR__ . '/../lib/boot.php';
+
+if (isset($_GET['wifi']) && $_GET['wifi'] === '1') {
+    $ssid = (string)($config['webserver']['ssid'] ?? '');
+    $password = (string)($config['qr']['wifi_password'] ?? '');
+    if ($ssid === '') {
+        http_response_code(400);
+        echo 'No Wi-Fi SSID configured.';
+        exit();
+    }
+    $escape = static function (string $value): string {
+        return str_replace(['\\', ';', ',', ':', '"'], ['\\\\', '\\;', '\\,', '\\:', '\\"'], $value);
+    };
+    $payload = 'WIFI:T:WPA;S:' . $escape($ssid) . ';P:' . $escape($password) . ';;';
+    try {
+        $result = QrCodeUtility::create($payload);
+        header('Content-Type: ' . $result->getMimeType());
+        echo $result->getString();
+    } catch (\Exception $e) {
+        http_response_code(500);
+        echo 'Error generating QR Code.';
+        if ($config['dev']['loglevel'] > 1) {
+            echo $e->getMessage();
+        }
+    }
+    exit();
+}
 
 $filename = (isset($_GET['filename']) && $_GET['filename']) != '' ? $_GET['filename'] : false;
 if ($filename) {

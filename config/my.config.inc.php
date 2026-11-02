@@ -3,6 +3,7 @@
 return [
     'ui' => [
         'language' => 'zh',
+        'local_timezone' => 'Asia/Shanghai',
         'show_fork' => false,
     ],
     'logo' => [
@@ -39,6 +40,24 @@ return [
         'enabled' => true,
         'cheese_enabled' => false,
         'voice' => 'woman',
+    ],
+    'screensaver' => [
+        'enabled' => true,
+        'mode' => 'folder',
+        'timeout_minutes' => 1,
+        'switch_seconds' => 8,
+        'text' => '轻触屏幕，开始拍照',
+        'text_position' => 'bottom-center',
+        'text_backdrop_opacity' => 0.7,
+    ],
+    'webserver' => [
+        'ssid' => 'photobooth',
+    ],
+    'qr' => [
+        'enabled' => true,
+        'url' => 'http://192.168.137.1:8000/photo.php?image=',
+        'append_filename' => true,
+        'wifi_password' => '88888888',
     ],
     'beauty' => [
         'default_eye' => 21,

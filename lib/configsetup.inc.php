@@ -561,6 +561,13 @@ return [
             'placeholder' => 'screensaver_preview',
             'value'       => 'screensaver-preview-btn',
         ],
+        'screensaver_photos' => [
+            'view' => 'basic',
+            'type' => 'button',
+            'name' => 'screensaver[photos]',
+            'placeholder' => 'screensaver_photos',
+            'value' => 'screensaver-photos-btn',
+        ],
         'screensaver_mode'            => [
             'view'             => 'basic',
             'type'             => 'select',
