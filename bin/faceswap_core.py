@@ -187,7 +187,7 @@ class FaceSwapEngine:
         diagnostic = {"requested_providers": providers}
         # Exhaustive cuDNN search made the first swap exceed the HTTP timeout.
         # Heuristic selection avoids benchmarking every convolution on startup.
-        cuda_options = {"cudnn_conv_algo_search": "HEURISTIC"}
+        cuda_options = {"cudnn_conv_algo_search": "DEFAULT", "arena_extend_strategy": "kSameAsRequested", "do_copy_in_default_stream": True}
         session_providers = [(p, cuda_options) if p == "CUDAExecutionProvider" else p for p in providers]
         if "CUDAExecutionProvider" in providers:
             diagnostic["cuda_options"] = cuda_options

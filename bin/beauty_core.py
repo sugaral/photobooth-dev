@@ -372,93 +372,26 @@ class BeautyEngine:
         if smooth_k <= 0.001 and white_k <= 0.001 and rosy_k <= 0.001 and clarity_k <= 0.001:
             return warped
 
-        # Step 2: Whitening, Rosy Radiance & Clarity (自适应冷白去黄与微光透亮)
-        whitened = warped
-        if white_k > 0.001 or rosy_k > 0.001:
-            lab = cv2.cvtColor(warped, cv2.COLOR_BGR2Lab).astype(np.float32)
-            l_chan = lab[:, :, 0]
-            l_norm = l_chan / 255.0
-            bell = np.sin(np.pi * np.clip(l_norm, 0.0, 1.0))
-            if white_k > 0.001:
-                # 1. Targeted De-Yellowing (去黄退黄气，黄脸变白皙冷白皮，绝不大面积曝光提亮)
-                # Neutral b channel in OpenCV Lab is 128. Asian yellow skin is typically 145~170 (>128).
-                yellow_excess = np.maximum(0.0, lab[:, :, 2] - 128.0)
-                deyellow_amount = (yellow_excess * 0.90 + 12.0) * white_k
-                lab[:, :, 2] = np.clip(lab[:, :, 2] - deyellow_amount * bell, 126, 255)
+        # Step 2: Build Masks for Tone vs Smoothing
+        # - tone_mask: covers full face + neck with wide, soft feathering. Eyebrows and lips are NOT punched out,
+        #   so the entire face shares an identical, unified color temperature (prevents yellow halos on brows/forehead).
+        # - smooth_mask: excludes eyes, brows, lips with soft feathering so high-frequency hair/features are not blurred.
+        face_poly_mask = np.zeros((h, w), dtype=np.uint8)
+        feature_blur_exclude = np.zeros((h, w), dtype=np.uint8)
+        neck_poly_mask = np.zeros((h, w), dtype=np.uint8)
 
-                # 2. Gentle Translucent Midtone Lift (微调中段明度，零高光过曝)
-                l_lift = (white_k * 14.0) * bell
-                lab[:, :, 0] = np.clip(l_chan + l_lift, 0, 255)
+        contour_idxs = [
+            10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397,
+            365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58,
+            132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+        ]
+        left_eye_idxs = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
+        right_eye_idxs = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
+        lips_idxs = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95]
+        left_brow_idxs = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
+        right_brow_idxs = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285]
 
-                # 3. Healthy Rosy Radiance (白里透红，防惨白/防假白)
-                rosy_boost = (white_k * 4.5 + rosy_k * 12.0) * bell
-                lab[:, :, 1] = np.clip(lab[:, :, 1] + rosy_boost, 0, 255)
-            elif rosy_k > 0.001:
-                lab[:, :, 1] = np.clip(lab[:, :, 1] + (rosy_k * 12.0) * bell, 0, 255)
-            whitened = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_Lab2BGR)
-
-        if clarity_k > 0.001:
-            blur_clarity = cv2.GaussianBlur(whitened, (0, 0), 2.0)
-            whitened = cv2.addWeighted(whitened, 1.0 + clarity_k * 0.20, blur_clarity, -clarity_k * 0.20, 0)
-
-        # Step 3: Commercial Dual-Band Frequency Separation Smoothing (高低频分频质感磨皮 - 杜绝朦胧与塑料感)
-        smoothed_textured = whitened.copy()
-        if smooth_k > 0.001:
-            if has_faces:
-                for norm_pts in faces_landmarks:
-                    pts = (norm_pts * np.array([w, h], dtype=np.float32)).astype(np.int32)
-                    pad = max(20, int(min(h, w) * 0.03))
-                    bx1 = max(0, int(np.min(pts[:, 0]) - pad))
-                    by1 = max(0, int(np.min(pts[:, 1]) - pad))
-                    bx2 = min(w, int(np.max(pts[:, 0]) + pad))
-                    by2 = min(h, int(np.max(pts[:, 1]) + pad))
-
-                    face_roi = whitened[by1:by2, bx1:bx2]
-                    fh, fw = face_roi.shape[:2]
-                    if fh < 10 or fw < 10:
-                        continue
-
-                    # 3.1 Recursive edge-preserving domain transform: flattens blemishes/unevenness while keeping structure tack-sharp
-                    ss = max(10, int(min(fh, fw) * (0.08 + smooth_k * 0.08)))
-                    sr = float(np.clip(0.15 + smooth_k * 0.25, 0.15, 0.40))
-                    epf = cv2.edgePreservingFilter(face_roi, flags=cv2.RECURS_FILTER, sigma_s=ss, sigma_r=sr)
-
-                    # 3.2 High frequency pore texture layer: extract genuine skin grain
-                    blur_hf = cv2.GaussianBlur(face_roi, (0, 0), sigmaX=max(1.0, min(fh, fw) * 0.003))
-                    hf = face_roi.astype(np.float32) - blur_hf.astype(np.float32)
-
-                    # Micro pores (small amplitude [-4, 4]): retain natural skin pore breathing
-                    fine_pores = np.clip(hf, -4.0, 4.0)
-                    fine_weight = float(np.clip(0.35 - smooth_k * 0.20, 0.12, 0.35))
-                    smoothed_roi = np.clip(epf.astype(np.float32) + fine_pores * fine_weight, 0, 255).astype(np.uint8)
-                    smoothed_textured[by1:by2, bx1:bx2] = smoothed_roi
-            else:
-                ss = max(12, int(min(h, w) * 0.05))
-                sr = float(np.clip(0.15 + smooth_k * 0.20, 0.15, 0.35))
-                epf = cv2.edgePreservingFilter(whitened, flags=cv2.RECURS_FILTER, sigma_s=ss, sigma_r=sr)
-                blur_hf = cv2.GaussianBlur(whitened, (0, 0), 1.0)
-                hf = whitened.astype(np.float32) - blur_hf.astype(np.float32)
-                fine_pores = np.clip(hf, -4.0, 4.0)
-                fine_weight = float(np.clip(0.35 - smooth_k * 0.20, 0.12, 0.35))
-                smoothed_textured = np.clip(epf.astype(np.float32) + fine_pores * fine_weight, 0, 255).astype(np.uint8)
-
-        # Step 4: Aligned Skin Mask & Additive Delta Blending (严格限定人脸与颈部皮肤变白磨皮，五官及背景零干扰)
         if has_faces:
-            contour_idxs = [
-                10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397,
-                365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58,
-                132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
-            ]
-            left_eye_idxs = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
-            right_eye_idxs = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398]
-            lips_idxs = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95]
-            left_brow_idxs = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46]
-            right_brow_idxs = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285]
-
-            face_poly_mask = np.zeros((h, w), dtype=np.uint8)
-            feature_mask = np.zeros((h, w), dtype=np.uint8)
-            neck_poly_mask = np.zeros((h, w), dtype=np.uint8)
-
             for norm_pts in faces_landmarks:
                 coords = norm_pts * np.array([w, h], dtype=np.float32)
                 valid_pts = []
@@ -471,49 +404,120 @@ class BeautyEngine:
                 valid_pts = np.array(valid_pts, dtype=np.float32)
 
                 cv2.fillPoly(face_poly_mask, [valid_pts[contour_idxs].astype(np.int32)], 255)
+                # Feature exclusion for smoothing only (preserve eyelashes, brows, lips sharpness)
                 for feat in [left_eye_idxs, right_eye_idxs, lips_idxs, left_brow_idxs, right_brow_idxs]:
-                    cv2.fillPoly(feature_mask, [valid_pts[feat].astype(np.int32)], 255)
+                    cv2.fillPoly(feature_blur_exclude, [valid_pts[feat].astype(np.int32)], 255)
 
                 single_neck = self.parse_neck_mask(warped, valid_pts)
                 neck_poly_mask = np.maximum(neck_poly_mask, single_neck)
 
-            # Dilate facial features slightly (eyelashes, eye contours, lip edges stay 100% sharp)
-            feat_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            dilated_features = cv2.dilate(feature_mask, feat_kernel, iterations=1)
+            # Neck mask linear fadeout at bottom to eliminate harsh cutoff edge
+            chin_y = int(np.max(coords[:, 1]))
+            fade_h = max(20, int((h - chin_y) * 0.4))
+            for y_n in range(chin_y, min(h, chin_y + fade_h * 2)):
+                factor = max(0.0, 1.0 - (y_n - chin_y) / float(fade_h * 2))
+                neck_poly_mask[y_n, :] = (neck_poly_mask[y_n, :].astype(np.float32) * factor).astype(np.uint8)
 
-            # YCrCb skin color chrominance check
-            ycrcb = cv2.cvtColor(warped, cv2.COLOR_BGR2YCrCb)
-            cr = ycrcb[:, :, 1]
-            cb = ycrcb[:, :, 2]
-            is_skin_color = (cr >= 120) & (cr <= 185) & (cb >= 65) & (cb <= 140)
+            # 2.1 Tone Mask: Smooth continuous mask covering full face + neck (no holes punched for features)
+            raw_tone_mask = np.maximum(face_poly_mask, neck_poly_mask)
+            k_tone = max(21, int(min(h, w) * 0.035) | 1)
+            tone_mask = cv2.GaussianBlur(raw_tone_mask, (k_tone, k_tone), 0).astype(np.float32) / 255.0
 
-            face_interior = (face_poly_mask > 0) & (dilated_features == 0) & is_skin_color
-            if np.count_nonzero(face_interior) > 100:
-                med_cr = float(np.median(cr[face_interior]))
-                med_cb = float(np.median(cb[face_interior]))
-                neck_chroma_match = (np.abs(cr.astype(np.float32) - med_cr) <= 26.0) & (np.abs(cb.astype(np.float32) - med_cb) <= 22.0)
-                valid_neck = (neck_poly_mask > 0) & is_skin_color & neck_chroma_match & (dilated_features == 0)
-            else:
-                valid_neck = (neck_poly_mask > 0) & is_skin_color & (dilated_features == 0)
-
-            skin_candidate = face_interior | valid_neck
-            skin_uint8 = (skin_candidate * 255).astype(np.uint8)
-            k_blur = max(15, int(min(h, w) * 0.024) | 1)
-            skin_mask = cv2.GaussianBlur(skin_uint8, (k_blur, k_blur), 0).astype(np.float32) / 255.0
-            skin_mask[dilated_features > 0] = 0.0
+            # 2.2 Smoothing Mask: Exclude eyes, brows, lips with soft feathering
+            feat_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            dilated_features = cv2.dilate(feature_blur_exclude, feat_kernel, iterations=1)
+            raw_smooth = face_poly_mask.astype(np.float32) / 255.0
+            raw_smooth[dilated_features > 0] = 0.0
+            k_smooth = max(15, int(min(h, w) * 0.02) | 1)
+            smooth_mask = cv2.GaussianBlur(raw_smooth * 255.0, (k_smooth, k_smooth), 0).astype(np.float32) / 255.0
+            smooth_mask = np.maximum(smooth_mask, (neck_poly_mask.astype(np.float32) / 255.0) * 0.8)
         else:
-            ycrcb = cv2.cvtColor(warped, cv2.COLOR_BGR2YCrCb)
-            cr = ycrcb[:, :, 1]
-            cb = ycrcb[:, :, 2]
-            is_skin_color = (cr >= 120) & (cr <= 185) & (cb >= 65) & (cb <= 140)
-            skin_uint8 = (is_skin_color * 255).astype(np.uint8)
-            skin_mask = cv2.GaussianBlur(skin_uint8, (17, 17), 0).astype(np.float32) / 255.0
+            tone_mask = np.ones((h, w), dtype=np.float32)
+            smooth_mask = np.ones((h, w), dtype=np.float32)
 
-        # 4.2 Additive Delta Blending: output = warped + (smoothed_textured - warped) * skin_mask
-        delta = smoothed_textured.astype(np.float32) - warped.astype(np.float32)
-        skin_mask_3c = np.repeat(skin_mask[:, :, np.newaxis], 3, axis=2)
-        final_float = warped.astype(np.float32) + delta * skin_mask_3c
-        return np.clip(final_float, 0, 255).astype(np.uint8)
+        # Step 3: Natural Asian Skin Whitening & Healthy Rosy Radiance (自然柔和提亮与健康红润，杜绝粉白/死白/蓝调)
+        whitened = warped.copy()
+        if white_k > 0.001 or rosy_k > 0.001:
+            lab = cv2.cvtColor(warped, cv2.COLOR_BGR2Lab).astype(np.float32)
+            l_chan = lab[:, :, 0]
+            l_norm = l_chan / 255.0
+            bell = np.sin(np.pi * np.clip(l_norm, 0.0, 1.0))
+
+            if white_k > 0.001:
+                # 1. Gentle Translucent Luminance Lift (自然柔和提亮，健康通透冷白皮)
+                l_lift = (white_k * 18.0) * np.sqrt(np.clip(bell, 0.0, 1.0))
+                lab[:, :, 0] = np.clip(l_chan + l_lift, 0, 255)
+
+                # 2. Moderate Warm De-yellowing (微调黄气，杜绝粉白/死白/蓝调，b通道温和微调)
+                yellow_excess = np.maximum(0.0, lab[:, :, 2] - 136.0)
+                deyellow_amount = (yellow_excess * 0.35 + 3.0) * white_k * bell
+                lab[:, :, 2] = np.clip(lab[:, :, 2] - deyellow_amount, 128, 255)
+
+            if rosy_k > 0.001:
+                # 3. Healthy Peach Rosy (自然蜜桃色微调，保持色温协调)
+                rosy_boost = (rosy_k * 8.0) * bell
+                lab[:, :, 1] = np.clip(lab[:, :, 1] + rosy_boost, 0, 255)
+
+            whitened_candidate = cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_Lab2BGR)
+
+            # Apply tone seamlessly via tone_mask (NO holes punched for eyebrows/lips, so entire face shares unified color temperature!)
+            tone_mask_3c = np.repeat(tone_mask[:, :, np.newaxis], 3, axis=2)
+            whitened = (warped.astype(np.float32) * (1.0 - tone_mask_3c) + whitened_candidate.astype(np.float32) * tone_mask_3c).astype(np.uint8)
+
+        if clarity_k > 0.001:
+            blur_clarity = cv2.GaussianBlur(whitened, (0, 0), 2.0)
+            whitened = cv2.addWeighted(whitened, 1.0 + clarity_k * 0.12, blur_clarity, -clarity_k * 0.12, 0)
+
+        # Step 4: Texture-Preserving Smoothing (真实肌理分频质感磨皮，保留毛孔与骨相光影)
+        if smooth_k > 0.001:
+            if has_faces:
+                smoothed_textured = whitened.copy()
+                for norm_pts in faces_landmarks:
+                    pts = (norm_pts * np.array([w, h], dtype=np.float32)).astype(np.int32)
+                    pad = max(20, int(min(h, w) * 0.04))
+                    bx1 = max(0, int(np.min(pts[:, 0]) - pad))
+                    by1 = max(0, int(np.min(pts[:, 1]) - pad))
+                    bx2 = min(w, int(np.max(pts[:, 0]) + pad))
+                    by2 = min(h, int(np.max(pts[:, 1]) + pad))
+
+                    face_roi = whitened[by1:by2, bx1:bx2]
+                    fh, fw = face_roi.shape[:2]
+                    if fh < 10 or fw < 10:
+                        continue
+
+                    # Dual-stage smoothing: bilateral filter + gentle gaussian on base to remove acne/blemishes
+                    ss = max(10, int(min(fh, fw) * (0.05 + smooth_k * 0.05)))
+                    sc = int(35 + smooth_k * 35)
+                    bf = cv2.bilateralFilter(face_roi, d=0, sigmaColor=sc, sigmaSpace=ss)
+                    kg = max(5, int(min(fh, fw) * 0.025) | 1)
+                    bf_soft = cv2.GaussianBlur(bf, (kg, kg), 0)
+                    soft_ratio = float(np.clip(0.35 + smooth_k * 0.35, 0.35, 0.70))
+                    base_smooth = cv2.addWeighted(bf, 1.0 - soft_ratio, bf_soft, soft_ratio, 0)
+
+                    # Micro pore & fine texture retention
+                    blur_hf = cv2.GaussianBlur(face_roi, (5, 5), 0)
+                    hf = face_roi.astype(np.float32) - blur_hf.astype(np.float32)
+                    fine_pores = np.clip(hf, -4.0, 4.0)
+                    fine_weight = float(np.clip(0.50 - smooth_k * 0.20, 0.25, 0.50))
+
+                    smoothed_roi = np.clip(base_smooth.astype(np.float32) + fine_pores * fine_weight, 0, 255).astype(np.uint8)
+                    smoothed_textured[by1:by2, bx1:bx2] = smoothed_roi
+            else:
+                ss = max(10, int(min(h, w) * 0.04))
+                sr = float(np.clip(0.10 + smooth_k * 0.12, 0.10, 0.22))
+                epf = cv2.edgePreservingFilter(whitened, flags=cv2.RECURS_FILTER, sigma_s=ss, sigma_r=sr)
+                blur_hf = cv2.GaussianBlur(whitened, (0, 0), 1.0)
+                hf = whitened.astype(np.float32) - blur_hf.astype(np.float32)
+                fine_pores = np.clip(hf, -5.0, 5.0)
+                fine_weight = 0.40
+                smoothed_textured = np.clip(epf.astype(np.float32) + fine_pores * fine_weight, 0, 255).astype(np.uint8)
+
+            # Blend smoothing only where smooth_mask is active
+            smooth_mask_3c = np.repeat(smooth_mask[:, :, np.newaxis], 3, axis=2)
+            final_float = whitened.astype(np.float32) * (1.0 - smooth_mask_3c) + smoothed_textured.astype(np.float32) * smooth_mask_3c
+            return np.clip(final_float, 0, 255).astype(np.uint8)
+
+        return whitened
 
     def process_image(self, input_path, output_path, eye=15, slim=15, smooth=30, white=25, rosy=20, clarity=15, preview=False, preview_max=960):
         """

@@ -365,16 +365,22 @@
     }
 
     async function save(id) {
-        status(backgroundTemplate ? '全部拍好了，正在逐张更换背景并拼接，首次加载背景模型可能需要一两分钟…' : '全部拍好了，正在拼成一张完整照片…');
+        status('全部拍好了，正在拼成一张完整照片…');
         el('workshopShotTitle').textContent = '正在生成成片';
-        const response = await post('createWorkshop.php', { layout: layout.id, tokens: photos.map(photo => photo.token), template: backgroundTemplate });
+        let response;
+        try {
+            response = await post('createWorkshop.php', { layout: layout.id, tokens: photos.map(photo => photo.token), template: '' });
+        } catch (err) {
+            photoboothTools.console.log('Workshop create error: ' + err.message);
+            throw new Error(err.message || '成片未保存成功，请重试。');
+        }
         check(id);
         if (!response.success || !response.file) throw new Error('成片未保存成功，请重试。');
         const completed = layout;
         close(false);
         resultLayout = completed;
-        photoBooth.setPhotoboothMode('classic');
-        window.sessionPhotoboothMode = 'classic';
+        photoBooth.setPhotoboothMode('workshop');
+        window.sessionPhotoboothMode = 'workshop';
         window.studioClassicLayout = 'single';
         window.burstLayout = '';
         window.burstModeActive = false;
@@ -386,7 +392,7 @@
         if (running || !active) return;
         if (!photos.length) {
             countdownSeconds = Math.max(1, Math.min(10, parseInt(el('studioCountdownSelect').value, 10) || 3));
-            backgroundTemplate = window.selectedClassicTemplate?.id !== 'none' ? window.selectedClassicTemplate?.image || '' : '';
+            backgroundTemplate = '';
         }
         running = true;
         syncCaptureButton();
@@ -490,6 +496,8 @@
         el('workshopLayouts').append(button);
     });
     el('cardModeWorkshop').addEventListener('click', open);
+    const btnWorkshop = document.getElementById('btnWorkshopStart');
+    if (btnWorkshop) btnWorkshop.addEventListener('click', (e) => { e.stopPropagation(); open(); });
     el('cardModeWorkshop').addEventListener('keydown', event => {
         if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
             event.preventDefault();
@@ -497,6 +505,8 @@
         }
     });
     el('workshopChoose').addEventListener('click', enterCapture);
+    const directShoot = document.getElementById('workshopDirectShoot');
+    if (directShoot) directShoot.addEventListener('click', () => { notice.close(); run(); });
     el('workshopStart').addEventListener('click', () => { notice.close(); el('studioSmoothSlider').focus(); });
     el('workshopChangeLayout').addEventListener('click', back);
     el('workshopRetry').addEventListener('click', () => { if (!running && retryAction) retryAction(); });
@@ -523,6 +533,10 @@
         if (resultLayout && resultStage.classList.contains('stage--active')) {
             el('lblResultPaperTitle').textContent = `创意工坊 · ${resultLayout.name}`;
             el('lblResultPaperDetail').textContent = resultLayout.spec || '6 寸竖版 · 1200 × 1800 像素 · 300 DPI';
+            const customBgBtn = document.getElementById('btnClassicCustomBg');
+            if (customBgBtn) customBgBtn.style.setProperty('display', 'none', 'important');
+            const resizerBgBtn = document.getElementById('btnResizerChangeBg');
+            if (resizerBgBtn) resizerBgBtn.style.setProperty('display', 'none', 'important');
         }
     }).observe(resultStage, { attributes: true, attributeFilter: ['class'] });
     window.creativeWorkshop = {

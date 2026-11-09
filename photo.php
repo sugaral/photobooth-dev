@@ -3,8 +3,11 @@
 /** @var array $config */
 
 use Photobooth\Enum\FolderEnum;
+use Photobooth\Utility\HotspotUtility;
 
 require_once __DIR__ . '/lib/boot.php';
+
+HotspotUtility::ensureStarted($config);
 
 $image = (isset($_GET['image']) && $_GET['image'] !== '') ? basename((string) $_GET['image']) : '';
 $valid = $image !== '' && preg_match('/^[A-Za-z0-9._-]+$/', $image);

@@ -1,230 +1,92 @@
-<div align="center">
+# Photobooth 智能照相亭一体化系统
 
-# 📸 Photobooth AI 智能拍照机系统 (商业旗舰版)
-
-<p align="center">
-  <a href="README.md"><b>🇨🇳 简体中文</b></a> |
-  <a href="README_EN.md"><b>🇺🇸 English</b></a> |
-  <a href="README_JA.md"><b>🇯🇵 日本語</b></a> |
-  <a href="README_KO.md"><b>🇰🇷 한국어</b></a>
-</p>
-
-</div>
-
-> **商业级双模态智能拍照系统**：经典发丝级大头贴 + AI 时空折跃写真变身 + 韩国人生四格胶片连拍工作台 + 富士晶彩 300 DPI 工业冲印标准
->
-> 👤 **项目作者**：sugaral  
-> ⚖️ **开源许可证**：[PolyForm Noncommercial 1.0.0](LICENSE) · **商业授权模式（未经授权严禁商用）**
+> 专业级线下互动照相亭系统，集成现代 Web 前端交互、AI 智能发丝级人像抠图、智能换脸、多风格画风融合与移动端扫码取照功能。
 
 ---
 
-## 📖 项目简介 (Overview)
+## 🌟 2026-11-09 版本更新记录 (Branch: `phb_1109`)
 
-Photobooth AI 是针对商业互动摄影、商场自助自拍机、景区汉服写真亭、婚庆宴会及展会活动打造的**工业级双模态智能拍照机系统**。系统深度融合了 **PHP 8 现代商业业务调度核心** 与 **Python 独立 AI/CV 守护微服务**，提供：
+本分支（`phb_1109`）包含了针对系统稳定性、启动流程、移动热点管理与图像编辑核心体验的全面升级：
 
-1. **经典大头贴摄影**：实时发丝级人像抠图、6 维参数化美颜微调、艺术背景融合与贴纸签名涂鸦；
-2. **AI 相机写真摄影**：基于深度人像特征提取与骨相光影迁移算法，实现高保真度古风汉服、婚纱、职场等海量模板一键变身；
-3. **全画幅连拍与韩国人生四格**：提供 1x4 Strip 双联胶片与 2x2 四格相纸连拍工作台，支持单张重拍、自由排版与高精度冲印打样。
+### 1. 移动热点按需启动（杜绝开机/测试自启）
+- **按需拉起机制**：彻底移除了先前本地服务在 `start` 或 `restart` 阶段无条件启动 Windows 移动热点的逻辑。系统在日常开机、开发调试及待机测试时，无线网卡保持休眠与正常网络连接，不再强开热点。
+- **全链路非阻塞触发**：
+  - 新增 `src/Utility/HotspotUtility.php` 与 `api/hotspotControl.php`，采用 Windows 后台非阻塞管道异步调度 `scripts/enable-hotspot.ps1`，毫秒级响应（约 38ms），不占用 Web 线程，不卡顿页面。
+  - 顾客在机台完成拍照并点击**“扫码取照片”**呼出双二维码弹窗时，系统自动在后台异步启动移动热点。
+  - 手机扫码访问取照落地页（`photo.php`）、成片下载（`api/download.php`）及二维码请求（`api/qrcode.php`）均配备自动按需保障与 90 秒防抖保护。
 
----
+### 2. 一键启动脚本全面重构（CMD 封装 + 6层前置环境自动检测安装）
+- **双击即用 CMD 入口**：
+  - 新增 `start.bat`、`restart.bat`、`stop.bat`，解决 Windows 默认双击 `.ps1` 文件会唤起记事本或受限于 PowerShell 执行策略的问题，支持任意环境双击极速启动。
+- **全自动前置依赖自检与自愈安装（`scripts/ensure-prerequisites.ps1`）**：
+  1. **系统运行环境**：自动检测 Windows x64 架构与 PowerShell 5.1+ 环境。
+  2. **数据与缓存目录**：自动补齐 `data/images`、`data/tmp`、`var/log`、`var/run` 等核心目录并清理孤儿标志。
+  3. **PHP 便携环境与必要扩展**：自动校验 `.runtime/php` 运行库及 7 大核心扩展（`curl`、`gd`、`pdo_sqlite`、`mbstring`、`fileinfo`、`zip`、`openssl`），若未激活则自动配置并修复 `php.ini`。
+  4. **Python AI 虚拟环境**：自动检测 `.venv-ai`；若项目目录发生变更，自动自愈 `pyvenv.cfg` 中的 Python 根路径；若环境缺失，则自动通过本地基础 Python 进行重建。
+  5. **AI 核心科学计算库**：自动检测 `onnxruntime`、`opencv-python`、`numpy`、`Pillow` 等库；若检测到缺失或损毁，全自动调用阿里云高速镜像源执行 `pip install -r requirements-ai.txt` 进行自动安装。
+  6. **SOTA AI 抠图换脸模型**：自动校验 `BiRefNet-Portrait`、`RMBG-2.0`、`Buffalo_l` 模型文件，缺失时自动通过国内高速节点下载补全。
+- **端口清理与服务就绪检查**：启动时自动回收 8000 与 8001 端口上的孤儿残留进程，启动就绪后自动拉起默认浏览器打开机台主页。
 
-## 🌟 项目核心优势 (Core Advantages)
+### 3. 图像处理与编辑器交互体验升级
+- **SOTA 发丝级人像抠图融合**：
+  - 深度整合 BiRefNet 与 RMBG-2.0 双模推理引擎，优先启用 DirectML / CUDA 硬件加速。
+  - 在 `bin/matting_core.py` 中引入多频带去杂色融合算法（Defringe）与环境光边缘包裹渲染，消除抠图边缘白边、黑边与溢色。
+- **贴纸与文字缩放几何锚点修复**：
+  - 重构 `api.initPlacedStickerInteraction` 变换矩阵算法，强制锁定几何中心锚点（`centerOverlayX`, `centerOverlayY`），彻底解决用户双指缩放/鼠标滚轮缩放贴纸及文字时向 `(0, 0)` 坐标漂移的缺陷。
+- **界面按钮与抽屉互斥高亮**：
+  - 统一编辑栏按钮高对比度激活态，优化经典换背景按钮与抽屉互斥逻辑，关闭弹窗时自动恢复基准原图。
 
-1. **🎭 双模态极速切换（Dual-Mode Switching）**
-   - 告别传统拍照系统单一玩法的局限，单机无缝整合【经典大头贴】与【AI 变身相机】。
-   - 首页沉浸式卡片化引导，顾客可自由选择经典发丝抠图拍照或 AI 写真换脸变身。
-
-2. **⚡ 0 毫秒快门折跃与零闪烁体验（Zero-Flash Transition）**
-   - 针对传统拍照软件在快门触发与切屏时“黑屏闪烁”或“透出 Windows 桌面/壁纸”的痛点，首创**快门即刻激活折跃遮罩**。
-   - 快门释放瞬间（0ms）即刻点亮全屏高科技等待动效，后台异步执行拍摄与处理，成片就绪瞬间平滑揭开，全程零漏光、零背景闪烁。
-
-3. **✂️ 发丝级人像抠图引擎（SOTA Portrait Matting）**
-   - 深度集成 **BiRefNet-Portrait** 与 **RMBG-2.0** 双模高精抠图模型，突破复杂背景与发丝边缘羽化难题。
-   - 独立抠图工作台支持人像图层自由拖拽、等比缩放、微调位移与一键居中重置。
-
-4. **💄 六维交互式美颜精修系统（6-D Live Face Beauty）**
-   - 拥有 **自然磨皮、透亮美白、红润气色、质感清晰、智能大眼、V脸瘦脸** 6 维精密调节。
-   - 采用全局紧支撑 $C^2$ 连续位移场无缝形变算法，杜绝传统马赛克与边缘错位；支持单人及最多 10 人合影同步智能美化。
-
-5. **🎞️ 韩国人生四格与胶片连拍工作台（Life4Cuts & Burst Mode）**
-   - 独家定制连拍节奏引导与单张重拍机制（6 选 4 自由排版）。
-   - 完美适配 2" × 6" 韩国人生四格双联相纸与 4" × 6" 经典四格相纸。
-
-6. **🖨️ 工业级 300 DPI 富士晶彩冲印与材质打样（Commercial Print Proofing）**
-   - 标准化工业冲印输出尺寸（600×1800px、1800×1200px 300 DPI）。
-   - 内置独家冲印打样弹窗，支持高光相纸、绒面哑光、珠光质感模拟，出血线防裁切指引与防伪暗纹展示。
-
-7. **🚀 智能硬件加速与 DLL 动态挂载（CUDA & cuDNN 9 Bridge）**
-   - 配备 `bin/cuda_init.py` 动态探测引擎，消除 Windows 3.8+ 下 ONNX Runtime 无法加载 cuDNN 9 DLL（`[ONNXRuntimeError] : 9`）的顽疾。
-   - 深度支持 NVIDIA RTX 30 / 40 / 50 系列最新显卡硬件加速，同时支持无显卡多核 CPU 自动降级运行。
-
-8. **🛡️ Windows 中文路径零障碍兼容（Zero Path Barrier）**
-   - 重构图像 I/O 链路，采用内存二进制字节流（`imdecode`/`imencode`）代替底层 ANSI C `fopen`，彻底解决含中文路径运行报错的通病。
+### 4. 工程架构规范化与垃圾文件清理
+- **Session 存储隔离**：彻底修复 `lib/boot.php` 此前向项目父目录泄漏 `sessions/` 垃圾文件夹的问题，将会话持久化规范隔离至私有临时目录。
+- **代码整洁化**：清理了废弃的测试脚本、临时文件、旧开发配置及非必要编译产物。
 
 ---
 
-## 🚀 项目功能性迭代 (Feature Changelog)
+## 🚀 快速启动指南
 
-| 模块分类 | 功能特性 | 状态 / 标注 | 功能说明 |
-| :--- | :--- | :---: | :--- |
-| **AI 写真变身** | **AI 时空折跃写真换脸** | 🌟 **【全新重磅】** | 基于 SCRFD+ArcFace+Inswapper 深度骨相特征提取与光影融合，内置男/女古风汉服、婚纱、职场等海量写真模板 |
-| **视觉交互** | **快门 0ms 零闪烁折跃遮罩** | 🌟 **【最新新增】** | 快门释放瞬间即刻锁定科技遮罩，成片就绪后 0ms 平滑渐变揭幕，杜绝背景壁纸与黑屏闪烁 |
-| **智能美颜** | **六维人像美颜精修引擎** | 🌟 **【全新重磅】** | 磨皮、美白、气色、清晰、大眼、瘦脸六大维度微调，支持实时预览与长按对比原图，支持全局默认参数配置 |
-| **智能抠图** | **发丝级人像分离与工作台** | 🌟 **【全新重磅】** | BiRefNet-Portrait 算法驱动，支持背景自由切换、人像自由拖拽缩放位移、重置与精细烘焙合成 |
-| **胶片排版** | **韩国人生四格连拍工作台** | 🌟 **【全新重磅】** | 6 连拍抓拍、单张即时重拍、精选 4 格排版、黑白边框定制与 300 DPI 富士双联相纸生成 |
-| **成片装扮** | **艺术贴纸与手写签名板** | 🌟 **【最新新增】** | 多分类商用贴纸自由拖拽旋转与层级控制；多色艺术笔触手绘签名与撤销重做栈 |
-| **冲印交付** | **商业相纸打样与材质模拟** | 🌟 **【最新新增】** | 光泽高光、哑光绒面、珠光三种相纸质感模拟，毫米级出血线展示与打印机状态直连 |
-| **系统底层** | **CUDA / cuDNN 9 智能挂载** | 🌟 **【最新新增】** | 自动化巡检并安全注入 DLL，全面释放 RTX 50/40 显卡算力；支持 CPU 降级自愈 |
-| **系统底层** | **Windows 中文路径零障碍** | 🌟 **【最新新增】** | 内存字节流全链路编解码，彻底攻克 Windows 下包含中文路径导致 OpenCV 报错崩溃的顽疾 |
-| **基础摄影** | 单拍/倒计时拍摄 | 📦 【原有功能】 | 支持 1~10 秒自定义倒计时、语音 Cheese 提示音与快门动画 |
-| **基础色彩** | 经典基础色调滤镜 | 📦 【原有功能】 | 内置黑白、复古、胶片、清爽等基础调色滤镜 |
-| **交付渠道** | 二维码扫码取图 | 📦 【原有功能】 | 拍照完成后生成独立二维码，顾客手机扫码即刻高速下载高清成片 |
-| **交互展陈** | 本地照片画廊与全屏亭台 | 📦 【原有功能】 | 历史作品流水瀑布流画廊、无人使用时屏保画廊播放、支持热键与外部硬件按钮交互 |
-| **设备中控** | 后台系统配置中心 | 📦 【原有功能】 | 提供 Web 端的相机源切换、打印机驱动映射、倒计时参数及系统权限安全管理 |
-
----
-
-## 💻 运行平台与环境要求 (Platform Requirements)
-
-- **操作系统**：Windows 10 / Windows 11 (64位)
-- **Web 运行时**：PHP 8.2 ~ 8.4
-  - 必需扩展：`curl`, `gd`, `mbstring`, `sockets`, `fileinfo`, `openssl`
-- **AI/CV 运行时**：Python 3.10 ~ 3.12 (推荐使用独立虚拟环境 `.venv` 或 `.venv-ai`)
-- **硬件计算加速**：
-  - **GPU 模式（强烈推荐）**：NVIDIA 独立显卡（GTX 1060 以上，推荐 RTX 3060 / 4060 / 5060 等），安装 NVIDIA 显卡驱动及 CUDA 11.8 或 12.x
-  - **CPU 模式**：支持多核 CPU（自动多线程并发推理，无需独显即可开箱体验）
-- **影像采集设备**：
-  - USB 免驱高清免驱网络摄像头（1080P/4K）
-  - 单反/微单相机（Canon EOS / Sony / Nikon，搭配 HDMI 采集卡实现顶级画质）
-- **交互终端**：横屏（1920×1080）或竖屏（1080×1920）触控一体机、触控屏电脑或普通 PC
-
----
-
-## 🛠️ 前置准备工作 (Prerequisites)
-
-### 1. 获取项目源码
-```bash
-git clone https://github.com/sugaral/photobooth-dev.git
-cd photobooth-dev
+### 1. 启动服务
+在项目根目录下，直接双击运行：
+```bat
+start.bat
 ```
+脚本将全自动检测所需依赖、自动补齐缺失项、拉起 AI 引擎与 Web 服务，并自动在浏览器中打开：
+- **机台拍照首页**：`http://127.0.0.1:8000/`
+- **后台管理系统**：`http://127.0.0.1:8000/admin/`
+- **AI 抠图引擎健康检查**：`http://127.0.0.1:8001/ready`
 
-### 2. 配置 PHP 环境
-- 安装 PHP 8.4（推荐通过 Windows 官方 WinGet 安装）：
-  ```powershell
-  winget install PHP.PHP.8.4
-  ```
-- 确保 `php.exe` 所在目录已添加至系统环境变量 `PATH`。
-- 检查 `php.ini`，确保已开启以下核心扩展：
-  ```ini
-  extension=curl
-  extension=fileinfo
-  extension=gd
-  extension=mbstring
-  extension=openssl
-  extension=sockets
-  ```
-
-### 3. 配置 Python 虚拟环境与依赖
-在项目根目录下打开命令行或 PowerShell：
-```bash
-# 1. 创建虚拟环境
-python -m venv .venv
-
-# 2. 激活虚拟环境 (Windows CMD)
-.venv\Scripts\activate.bat
-
-# 3. 安装 AI 核心依赖包
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-> **GPU 加速说明**：如需启用 NVIDIA GPU 硬件加速，可在激活虚拟环境后运行 `packages/install_gpu_deps.bat` 自动校验并完成 cuDNN / onnxruntime-gpu 安装。
-
-### 4. 准备 AI 算法模型权重 (Models)
-将 AI 所需的预训练模型放置在对应的模型目录中（如 `models/` 或通过内置下载器获取）：
-- **InsightFace 人脸检测与换脸**：`buffalo_l` 模型文件夹、`inswapper_128.onnx`
-- **AI 抠图模型**：`birefnet-portrait` 或 `rmbg-2.0`
-- **人脸解析与美颜**：MediaPipe Face Mesh 核心支持文件
+### 2. 重启与停止服务
+- **重启**：双击运行 `restart.bat`
+- **停止**：双击运行 `stop.bat`
 
 ---
 
-## 🚦 如何运行项目 (How to Run)
-
-本项目专为 Windows 环境打造了极致便捷的**双批处理脚本（.bat）**管理机制，开箱即用，无需复杂的终端命令。
+## 🛠️ 系统架构说明
 
 ```
- ┌────────────────┐          ┌────────────────┐
- │   start.bat    │ ───────► │    stop.bat    │
- │ (一键启动全套系统) │          │ (一键完全安全退出) │
- └────────────────┘          └────────────────┘
-```
-
-### 1. 一键启动系统：`start.bat`
-双击根目录下的 **`start.bat`**：
-1. **环境智能探测**：自动定位系统已安装的 `php.exe` 与 Python 虚拟环境；
-2. **依赖自愈检查**：自动检测 `vendor/autoload.php`，缺失时自动静默调用 Composer 安装依赖；
-3. **端口死锁清理**：自动探测并释放旧的 `8000`（Web）和 `8001`（AI 微服务）端口占用；
-4. **启动后台 AI 微服务**：在后台以静默最小化方式拉起 Python 核心算法引擎（监听 `127.0.0.1:8001`）；
-5. **启动 Web 前端服务并自动切屏**：拉起 PHP 内置服务器（`127.0.0.1:8000`），在服务就绪后**自动调用默认浏览器窗口打开拍照系统主页**；
-6. 窗口测试模式下，可随时按键盘 `F12` 打开浏览器控制台查看完整运行日志。
-
-### 2. 一键完全关闭：`stop.bat`
-拍摄结束或需要重启/关机时，双击根目录下的 **`stop.bat`**：
-1. **释放 Web 端口**：安全关闭 8000 端口上的 PHP 服务；
-2. **释放 AI 微服务**：安全关闭 8001 端口上的 Python AI 进程；
-3. **彻底清理孤儿进程**：深度扫描并杀灭残留的 `rembg_service` 与 `photobooth_kiosk` 进程，彻底释放显存、内存与摄像头句柄。
-
----
-
-## 📂 项目结构说明 (Directory Structure)
-
-```text
-photobooth-dev/
-├── api/                        # PHP 商业业务后端 API 路由
-│   ├── applyEffects.php        # 经典大头贴发丝抠图、美颜与滤镜合成
-│   ├── capture.php             # 硬件摄像头快门抓拍与画布存储
-│   ├── faceswapProcess.php     # AI 写真变身换脸调度入口
-│   ├── settings.php            # 系统前台配置热分发接口
-│   └── ...                     # 模板上传、相纸删除等 RESTful 接口
-├── assets/                     # 前端工程化静态构建资产
-│   ├── js/                     # 前端核心业务逻辑脚本 (core.js, beauty.js, rembg.js 等)
-│   └── sass/                   # SCSS 样式源码与组件样式
-├── bin/                        # Python AI/CV 独立算法微服务
-│   ├── ai_runtime.py           # 虚拟环境与跨进程热加载引导
-│   ├── beauty_core.py          # 6 维人像美颜、MediaPipe 拓扑、C2 位移场形变
-│   ├── cuda_init.py            # CUDA & cuDNN 9 DLL 动态自动发现与安全注入引擎
-│   ├── faceswap_core.py        # SCRFD + ArcFace + Inswapper 换脸写真算法
-│   ├── matting_core.py         # BiRefNet / RMBG 发丝级抠图与融合算法
-│   └── rembg_service.py        # 常驻微服务守护进程 (端口 8001)
-├── config/                     # 系统核心配置与设备参数 (my.config.inc.php)
-├── data/                       # 照片数据存储目录 (images/ 原片与成片, tmp/ 处理缓存)
-├── lib/                        # PHP 核心处理与图像渲染库
-├── packages/                   # GPU 离线安装与辅助脚本归档
-│   ├── install_gpu_deps.bat    # Windows GPU 环境一键安装脚本
-│   └── README.md               # GPU 离线包安装使用说明
-├── private/                    # 商业定制样式覆盖层 (overrides.css, editor-upgrade.css)
-├── resources/                  # 运行时前端资源库
-│   ├── img/                    # 界面图标、相纸贴纸素材、AI 写真模板库
-│   │   ├── stickers/           # 装扮贴纸库
-│   │   └── templates_ai/       # AI 写真变身模板 (男装/女装/汉服/婚纱等)
-│   ├── js/                     # 生产环境运行 JS 脚本
-│   └── lang/                   # 国际化语言包 (zh.json, en.json)
-├── src/                        # PHP 现代化命名空间服务架构 (Service, Utility, Model)
-├── template/                   # 界面视图组件模板 (Studio 拍摄、Loader 等待、Result 结果页等)
-├── start.bat                   # 🚀【一键启动】Photobooth 全套系统
-├── stop.bat                    # 🛑【一键关闭】Photobooth 所有服务与进程
-├── README.md                   # 📄 本项目说明文档
-└── composer.json               # PHP 依赖包配置描述
+Photobooth/
+├── start.bat / restart.bat / stop.bat       # Windows 一键操作批处理入口
+├── start.ps1 / restart.ps1 / stop.ps1       # 核心 PowerShell 启动编排脚本
+├── scripts/
+│   ├── ensure-prerequisites.ps1            # 6 层前置环境自动检测与安装自愈脚本
+│   ├── local-services.ps1                  # Web 与 AI 后台守护进程管理器
+│   ├── enable-hotspot.ps1                  # WinRT 移动热点底层配置驱动
+│   └── local-router.php                    # 内置 PHP 本地静态资源路由
+├── api/
+│   ├── hotspotControl.php                  # 移动热点按需启动控制接口
+│   ├── qrcode.php                          # 取照/Wi-Fi 双二维码动态生成
+│   ├── download.php                        # 手机端极速出图下载端点
+│   └── rembgProcess.php                    # AI 抠图处理转发接口
+├── bin/
+│   ├── rembg_service.py                    # AI 异步常驻服务
+│   ├── matting_core.py                     # SOTA 抠图与自然环境光融合核心
+│   └── download_models.py                  # AI 模型镜像断点续传下载器
+├── models/                                 # ONNX 模型存储库 (BiRefNet, RMBG, InsightFace)
+├── data/                                   # 拍摄成片、模板与运行时数据
+└── private/                                # 界面定制化样式与功能增强覆盖层
 ```
 
 ---
 
-## ⚖️ 开源协议与商业授权声明 (License & Commercial Terms)
+## 📄 授权与许可
 
-- **项目作者**：**sugaral** (GitHub: [sugaral](https://github.com/sugaral))
-- **开源许可证**：本项目遵循 **[PolyForm Noncommercial License 1.0.0](LICENSE)** 非商用开源协议。
-  - **允许行为**：个人学习、非营利性学术研究、个人本地测试与代码评估完全免费。
-  - **严禁未经授权商用**：未经作者正式书面授权，**严禁将本项目源码、编译文件或其衍生版本用于任何商业营利目的**。包括但不限于：
-    1. 部署于商用自助拍照亭、大头贴机、照相馆商用终端提供收费服务；
-    2. 将本系统与商业硬件/一体机打包出租或转售；
-    3. 基于本系统向付费客户提供 AI 写真换脸、相纸冲印收费服务。
-- **获取商业授权**：如需商业部署、定制开发、企业采购或商业运营授权，请通过 GitHub 联系作者 **[sugaral](https://github.com/sugaral)** 获取正式商业授权证书与专属技术支持。
+本项目采用开源与商业双重授权模式，遵循 LICENSE 与相关许可条款。

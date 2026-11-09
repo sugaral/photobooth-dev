@@ -94,12 +94,12 @@ class Beauty
                         escapeshellarg($script),
                         escapeshellarg($tempInput),
                         escapeshellarg($tempOutput),
-                        (float)($beautyConfig['default_eye'] ?? 15),
-                        (float)($beautyConfig['default_slim'] ?? 15),
-                        (float)($beautyConfig['default_smooth'] ?? 30),
-                        (float)($beautyConfig['default_white'] ?? 25),
-                        (float)($beautyConfig['default_rosy'] ?? 20),
-                        (float)($beautyConfig['default_clarity'] ?? 15)
+                        $eye,
+                        $slim,
+                        $smooth,
+                        $white,
+                        $rosy,
+                        $clarity
                     );
                     @exec($cmd);
                     if (file_exists($tempOutput) && filesize($tempOutput) > 0) {

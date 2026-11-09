@@ -35,9 +35,9 @@ session_set_cookie_params([
     'secure' => $isHttps,
 ]);
 
-// Keep sessions outside the public web root so session files are never web-accessible.
+// Keep sessions inside private data/tmp or system temp so project root stays clean.
 $sessionCandidates = [
-    dirname(dirname(__DIR__)) . '/sessions',
+    dirname(__DIR__) . '/data/tmp/sessions',
     sys_get_temp_dir() . '/photobooth-sessions',
 ];
 

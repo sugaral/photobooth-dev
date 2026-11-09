@@ -7,6 +7,16 @@ except ImportError:
 if __name__ == '__main__':
     use_project_runtime()
 
+try:
+    import cuda_init
+    cuda_init.setup_cuda_dll_paths()
+except ImportError:
+    try:
+        from bin import cuda_init
+        cuda_init.setup_cuda_dll_paths()
+    except Exception:
+        pass
+
 import sys
 import argparse
 import json

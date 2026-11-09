@@ -79,77 +79,118 @@ $startpageTextPosition = StartpageTextPosition::resolve(
                     <h2 class="mode-portal__title">请选择心仪的拍摄体验</h2>
                 </div>
 
-                <div class="mode-portal__cards">
-                    <!-- 模式 A：经典美颜大头贴 -->
-                    <div class="mode-card mode-card--classic" id="cardModeClassic" role="button" tabindex="0">
-                        <div class="mode-card__badge mode-card__badge--pink">
-                            <i class="fa fa-fire"></i> 爆款自拍馆
+                <div class="mode-portal__cards mode-portal__cards--stacked">
+                    <!-- 顶部主板块：拍摄 (Hero Card) -->
+                    <div class="mode-card mode-card--hero mode-card--shoot" id="cardModeDirectShoot" role="button" tabindex="0" aria-label="进入纯净拍摄">
+                        <div class="mode-card__badge mode-card__badge--cyan">
+                            <i class="fa fa-sparkles"></i> 纯净拍摄 · 发丝抠图
                         </div>
-                        <div class="mode-card__icon-box">
-                            <i class="fa fa-camera-retro"></i>
-                        </div>
-                        <div class="mode-card__body">
-                            <h3 class="mode-card__heading">经典美颜大头贴</h3>
-                            <p class="mode-card__sub">自然微调美颜 · 发丝级抠图换背景 · 拍立得四宫格</p>
-                            <div class="mode-card__pills">
-                                <span class="mode-pill"><i class="fa fa-wand-magic-sparkles"></i> 实时微调</span>
-                                <span class="mode-pill"><i class="fa fa-scissors"></i> 发丝抠图</span>
-                                <span class="mode-pill"><i class="fa fa-images"></i> 贴纸背景</span>
+                        <div class="mode-hero__body">
+                            <div class="mode-card__icon-box mode-hero__icon-box">
+                                <i class="fa fa-camera-retro"></i>
+                            </div>
+                            <div class="mode-hero__text">
+                                <h3 class="mode-card__heading mode-hero__heading">拍摄</h3>
+                                <p class="mode-card__sub mode-hero__sub">纯净即拍 · 实时六维微调美颜 · 60帧流光人像抠图 · 拍后自由换背景</p>
+                                <div class="mode-card__pills">
+                                    <span class="mode-pill"><i class="fa fa-wand-magic-sparkles"></i> 精致微调</span>
+                                    <span class="mode-pill"><i class="fa fa-bolt"></i> 免选模板直接拍</span>
+                                    <span class="mode-pill"><i class="fa fa-scissors"></i> 拍后自由换背景</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="mode-card__footer">
-                            <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnClassicStart" title="点击开始经典美颜大头贴">
-                                <i class="fa fa-camera"></i> 点击
+                        <div class="mode-hero__footer">
+                            <button type="button" class="mode-action-btn mode-action-btn--hero" id="btnDirectShootStart" title="点击开始拍摄">
+                                <i class="fa fa-camera"></i> 点击即刻开拍
                             </button>
                         </div>
                     </div>
 
-                    <!-- 模式 B：AI 魔法变身照 -->
-                    <div class="mode-card mode-card--ai" id="cardModeAi" role="button" tabindex="0">
-                        <div class="mode-card__badge mode-card__badge--violet">
-                            <i class="fa fa-bolt"></i> 自动硬件加速
-                        </div>
-                        <div class="mode-card__icon-box">
-                            <i class="fa fa-masks-theater"></i>
-                        </div>
-                        <div class="mode-card__body">
-                            <h3 class="mode-card__heading">AI 魔法变身照</h3>
-                            <p class="mode-card__sub">挑选写真 · 正面拍摄 · 保留本人五官</p>
-                            <!-- 模板例图微缩长廊 -->
-                            <div class="mode-card__showcase">
-                                <?php foreach (array_slice($availableAiTemplates, 0, 3) as $tpl): ?>
-                                <div class="mode-showcase-item">
-                                    <img src="<?= htmlspecialchars($tpl['thumb'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($tpl['title'], ENT_QUOTES, 'UTF-8') ?>">
-                                    <span><?= htmlspecialchars($tpl['tag'] ?? '精选写真', ENT_QUOTES, 'UTF-8') ?></span>
+                    <!-- 下方三个正方形板块容器 (3 等宽正方形卡片) -->
+                    <div class="mode-portal__squares">
+                        <!-- 模式 A：经典美颜大头贴 -->
+                        <div class="mode-card mode-card--classic mode-card--square" id="cardModeClassic" role="button" tabindex="0">
+                            <div class="mode-card__badge mode-card__badge--pink">
+                                <i class="fa fa-fire"></i> 爆款自拍馆
+                            </div>
+                            <div class="mode-card__icon-box">
+                                <i class="fa fa-camera-retro"></i>
+                            </div>
+                            <div class="mode-card__body">
+                                <h3 class="mode-card__heading">经典美颜大头贴</h3>
+                                <p class="mode-card__sub">自然微调美颜 · 发丝级抠图换背景 · 拍立得四宫格</p>
+                                <div class="mode-card__pills">
+                                    <span class="mode-pill"><i class="fa fa-wand-magic-sparkles"></i> 实时微调</span>
+                                    <span class="mode-pill"><i class="fa fa-scissors"></i> 发丝抠图</span>
+                                    <span class="mode-pill"><i class="fa fa-images"></i> 贴纸背景</span>
                                 </div>
-                                <?php endforeach; ?>
                             </div>
-                            <div class="mode-card__pills">
-                                <span class="mode-pill"><i class="fa fa-shirt"></i> 写真风格</span>
-                                <span class="mode-pill"><i class="fa fa-robot"></i> 自选模板</span>
-                                <span class="mode-pill"><i class="fa fa-bolt-lightning"></i> 本人五官</span>
+                            <div class="mode-card__footer">
+                                <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnClassicStart" title="点击开始经典美颜大头贴">
+                                    <i class="fa fa-camera"></i> 点击
+                                </button>
                             </div>
                         </div>
-                        <div class="mode-card__footer">
-                            <button type="button" class="mode-action-btn mode-action-btn--ai" id="btnEnterAiMode">
-                                <i class="fa fa-wand-magic-sparkles"></i> 挑模板变身
-                            </button>
+
+                        <!-- 模式 B：AI 魔法变身照 -->
+                        <div class="mode-card mode-card--ai mode-card--square" id="cardModeAi" role="button" tabindex="0">
+                            <div class="mode-card__badge mode-card__badge--violet">
+                                <i class="fa fa-bolt"></i> 自动硬件加速
+                            </div>
+                            <div class="mode-card__icon-box">
+                                <i class="fa fa-masks-theater"></i>
+                            </div>
+                            <div class="mode-card__body">
+                                <h3 class="mode-card__heading">AI 魔法变身照</h3>
+                                <p class="mode-card__sub">挑选写真 · 正面拍摄 · 保留本人五官</p>
+                                <!-- 模板例图微缩长廊 -->
+                                <div class="mode-card__showcase">
+                                    <?php foreach (array_slice($availableAiTemplates, 0, 3) as $tpl): ?>
+                                    <div class="mode-showcase-item">
+                                        <img src="<?= htmlspecialchars($tpl['thumb'], ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($tpl['title'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <span><?= htmlspecialchars($tpl['tag'] ?? '精选写真', ENT_QUOTES, 'UTF-8') ?></span>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <div class="mode-card__pills">
+                                    <span class="mode-pill"><i class="fa fa-shirt"></i> 写真风格</span>
+                                    <span class="mode-pill"><i class="fa fa-robot"></i> 自选模板</span>
+                                    <span class="mode-pill"><i class="fa fa-bolt-lightning"></i> 本人五官</span>
+                                </div>
+                            </div>
+                            <div class="mode-card__footer">
+                                <button type="button" class="mode-action-btn mode-action-btn--ai" id="btnEnterAiMode">
+                                    <i class="fa fa-wand-magic-sparkles"></i> 挑模板变身
+                                </button>
+                            </div>
                         </div>
+
+                        <?php if (!$config['ui']['selfie_mode']): ?>
+                        <!-- 模式 C：创意工坊 -->
+                        <div class="mode-card mode-card--workshop mode-card--square" id="cardModeWorkshop" role="button" tabindex="0" aria-label="进入创意工坊">
+                            <div class="mode-card__badge mode-card__badge--cyan">
+                                <i class="fa fa-sparkles"></i> 拼图出片
+                            </div>
+                            <div class="mode-card__icon-box">
+                                <i class="fa fa-table-cells-large" aria-hidden="true"></i>
+                            </div>
+                            <div class="mode-card__body">
+                                <h3 class="mode-card__heading">创意工坊</h3>
+                                <p class="mode-card__sub">多款拼图模版 · 自动倒数连拍 · 组合出片</p>
+                                <div class="mode-card__pills">
+                                    <span class="mode-pill"><i class="fa fa-table-cells"></i> 四宫格</span>
+                                    <span class="mode-pill"><i class="fa fa-grip-vertical"></i> 四连拍</span>
+                                    <span class="mode-pill"><i class="fa fa-wand-magic-sparkles"></i> 自由排版</span>
+                                </div>
+                            </div>
+                            <div class="mode-card__footer">
+                                <button type="button" class="mode-action-btn mode-action-btn--primary" id="btnWorkshopStart" title="挑选模板，开始连拍">
+                                    <i class="fa fa-table-cells-large" aria-hidden="true"></i> 挑模板，开始拍
+                                </button>
+                            </div>
+                        </div>
+                        <?php endif; ?>
                     </div>
-                    <?php if (!$config['ui']['selfie_mode']): ?>
-                    <div class="mode-card mode-card--workshop" id="cardModeWorkshop" role="button" tabindex="0" aria-label="进入创意工坊">
-                        <div class="mode-card__icon-box"><i class="fa fa-table-cells-large" aria-hidden="true"></i></div>
-                        <div class="mode-card__body">
-                            <h3 class="mode-card__heading">创意工坊</h3>
-                            <p class="mode-card__sub">先选拼图模板 · 自动倒数连拍 · 合成完整相纸</p>
-                            <div class="workshop-portal-preview" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span></div>
-                            <div class="mode-card__pills"><span class="mode-pill">四宫格</span><span class="mode-pill">多种拼法</span></div>
-                        </div>
-                        <div class="mode-card__footer">
-                            <button type="button" class="mode-action-btn" id="btnWorkshopStart"><i class="fa fa-table-cells-large" aria-hidden="true"></i> 挑模板，开始连拍</button>
-                        </div>
-                    </div>
-                    <?php endif; ?>
                 </div>
 
                 <!-- 底部辅助工具栏 (相册/自定义/视频/刷新/解锁) -->

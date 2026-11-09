@@ -376,7 +376,7 @@ $classicTemplates = [
                                  <?= $isCustom ? 'data-custom="1"' : '' ?>
                                  role="button" tabindex="0">
                                 <div class="wb-tpl-thumb-box">
-                                    <img src="<?= $tpl['thumb'] ?>" alt="<?= htmlspecialchars($tpl['title']) ?>" class="wb-tpl-img" loading="lazy">
+                                    <img src="<?= $tpl['thumb'] ?>" alt="<?= htmlspecialchars($tpl['title']) ?>" class="wb-tpl-img" onerror="this.onerror=null;this.src='resources/img/templates/studio_light.jpg';">
                                     <span class="wb-tpl-chip"><?= htmlspecialchars($tpl['tag']) ?></span>
                                     <div class="wb-tpl-check"><i class="fa fa-circle-check"></i></div>
                                     <?php if ($isCustom): ?>
@@ -395,7 +395,11 @@ $classicTemplates = [
                             </div>
                         <?php endforeach; ?>
                     </div>
-                    <p id="aiTemplateEmpty" hidden>没有符合当前条件的模板，请调整分类。</p>
+                    <div id="aiTemplateEmpty" style="display: none;" class="wb-tpl-empty">
+                        <i class="fa fa-circle-exclamation"></i>
+                        <p>没有符合当前筛选条件的写真模板</p>
+                        <button type="button" id="btnResetAiFilters" class="wb-reset-btn"><i class="fa fa-rotate-left"></i> 重置所有筛选</button>
+                    </div>
                 </div>
 
                 <!-- 经典大头照模板模式 -->

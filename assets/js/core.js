@@ -773,12 +773,9 @@ var photoBooth = function () {
       var vid = previewVideo.get(0);
       var canvas = videoSensor.get(0);
       var beautyCanvas = document.getElementById('preview--beauty-canvas');
-      var p = liveBeautyParams || {};
-      var beautyEnabled = config.beauty && config.beauty.enabled !== false && config.beauty.auto_apply !== false;
-      var hasBeauty = beautyEnabled && (p.smooth > 0 || p.white > 0 || p.rosy > 0 || p.clarity > 0 || p.eye > 0 || p.slim > 0);
-      var currentMode = window.sessionPhotoboothMode || window.photoboothMode || $('body').attr('data-studio-mode');
-      // For ai_swap, capture the pristine raw camera frame so Inswapper extracts true identity and natural skin tone without double-whitening
-      var sourceEl = (hasBeauty && currentMode !== 'ai_swap' && beautyCanvas && beautyCanvas.width > 0 && beautyCanvas.height > 0 && $(beautyCanvas).is(':visible')) ? beautyCanvas : vid;
+      // Always capture the pristine raw camera video frame so post-processing (Beauty, FaceSwap, Rembg)
+      // applies consistent, high-precision single-pass processing without double-baking or ghosting artifacts.
+      var sourceEl = (vid && vid.videoWidth > 0) ? vid : ((beautyCanvas && beautyCanvas.width > 0) ? beautyCanvas : vid);
 
       if (sourceEl && (sourceEl.videoWidth > 0 || sourceEl.width > 0)) {
         var w = sourceEl.videoWidth || sourceEl.width;
@@ -1073,9 +1070,27 @@ var photoBooth = function () {
             return _context.a(2);
           case 2:
             savedMode = window.photoboothMode || 'classic';
+            var isShootDirect = (savedMode === 'shoot');
+            var liveB = window.liveBeautyParams || liveBeautyParams || {};
+            var curSmooth = $('#studioSmoothSlider').length ? parseInt($('#studioSmoothSlider').val(), 10) : (liveB.smooth !== undefined ? liveB.smooth : (config.beauty ? config.beauty.default_smooth : 20));
+            var curWhite = $('#studioWhiteSlider').length ? parseInt($('#studioWhiteSlider').val(), 10) : (liveB.white !== undefined ? liveB.white : (config.beauty ? config.beauty.default_white : 15));
+            var curRosy = $('#studioRosySlider').length ? parseInt($('#studioRosySlider').val(), 10) : (liveB.rosy !== undefined ? liveB.rosy : (config.beauty ? config.beauty.default_rosy : 20));
+            var curClarity = $('#studioClaritySlider').length ? parseInt($('#studioClaritySlider').val(), 10) : (liveB.clarity !== undefined ? liveB.clarity : (config.beauty ? config.beauty.default_clarity : 15));
+            var curEye = $('#studioEyeSlider').length ? parseInt($('#studioEyeSlider').val(), 10) : (liveB.eye !== undefined ? liveB.eye : (config.beauty ? config.beauty.default_eye : 15));
+            var curSlim = $('#studioSlimSlider').length ? parseInt($('#studioSlimSlider').val(), 10) : (liveB.slim !== undefined ? liveB.slim : (config.beauty ? config.beauty.default_slim : 15));
+
             captureRecipe = {
               filter: (_typeof(imgFilter) === 'object' ? imgFilter.value : imgFilter) || 'plain',
-              beauty: _objectSpread({}, config.beauty)
+              beauty: _objectSpread(_objectSpread({}, config.beauty), {}, {
+                enabled: config.beauty && config.beauty.enabled !== false,
+                auto_apply: config.beauty && config.beauty.auto_apply !== false,
+                default_smooth: curSmooth,
+                default_white: curWhite,
+                default_rosy: curRosy,
+                default_clarity: curClarity,
+                default_eye: curEye,
+                default_slim: curSlim
+              })
             };
             window.sessionPhotoboothMode = savedMode;
             _context.p = 3;
@@ -1856,7 +1871,8 @@ var photoBooth = function () {
             return _context7.a(2);
           case 9:
             // Classic Photobooth Pipeline: Beauty Retouching + Background Template Matting
-            classicTpl = window.selectedClassicTemplate && window.selectedClassicTemplate.id && window.selectedClassicTemplate.id !== 'none' ? window.selectedClassicTemplate.image || window.selectedClassicTemplate.path || '' : '';
+            var isShootDirectMode = (activeCaptureMode === 'shoot');
+            classicTpl = (!isShootDirectMode && window.selectedClassicTemplate && window.selectedClassicTemplate.id && window.selectedClassicTemplate.id !== 'none') ? window.selectedClassicTemplate.image || window.selectedClassicTemplate.path || '' : '';
             beautyActive = recipe.beauty && recipe.beauty.enabled !== false && recipe.beauty.auto_apply !== false;
             bSmooth = beautyActive ? (recipe.beauty && recipe.beauty.default_smooth !== undefined ? recipe.beauty.default_smooth : parseInt($('#studioSmoothSlider').val() || 20, 10)) : 0;
             bWhite = beautyActive ? (recipe.beauty && recipe.beauty.default_white !== undefined ? recipe.beauty.default_white : parseInt($('#studioWhiteSlider').val() || 15, 10)) : 0;
@@ -2140,6 +2156,11 @@ var photoBooth = function () {
   api.showQrCode = function (filename) {
     if (!config.qr.enabled) {
       return;
+    }
+    if (window.environment && window.environment.publicFolders && window.environment.publicFolders.api) {
+      try {
+        fetch(window.environment.publicFolders.api + '/hotspotControl.php?action=start', { cache: 'no-store' }).catch(function () {});
+      } catch (e) {}
     }
     photoboothTools.modal.open();
     var body = photoboothTools.modal.element.querySelector('.modal-body');
@@ -2537,8 +2558,22 @@ var photoBooth = function () {
       resultPage.addClass('stage--active');
       $('body').removeClass('is-capturing').addClass('mode--result');
       var currentActiveMode = window.sessionPhotoboothMode || window.photoboothMode;
-      $('#resultSidebar .rembgbtn, #resultSidebar .beautybtn').toggle(currentActiveMode !== 'ai_swap');
-      $('#resultSidebar .classic-result-action, #resultSidebar .sidebar-section--edit').show();
+      var isWorkshop = Boolean(window.creativeWorkshop && window.creativeWorkshop.resultLayout) || currentActiveMode === 'workshop';
+      var isShootMode = (currentActiveMode === 'shoot') && !isWorkshop;
+      $('body').toggleClass('mode--result-shoot', isShootMode);
+
+      // 通用修图侧边栏显示，但排除自定义背景按钮
+      $('#resultSidebar .sidebar-section--edit').show();
+      $('#resultSidebar .classic-result-action').not('#btnClassicCustomBg, .rembgbtn, [data-command="rembgbtn"]').show();
+
+      // 自定义背景按钮只在【拍摄】板块出现，美颜大头贴、AI魔法变身照、创意工坊彻底隐藏
+      $('#resultSidebar .rembgbtn, #btnClassicCustomBg, [data-command="rembgbtn"]').toggle(isShootMode);
+      $('#stagePersonResizerBar #btnResizerChangeBg').toggle(isShootMode);
+      if (!isShootMode) {
+        $('#rembgModal').removeClass('active sidenav--open').hide();
+      }
+
+      $('#resultSidebar .beautybtn').toggle(currentActiveMode !== 'ai_swap' && !isWorkshop);
       $('#aiResultControlBar').toggle(currentActiveMode === 'ai_swap');
       var currentLayout = window.studioClassicLayout || 'single';
       if (window.burstActive || currentLayout === 'life4cuts' || window.burstLayout === '1x4_strip') {
@@ -2593,6 +2628,13 @@ var photoBooth = function () {
       }
       if (!filternav.hasClass('sidenav--open')) {
         rotaryController.focusSet(resultPage);
+      }
+      if (currentActiveMode === 'shoot') {
+        setTimeout(function () {
+          if (typeof window.startMattingAndFlow === 'function') {
+            window.startMattingAndFlow({ autoBackground: 'studio_light', mode: 'shoot' });
+          }
+        }, 120);
       }
     };
     preloadImage.onerror = function () {
@@ -3132,17 +3174,56 @@ var photoBooth = function () {
 
     // Start live camera in left viewport
     if (!options.workshop) photoboothPreview.startVideo(CameraDisplayMode.BACKGROUND);
-    if (mode === 'ai_swap') {
+    $('#studioStage, #stageStudio').removeClass('is-mode-classic is-mode-ai is-mode-shoot');
+    $('body').removeClass('mode--shoot');
+    if (mode === 'shoot') {
+      $('#studioStage, #stageStudio').addClass('is-mode-shoot');
+      $('body').addClass('mode--shoot');
       $('#studioPaperGuide').hide();
-      $('#studioModePill').removeClass('classic');
+      $('#studioModePill').removeClass('classic').addClass('shoot');
+      $('#studioModePillText').text('纯净人像拍摄');
+      $('#workbenchIcon').removeClass('classic').html('<i class="fa fa-camera-retro"></i>');
+      $('#workbenchTitle').text('纯净人像摄影棚');
+      $('#workbenchSubtitle').text('六维精致微调美颜 · 拍完智能抠图换背景');
+
+      // 核心裁剪：彻底隐藏模板与背景相关的 Tab 和选择面板
+      $('#tabBtnTemplates').hide();
+      $('#paneTemplates').removeClass('active').hide();
+      $('#studioAiTplContainer').hide();
+      $('#studioClassicTplContainer').hide();
+      $('#aiPoseGuide').hide();
+
+      // 新增摄像模块：彻底删除隐藏底部“当前选定：请选择写真模板”提示芯片
+      $('.wb-footer-status').hide();
+      $('.wb-selected-chip').hide();
+
+      // 确保高亮且仅展示【滤镜与美颜】Tab
+      $('#tabBtnFilters').addClass('active').show();
+      $('#paneFilters').addClass('active').show().css('display', '');
+
+      // 默认原生取景拍摄，拍后再进行抠图
+      window.selectedClassicTemplate = null;
+    } else if (mode === 'ai_swap') {
+      $('#studioStage, #stageStudio').addClass('is-mode-ai');
+      $('.wb-footer-status').show();
+      $('.wb-selected-chip').show();
+      $('#tabBtnTemplates').show();
+      $('#studioPaperGuide').hide();
+      $('#studioModePill').removeClass('classic shoot');
       $('#studioModePillText').text('AI 魔法变身照');
       $('#workbenchIcon').removeClass('classic').html('<i class="fa fa-wand-magic-sparkles"></i>');
       $('#workbenchTitle').text('AI 魔法变身工作室');
       $('#workbenchSubtitle').text('保留本人五官 · 实时滤镜与写真模板');
       $('#tabTemplatesLabel').text('挑选模板');
-      $('#studioAiTplContainer').show();
+      $('#studioAiTplContainer').show().css('display', '');
       $('#studioClassicTplContainer').hide();
       $('#aiPoseGuide').show();
+
+      // 关键修复：换脸变身模式下，默认直接高亮激活【挑选模板】Tab，进入后立即呈现写真模板网格
+      $('#tabBtnTemplates').addClass('active').show();
+      $('#tabBtnFilters').removeClass('active');
+      $('#paneTemplates').addClass('active').show().css('display', '');
+      $('#paneFilters').removeClass('active').hide();
 
       // Default AI template
       if (!window.selectedAiTemplate) {
@@ -3165,21 +3246,28 @@ var photoBooth = function () {
         $('#studioAiTplGrid .wb-tpl-card').removeClass('active');
         $('#studioAiTplGrid .wb-tpl-card[data-id="' + window.selectedAiTemplate.id + '"]').addClass('active');
       } else {
-        $('#studioCurrentTplName').text('请先上传可用写真模板');
+        $('#studioCurrentTplName').text('请选择写真模板');
         $('#studioCurrentTplThumb').removeAttr('src').hide();
       }
       if (typeof api.filterStudioAiTemplates === 'function') {
         api.filterStudioAiTemplates();
       }
     } else {
+      $('#studioStage, #stageStudio').addClass('is-mode-classic');
+      $('.wb-footer-status').hide();
+      $('.wb-selected-chip').hide();
       $('#studioModePill').addClass('classic');
       $('#studioModePillText').text('经典美颜大头贴');
       $('#workbenchIcon').addClass('classic').html('<i class="fa fa-camera-retro"></i>');
       $('#workbenchTitle').text('经典美颜大头贴工作室');
-      $('#workbenchSubtitle').text('自然微调美颜 · 发丝级抠图换背景');
+      $('#workbenchSubtitle').text('自然微调美颜 · 质感光影大头贴');
       $('#tabTemplatesLabel').text('背景模板');
       $('#studioAiTplContainer').hide();
-      $('#studioClassicTplContainer').show();
+      $('#studioClassicTplContainer').hide();
+      $('#tabBtnFilters').addClass('active').show();
+      $('#tabBtnTemplates').hide();
+      $('#paneFilters').addClass('active').show().css('display', '');
+      $('#paneTemplates').removeClass('active').hide();
 
       // 大头照模式显示相纸物理版式辅助框
       $('#studioPaperGuide').show();
@@ -3199,16 +3287,13 @@ var photoBooth = function () {
 
       // 大头照模式不显示姿态引导，但仍然需要实时人脸追踪美颜。
       $('#aiPoseGuide').hide();
-      var firstBg = $('#studioClassicTplGrid .wb-classic-card.active').first();
-      if (firstBg.length) {
-        window.selectedClassicTemplate = {
-          id: firstBg.data('id'),
-          title: firstBg.data('title'),
-          image: firstBg.data('image')
-        };
-        $('#studioCurrentTplName').text(firstBg.data('title'));
-        $('#studioCurrentTplThumb').attr('src', firstBg.data('image')).show();
-      }
+      window.selectedClassicTemplate = {
+        id: 'none',
+        title: '实景原色',
+        image: ''
+      };
+      $('#studioCurrentTplName').text('实景原色');
+      $('#studioCurrentTplThumb').removeAttr('src').hide();
     }
 
     // 两种工作室模式都使用同一套实时人脸追踪和美颜渲染。
@@ -3240,11 +3325,17 @@ var photoBooth = function () {
   };
   api.exitStudio = function () {
     studioPage.removeClass('stage--active');
-    $('body').removeClass('mode--studio');
+    $('body').removeClass('mode--studio mode--shoot mode--result-shoot');
+    $('#studioStage, #stageStudio').removeClass('is-mode-classic is-mode-ai is-mode-shoot');
+    $('.wb-footer-status').show();
+    $('.wb-selected-chip').show();
     startPage.addClass('stage--active');
     api.stopStudioPoseCarousel();
     api.stopFacePoseAlignmentLoop();
     $('#aiPoseGuide').hide();
+    $('#tabBtnTemplates').show();
+    $('#paneTemplates').removeClass('active').css('display', '');
+    $('#paneFilters').removeClass('active').css('display', '');
     $('#preview--video').css('filter', '').css('transform', '');
     window.photoboothMode = 'classic';
     window.sessionPhotoboothMode = null;
@@ -3252,6 +3343,22 @@ var photoBooth = function () {
       photoboothPreview.stopPreview();
     }
   };
+
+  // Mode Card Shoot Click -> Enter Studio (Pure Shoot Mode)
+  $(document).on('click', '#cardModeDirectShoot', function (e) {
+    if ($(e.target).closest('#btnDirectShootStart').length > 0) {
+      return;
+    }
+    e.preventDefault();
+    window.studioClassicLayout = 'single';
+    api.enterStudio('shoot');
+  });
+  $(document).on('click', '#btnDirectShootStart', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    window.studioClassicLayout = 'single';
+    api.enterStudio('shoot');
+  });
 
   // Mode Card Classic Click -> Enter Studio (Classic Mode)
   $(document).on('click', '#cardModeClassic', function (e) {
@@ -3305,11 +3412,21 @@ var photoBooth = function () {
     var tab = $(this).data('tab');
     $('.wb-tab-btn').removeClass('active');
     $(this).addClass('active');
-    $('.wb-tab-pane').removeClass('active');
+    $('.wb-tab-pane').removeClass('active').hide();
     if (tab === 'filters') {
-      $('#paneFilters').addClass('active');
+      $('#paneFilters').addClass('active').show().css('display', '');
     } else if (tab === 'templates') {
-      $('#paneTemplates').addClass('active');
+      $('#paneTemplates').addClass('active').show().css('display', '');
+      if (window.photoboothMode === 'ai_swap') {
+        $('#studioAiTplContainer').show().css('display', '');
+        $('#studioClassicTplContainer').hide();
+        if (typeof api.filterStudioAiTemplates === 'function') {
+          api.filterStudioAiTemplates();
+        }
+      } else {
+        $('#studioAiTplContainer').hide();
+        $('#studioClassicTplContainer').show().css('display', '');
+      }
     }
   });
 
@@ -3501,6 +3618,7 @@ var photoBooth = function () {
       slim: slim,
       baseFilter: baseColorFilter
     };
+    window.liveBeautyParams = liveBeautyParams;
     var video = $('#preview--video');
     if (video.length) {
       video.css({
@@ -3678,9 +3796,10 @@ var photoBooth = function () {
     var count = 0;
 
     $('#studioAiTplGrid .wb-tpl-card').each(function () {
-      var cardSex = (this.dataset.sex || 'unisex').toLowerCase();
-      var cardCat = (this.dataset.cat || 'custom').toLowerCase();
-      var cardAge = (this.dataset.age || 'unspecified').toLowerCase();
+      var $card = $(this);
+      var cardSex = String($card.attr('data-sex') || this.dataset.sex || 'unisex').toLowerCase();
+      var cardCat = String($card.attr('data-cat') || this.dataset.cat || 'custom').toLowerCase();
+      var cardAge = String($card.attr('data-age') || this.dataset.age || 'unspecified').toLowerCase();
 
       var isCardMale = (cardSex === 'male' || cardSex === 'man');
       var isCardFemale = (cardSex === 'female' || cardSex === 'woman');
@@ -3705,20 +3824,33 @@ var photoBooth = function () {
       var matchAge = (age === 'all' || cardAge === age || cardAge === 'unspecified');
 
       var visible = matchSex && matchCat && matchAge;
-      $(this).toggle(visible);
-      if (visible) count++;
+      if (visible) {
+        $card.show().css('display', 'flex');
+        count++;
+      } else {
+        $card.hide();
+      }
     });
 
     $('#aiTemplateCount').text(count + ' 张模板');
-    $('#aiTemplateEmpty').prop('hidden', count > 0);
+    if (count > 0) {
+      $('#aiTemplateEmpty').hide();
+    } else {
+      $('#aiTemplateEmpty').show().css('display', 'flex');
+    }
 
     // If currently active card is filtered out, automatically select the first visible card
-    var visibleCards = $('#studioAiTplGrid .wb-tpl-card:visible');
-    if (visibleCards.length && !$('#studioAiTplGrid .wb-tpl-card.active:visible').length) {
+    var visibleCards = $('#studioAiTplGrid .wb-tpl-card:not([style*="display: none"])');
+    if (visibleCards.length && !$('#studioAiTplGrid .wb-tpl-card.active:not([style*="display: none"])').length) {
       visibleCards.first().trigger('click');
     }
   };
   $(document).on('change', '#aiSexFilter, #aiCategoryFilter, #aiAgeFilter', api.filterStudioAiTemplates);
+  $(document).on('click', '#btnResetAiFilters', function (e) {
+    e.preventDefault();
+    $('#aiSexFilter, #aiCategoryFilter, #aiAgeFilter').val('all');
+    api.filterStudioAiTemplates();
+  });
 
   // Studio AI Template Card Selection
   $(document).on('click', '#studioAiTplGrid .wb-tpl-card', function (e) {
@@ -4022,6 +4154,15 @@ var photoBooth = function () {
         alert(res.error || '上传背景失败');
       }
     });
+  });
+
+  // Creative Workshop Start Button
+  $(document).on('click', '#btnWorkshopStart', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.creativeWorkshop) {
+      window.creativeWorkshop.open();
+    }
   });
 
   // Studio "完成 · 开始拍照" Done & Capture Button
@@ -4453,7 +4594,7 @@ var photoBooth = function () {
       $(document).on('pointerup.stickerRotateDrag pointercancel.stickerRotateDrag', onPointerUp);
     });
 
-    // 2. Dedicated Resize Handle Interaction
+    // 2. Dedicated Resize Handle Interaction (Fixed Center-Anchor: Zero Top-Left Drift)
     $resizeBtn.on('pointerdown', function (e) {
       if (e.button !== 0) return;
       e.preventDefault();
@@ -4467,31 +4608,47 @@ var photoBooth = function () {
           targetEl.setPointerCapture(e.pointerId);
         } catch (err) {}
       }
-      var startX = e.clientX;
-      var startY = e.clientY;
+
+      var stickerEl = $sticker[0];
       var $content = $sticker.find('.placed-sticker-content');
       var initialFontSize = parseFloat($content.css('font-size')) || 36;
       var pointerId = e.pointerId;
       var moved = false;
+
+      // Lock center point of the sticker in overlay coordinates to completely eliminate top-left drift
+      var overlayEl = document.getElementById('stickerCanvasOverlay');
+      var overlayRect = overlayEl ? overlayEl.getBoundingClientRect() : { left: 0, top: 0 };
+      var initRect = stickerEl.getBoundingClientRect();
+      var centerScreenX = initRect.left + initRect.width / 2;
+      var centerScreenY = initRect.top + initRect.height / 2;
+      var centerOverlayX = centerScreenX - overlayRect.left;
+      var centerOverlayY = centerScreenY - overlayRect.top;
+      var initDist = Math.hypot(e.clientX - centerScreenX, e.clientY - centerScreenY) || 1;
+
       function onPointerMove(ev) {
         if (ev.pointerId !== pointerId) return;
-        var dx = ev.clientX - startX;
-        var dy = ev.clientY - startY;
-        var delta = (dx + dy) * 0.75;
-        if (Math.abs(delta) > 3) moved = true;
-        var newSize = Math.max(16, Math.min(220, Math.round(initialFontSize + delta)));
+        var currDist = Math.hypot(ev.clientX - centerScreenX, ev.clientY - centerScreenY);
+        var ratio = currDist / initDist;
+        if (Math.abs(ratio - 1) > 0.02) moved = true;
+        var newSize = Math.max(16, Math.min(240, Math.round(initialFontSize * ratio)));
         $content.css('font-size', "".concat(newSize, "px"));
-        api.constrainLayer($sticker[0]);
+
+        // Strictly re-anchor position so center remains rigidly at (centerOverlayX, centerOverlayY)
+        stickerEl.style.left = "".concat(Math.round(centerOverlayX - stickerEl.offsetWidth / 2), "px");
+        stickerEl.style.top = "".concat(Math.round(centerOverlayY - stickerEl.offsetHeight / 2), "px");
+        api.constrainLayer(stickerEl);
       }
       function onPointerUp(ev) {
         if (ev.pointerId !== pointerId) return;
         $(document).off('.stickerResizeDrag');
         if (!moved) {
-          // Tap to scale step (cycle +12px)
+          // Tap to cycle scale step (+16px), maintaining center anchor
           var curSize = parseFloat($content.css('font-size')) || initialFontSize;
           var nextSize = curSize >= 120 ? 32 : curSize + 16;
           $content.css('font-size', "".concat(nextSize, "px"));
-          api.constrainLayer($sticker[0]);
+          stickerEl.style.left = "".concat(Math.round(centerOverlayX - stickerEl.offsetWidth / 2), "px");
+          stickerEl.style.top = "".concat(Math.round(centerOverlayY - stickerEl.offsetHeight / 2), "px");
+          api.constrainLayer(stickerEl);
         }
         api.pushEditState();
       }

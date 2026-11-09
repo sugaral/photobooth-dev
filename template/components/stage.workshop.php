@@ -44,7 +44,8 @@
         <p id="workshopCameraStatus" role="status">正在准备摄像头…</p>
         <div class="workshop__notice-actions">
             <button type="button" id="workshopNoticeBack" class="workshop__button workshop__button--quiet">重新选模板</button>
-            <button type="button" id="workshopStart" class="workshop__button workshop__button--primary">知道了，先调整美颜</button>
+            <button type="button" id="workshopStart" class="workshop__button workshop__button--quiet"><i class="fa fa-wand-magic-sparkles"></i> 调整美颜/滤镜</button>
+            <button type="button" id="workshopDirectShoot" class="workshop__button workshop__button--primary"><i class="fa fa-camera"></i> 开始拍摄</button>
         </div>
     </dialog>
 </section>

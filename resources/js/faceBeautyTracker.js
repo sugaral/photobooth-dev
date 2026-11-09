@@ -29,8 +29,8 @@
   // Keep detection responsive enough for a moving subject while the canvas
   // Keep detection responsive enough for a moving subject while the canvas
   // renderer continues at the camera's native animation rate.
-  var intervalMs = 40;
-  var lostHoldMs = 320;
+  var intervalMs = 120;
+  var lostHoldMs = 450;
   var baseSmoothing = 0.65;
   function getEndpoint() {
     var apiRoot = '';
@@ -201,7 +201,8 @@
     })["finally"](function () {
       tracker.pending = false;
       tracker.abortController = null;
-      schedule(intervalMs);
+      var delay = tracker.state.error === 'service_unavailable' ? 1000 : intervalMs;
+      schedule(delay);
     });
   }
   window.faceBeautyTracker = {

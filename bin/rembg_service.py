@@ -1,3 +1,22 @@
+import socket
+import sys
+
+if __name__ == '__main__':
+    # Immediate port probe: prevent duplicate processes from launching heavy AI models
+    _probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        _probe.bind(("127.0.0.1", 8001))
+        _probe.close()
+    except OSError:
+        print("[MattingService] Port 8001 is already in use by another running instance. Exiting immediately.")
+        sys.exit(0)
+    except Exception:
+        try:
+            _probe.close()
+        except Exception:
+            pass
+
 try:
     from ai_runtime import use_project_runtime
 except ImportError:
@@ -23,6 +42,7 @@ os.environ["KMP_BLOCKTIME"] = "0"
 
 import json
 import threading
+import time
 import base64
 import numpy as np
 import cv2
@@ -139,6 +159,14 @@ class RembgHandler(BaseHTTPRequestHandler):
                         threads = max(1, min(32, threads))
                         MANAGER.set_threads(threads)
                     status = MANAGER.get_device_status()
+                def _bg_warmup():
+                    with MANAGER_LOCK:
+                        try:
+                            MANAGER.warmup()
+                        except Exception:
+                            pass
+                threading.Thread(target=_bg_warmup, daemon=True).start()
+
                 if not status.get("session_initialized"):
                     msg = f"AI 抠图已配置为 {status.get('device_mode')}，模型将在首次使用时加载"
                 elif status.get("is_gpu_active"):
@@ -382,6 +410,7 @@ class RembgHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(length).decode("utf-8"))
+            t0 = time.time()
             with MANAGER_LOCK:
                 result = process_with_manager(
                     MANAGER,
@@ -396,9 +425,14 @@ class RembgHandler(BaseHTTPRequestHandler):
                     person_scale=float(data.get("person_scale", 1.0)),
                     person_offset_x=float(data.get("person_offset_x", 0.0)),
                     person_offset_y=float(data.get("person_offset_y", 0.0)),
+                    harmonize=bool(data.get("harmonize", True)),
                 )
+            dur = round((time.time() - t0) * 1000, 1)
+            print(f"[MattingService] /process finished in {dur}ms (engine={result.get('used_engine')}, cache={result.get('cache', False)})")
             self._json(result, 200 if result.get("success") else 500)
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             self._json({"success": False, "error": str(exc)}, 500)
 
     def log_message(self, fmt, *args):
@@ -407,7 +441,21 @@ class RembgHandler(BaseHTTPRequestHandler):
 
 def run():
     print(f"[MattingService] Running on http://{HOST}:{PORT} with SOTA BiRefNet & RMBG-2.0 engines ...")
-    server = ThreadingHTTPServer((HOST, PORT), RembgHandler)
+    try:
+        server = ThreadingHTTPServer((HOST, PORT), RembgHandler)
+    except OSError as exc:
+        print(f"[MattingService] Cannot bind port {PORT}: {exc}. Exiting.")
+        sys.exit(0)
+
+    def _initial_warmup():
+        time.sleep(0.5)
+        with MANAGER_LOCK:
+            try:
+                MANAGER.warmup()
+                print("[MattingService] Warmup complete. SOTA GPU inference ready.")
+            except Exception as exc:
+                print(f"[MattingService] Warmup failed: {exc}")
+    threading.Thread(target=_initial_warmup, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -24,8 +24,10 @@ return [
     ],
     'rembg' => [
         'enabled' => true,
+        'engine' => 'birefnet',
         'alpha_matting' => false,
         'gpu_mode' => 'cuda',
+        'cpu_threads' => 12,
     ],
     'picture' => [
         'cntdwn_time' => 3,
@@ -54,17 +56,17 @@ return [
         'ssid' => 'photobooth',
     ],
     'qr' => [
-        'enabled' => true,
         'url' => 'http://192.168.137.1:8000/photo.php?image=',
-        'append_filename' => true,
         'wifi_password' => '88888888',
     ],
     'beauty' => [
-        'default_eye' => 21,
+        'enabled' => true,
+        'auto_apply' => true,
+        'default_eye' => 20,
         'default_slim' => 20,
-        'default_smooth' => 19,
-        'default_white' => 22,
-        'default_rosy' => 23,
-        'default_clarity' => 20,
+        'default_smooth' => 35,
+        'default_white' => 30,
+        'default_rosy' => 22,
+        'default_clarity' => 15,
     ],
 ];

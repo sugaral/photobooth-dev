@@ -1,5 +1,6 @@
+/* Allow .mode-portal__cards--stacked full flex layout control */
 .mode-portal__cards:has(.mode-card--workshop) {
-  grid-template-columns: repeat(3, minmax(0, 380px));
+  /* No grid override */
 }
 
 .mode-card--workshop {
@@ -364,10 +365,6 @@
 }
 
 @media (max-width: 1000px) {
-  .mode-portal__cards:has(.mode-card--workshop) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
   .mode-card--workshop .mode-card__heading {
     font-size: 1.3rem;
   }
@@ -380,43 +377,6 @@
   }
 }
 @media (max-width: 700px) {
-  .stage--start:has(#cardModeWorkshop) {
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-  }
-  .stage--start:has(#cardModeWorkshop) .flat-header {
-    position: relative;
-    inset: auto;
-    margin: 16px;
-    padding: 10px 12px;
-    flex-shrink: 0;
-    gap: 8px;
-  }
-  .stage--start:has(#cardModeWorkshop) .flat-clock {
-    display: none;
-  }
-  .stage--start:has(#cardModeWorkshop) .flat-settings-btn {
-    white-space: nowrap;
-    padding: 8px 12px;
-  }
-  .stage--start:has(#cardModeWorkshop) .stage-inner {
-    height: auto;
-    flex: 0 0 auto;
-    justify-content: flex-start;
-    padding: 24px 20px 40px;
-  }
-  .stage--start:has(#cardModeWorkshop) .names h1.start-text {
-    font-size: clamp(28px, 8vw, 42px) !important;
-  }
-  .stage--start:has(#cardModeWorkshop) .stage-start__text {
-    margin-bottom: 20px;
-  }
-  .mode-portal__cards:has(.mode-card--workshop) {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .workshop {
     padding: 16px 18px 28px;
   }
@@ -439,9 +399,9 @@
   }
   .workshop__selection-preview {
     order: -1;
-    position: sticky;
-    top: -16px;
-    z-index: 2;
+    position: relative;
+    top: 0;
+    z-index: 1;
     padding: 14px;
     gap: 4px;
     text-align: left;

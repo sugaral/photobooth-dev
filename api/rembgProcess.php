@@ -1,5 +1,6 @@
 <?php
 
+@set_time_limit(120);
 require_once __DIR__ . '/../lib/boot.php';
 
 use Photobooth\Service\LanguageService;
@@ -46,12 +47,24 @@ $autoFallback = filter_var(
 );
 $autoFallback = $autoFallback ?? true;
 $serviceUrl = rtrim((string)($configRembg['service_url'] ?? 'http://127.0.0.1:8001'), '/') . '/process';
-$connectTimeoutMs = max(100, (int)($configRembg['connect_timeout_ms'] ?? 2000));
-$requestTimeoutMs = max($connectTimeoutMs, (int)($configRembg['request_timeout_ms'] ?? 45000));
+$connectTimeoutMs = max(100, (int)($configRembg['connect_timeout_ms'] ?? 3000));
+$requestTimeoutMs = max($connectTimeoutMs, (int)($configRembg['request_timeout_ms'] ?? 90000));
 $cmd = null;
 $stderr = '';
 $fallbackUsed = false;
 $fallbackReason = null;
+
+$pythonExecutable = 'python';
+$venvCandidates = [
+    realpath(__DIR__ . '/../.venv-ai/Scripts/python.exe'),
+    realpath(__DIR__ . '/../.venv-ai/bin/python'),
+];
+foreach ($venvCandidates as $cand) {
+    if ($cand && file_exists($cand)) {
+        $pythonExecutable = $cand;
+        break;
+    }
+}
 
 if (empty($filename)) {
     echo json_encode(['error' => 'No image specified']);
@@ -164,25 +177,67 @@ if (function_exists('curl_init')) {
     }
 }
 
-// 2. Fallback to CLI GPU runner if daemon is not running
+// 2. Fallback to resident GPU service auto-startup or CLI runner
 if ($returnCode !== 0) {
-    $fallbackUsed = $requestedEngine !== 'birefnet';
-    $fallbackReason = $fallbackUsed ? 'matting_service_unavailable' : null;
-    // Attempt to awaken resident GPU service only if port 8001 is not already listening
     $daemonScript = realpath(__DIR__ . '/../bin/rembg_service.py');
     if ($daemonScript) {
         $fp = @fsockopen('127.0.0.1', 8001, $errno, $errstr, 0.1);
         if ($fp) {
             fclose($fp);
         } else {
+            // Awaken resident daemon
             if (strncasecmp(PHP_OS, 'WIN', 3) === 0) {
-                $psCmd = sprintf('powershell -NoProfile -NonInteractive -Command "Start-Process python -ArgumentList \'%s\' -WindowStyle Hidden"', addslashes($daemonScript));
+                $psCmd = sprintf('powershell -NoProfile -NonInteractive -Command "Start-Process \'%s\' -ArgumentList \'%s\' -WindowStyle Hidden"', addslashes($pythonExecutable), addslashes($daemonScript));
                 @pclose(@popen('start "" /min ' . $psCmd, 'r'));
             } else {
-                @exec('python ' . escapeshellarg($daemonScript) . ' > /dev/null 2>&1 &');
+                @exec(escapeshellarg($pythonExecutable) . ' ' . escapeshellarg($daemonScript) . ' > /dev/null 2>&1 &');
+            }
+
+            // Wait up to 3.5s for resident service to become ready, avoiding dual GPU session thrashing
+            for ($attempt = 0; $attempt < 7; $attempt++) {
+                usleep(500000);
+                $chReady = curl_init('http://127.0.0.1:8001/ready');
+                if ($chReady) {
+                    curl_setopt($chReady, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chReady, CURLOPT_TIMEOUT_MS, 500);
+                    curl_setopt($chReady, CURLOPT_CONNECTTIMEOUT_MS, 400);
+                    $readyResp = curl_exec($chReady);
+                    $readyErr = curl_errno($chReady);
+                    curl_close($chReady);
+                    if (!$readyErr && $readyResp) {
+                        // Resident service is up! Send request directly to resident daemon
+                        $chProc = curl_init($serviceUrl);
+                        if ($chProc) {
+                            curl_setopt($chProc, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($chProc, CURLOPT_POST, true);
+                            curl_setopt($chProc, CURLOPT_POSTFIELDS, $postData);
+                            curl_setopt($chProc, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                            curl_setopt($chProc, CURLOPT_TIMEOUT_MS, $requestTimeoutMs);
+                            curl_setopt($chProc, CURLOPT_CONNECTTIMEOUT_MS, 2000);
+                            curl_setopt($chProc, CURLOPT_NOSIGNAL, 1);
+                            $response = curl_exec($chProc);
+                            $curlErr = curl_errno($chProc);
+                            curl_close($chProc);
+                            if (!$curlErr && $response) {
+                                $parsed = json_decode($response, true);
+                                if ($parsed && !empty($parsed['success'])) {
+                                    $resultJson = $parsed;
+                                    $returnCode = 0;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+// 3. Fallback to CLI GPU runner only if daemon cannot be reached
+if ($returnCode !== 0) {
+    $fallbackUsed = $requestedEngine !== 'birefnet';
+    $fallbackReason = $fallbackUsed ? 'matting_service_unavailable' : null;
 
     $runnerPath = realpath(__DIR__ . '/../bin/rembg_runner.py');
     if (!$runnerPath) {
@@ -191,7 +246,8 @@ if ($returnCode !== 0) {
     }
 
     $cmd = sprintf(
-        'python %s --input %s --output %s --engine %s%s',
+        '%s %s --input %s --output %s --engine %s%s',
+        escapeshellarg($pythonExecutable),
         escapeshellarg($runnerPath),
         escapeshellarg($inputPath),
         escapeshellarg($outputPath),

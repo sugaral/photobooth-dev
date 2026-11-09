@@ -32,6 +32,7 @@
     window.rembgReset = function () {
         setMattingLoadingState(false);
         $('#rembgModal').removeClass('active sidenav--open').hide();
+        $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
         $('#stageCutoutViewport').hide();
         $('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar').hide();
         $('.stage[data-stage="result"]').removeClass('cutout-mode-active').removeAttr('data-original-img');
@@ -152,7 +153,7 @@
             if ($(this).is(':disabled') || $(this).hasClass('is-disabled') || isProcessingTemplate || cutoutState === 'extracting') {
                 return;
             }
-            const newEngine = $(this).attr('data-engine') || 'birefnet';
+            const newEngine = $(this).attr('data-engine') || 'rmbg2';
             if (newEngine === selectedEngine && isCutoutExtracted) {
                 return;
             }
@@ -171,14 +172,39 @@
             }
         });
 
+        function isShootMattingAllowed() {
+            const currentMode = window.sessionPhotoboothMode || window.photoboothMode;
+            const isWorkshop = Boolean(window.creativeWorkshop && window.creativeWorkshop.resultLayout) || currentMode === 'workshop';
+            return currentMode === 'shoot' && !isWorkshop;
+        }
+
         // 1. User clicks "AI抠图换景": Start flow with lock guard
         $(document).off('click.rembgOpen', '.rembgbtn, [data-command="rembgbtn"]').on('click.rembgOpen', '.rembgbtn, [data-command="rembgbtn"]', function (e) {
             e.preventDefault();
             e.stopPropagation();
+            if (!isShootMattingAllowed()) {
+                return;
+            }
             if (cutoutState === 'extracting' || isProcessingTemplate || $('.stage-matting-locked').length > 0) {
                 return;
             }
             startMattingAndFlow();
+        });
+
+        // Toggle custom background drawer from resizer bar
+        $(document).off('click.rembgResizerBg', '#btnResizerChangeBg').on('click.rembgResizerBg', '#btnResizerChangeBg', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!isShootMattingAllowed()) {
+                return;
+            }
+            if (modal.hasClass('active')) {
+                modal.removeClass('active sidenav--open').hide();
+            $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
+            } else {
+                modal.addClass('active sidenav--open').show();
+                loadTemplates();
+            }
         });
 
         // 2. Click template card -> Immediately composite & interlock with mutex (Document-level delegation)
@@ -330,6 +356,28 @@
             schedulePersonRecomposite();
         });
 
+        // Confirm & Merge Person / Background into Stage
+        $(document).off('click.rembgPersonConfirm', '#btnPersonConfirm').on('click.rembgPersonConfirm', '#btnPersonConfirm', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            completeRembgAndApplyToStage();
+        });
+
+        $(document).off('click.rembgBgConfirm', '#btnBgConfirm').on('click.rembgBgConfirm', '#btnBgConfirm', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            completeRembgAndApplyToStage();
+        });
+
+        // Auto-finalize & merge when clicking empty area on stage outside transform controls
+        $(document).off('click.rembgStageDismiss').on('click.rembgStageDismiss', '.stage[data-stage="result"]', function (e) {
+            if ($(e.target).closest('#stagePersonTransformBox, #stagePersonResizerBar, #stageTransformBox, #stageBgResizerBar, #rembgModal, #resultSidebar, .buttonbar, .editor-drawer, .classic-frame-overlay, .swal2-container').length === 0) {
+                if ($('#stagePersonTransformBox').is(':visible') || $('#stageBgResizerBar').is(':visible') || $('#stageCutoutViewport').is(':visible')) {
+                    completeRembgAndApplyToStage();
+                }
+            }
+        });
+
         // Bind interactive drag/resize on cutout person
         bindPersonTransformGestures();
 
@@ -370,11 +418,12 @@
                     file: baseOriginalName,
                     template: 'transparent',
                     action: 'apply',
-                    engine: engine || selectedEngine || 'birefnet'
+                    engine: engine || selectedEngine || 'rmbg2'
                 },
                 dataType: 'json',
-                timeout: 35000
+                timeout: 90000
             }).done(function (res) {
+                clearTimeout(slowWarnTimer);
                 if (requestId !== cutoutRequestId) return;
                 if (!res || !res.success || !res.file) {
                     cutoutState = 'ready';
@@ -421,7 +470,9 @@
             });
         }
 
-        function startMattingAndFlow() {
+        var activeMattingOptions = {};
+        function startMattingAndFlow(options) {
+            activeMattingOptions = options || {};
             const resultPage = $('.stage[data-stage="result"]');
 
             const prevOriginal = baseOriginalName;
@@ -455,6 +506,7 @@
 
             // Keep right drawer CLOSED initially as requested
             modal.removeClass('active sidenav--open').hide();
+            $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
             transformBox.hide();
             resizerBar.hide();
             personTransformBox.hide();
@@ -474,7 +526,7 @@
 
             if (isCutoutExtracted && cutoutPngUrl && personImg.attr('src')) {
                 // Cutout already extracted, replay 60FPS contour trace directly
-                runContourFlowAndPopDrawer(personImg[0]);
+                runContourFlowAndPopDrawer(personImg[0], activeMattingOptions);
                 return;
             }
 
@@ -483,6 +535,11 @@
             setMattingLoadingState(true, selectedEngine);
             const requestId = ++cutoutRequestId;
             notifyRembg('info', '正在进行 AI 人物定位与智能抠图...');
+            let slowWarnTimer = setTimeout(function () {
+                if (cutoutState === 'extracting') {
+                    notifyRembg('info', 'AI 正在深度推理人像发丝与边缘，首次加载模型请稍候...');
+                }
+            }, 8000);
 
             $.ajax({
                 url: 'api/rembgProcess.php',
@@ -491,10 +548,10 @@
                     file: baseOriginalName,
                     template: 'transparent',
                     action: 'apply',
-                    engine: selectedEngine || 'birefnet'
+                    engine: selectedEngine || 'rmbg2'
                 },
                 dataType: 'json',
-                timeout: 35000
+                timeout: 90000
             }).done(function (res) {
                 if (requestId !== cutoutRequestId) return;
                 if (!res || !res.success || !res.file) {
@@ -523,6 +580,7 @@
                     notifyRembg('error', '透明人物前景加载失败');
                 }).attr('src', cutoutPngUrl);
             }).fail(function (xhr, status, error) {
+                clearTimeout(slowWarnTimer);
                 if (requestId !== cutoutRequestId) return;
                 cutoutState = 'error';
                 setMattingLoadingState(false);
@@ -531,18 +589,23 @@
         }
 
         // Run 60FPS contour trace flow, then lift person, then slide in right drawer
-        function runContourFlowAndPopDrawer(imgElem) {
+        function runContourFlowAndPopDrawer(imgElem, options) {
+            options = options || activeMattingOptions || {};
             const requestId = cutoutRequestId;
             setMattingLoadingState(false);
             const resultPage = $('.stage[data-stage="result"]');
             cutoutViewport.show();
-            cutoutPerson.css('visibility', 'hidden');
+            cutoutPerson.css({ 'visibility': 'visible', 'opacity': '0' });
 
-            playContourAnimation(imgElem, contourCanvas, function () {
+            playContourAnimation(imgElem, contourCanvas, options, function () {
                 if (requestId !== cutoutRequestId) return;
                 // 1. Contour flow finished -> pop out & highlight person
                 resultPage.addClass('cutout-mode-active');
-                cutoutPerson.css('visibility', 'visible').addClass('is-lifted');
+                cutoutPerson.css({
+                    'visibility': 'visible',
+                    'opacity': '1',
+                    'z-index': '100'
+                }).addClass('is-lifted');
                 isCutoutExtracted = true;
                 cutoutState = 'ready';
                 isPersonActive = true;
@@ -566,8 +629,19 @@
 
         /* ========================================================
            60FPS High-Precision Silky Smooth Dynamic Contour Flow
+           3-Stage Cinematic Matting Transition:
+           Stage 1: Flowing glowing outline along person/background seam (~1100ms, ~66 frames)
+           Stage 2: Original background fades out to 0, person lifts to top layer (~800ms, ~48 frames)
+           Stage 3: New studio HD background smoothly fades in (~500ms, ~30 frames)
+           Total frames > 140 frames @ 60FPS
            ======================================================== */
-        function playContourAnimation(imgElement, canvasElement, onComplete) {
+        function playContourAnimation(imgElement, canvasElement, options, onComplete) {
+            if (typeof options === 'function') {
+                onComplete = options;
+                options = {};
+            }
+            options = options || {};
+
             const canvas = canvasElement[0] || canvasElement;
             const ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
             if (!ctx) {
@@ -581,43 +655,45 @@
             }
 
             const stageResult = $('.stage--result');
-            const cWidth = stageResult.width() || window.innerWidth;
-            const cHeight = stageResult.height() || window.innerHeight;
+            const cutoutViewport = $('#stageCutoutViewport');
+            const canvasContainer = cutoutViewport.length && cutoutViewport.is(':visible') ? cutoutViewport : stageResult;
 
-            const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-            canvas.width = Math.round(cWidth * dpr);
-            canvas.height = Math.round(cHeight * dpr);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            let cWidth = canvasContainer.width() || window.innerWidth;
+            let cHeight = canvasContainer.height() || window.innerHeight;
+            let dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+
+            function updateCanvasSize() {
+                cWidth = canvasContainer.width() || window.innerWidth;
+                cHeight = canvasContainer.height() || window.innerHeight;
+                dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+                if (canvas.width !== Math.round(cWidth * dpr) || canvas.height !== Math.round(cHeight * dpr)) {
+                    canvas.width = Math.round(cWidth * dpr);
+                    canvas.height = Math.round(cHeight * dpr);
+                }
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+            updateCanvasSize();
 
             const natW = imgElement.naturalWidth || imgElement.width || cWidth;
             const natH = imgElement.naturalHeight || imgElement.height || cHeight;
 
-            const stageRatio = cWidth / cHeight;
-            const imgRatio = natW / natH;
-            let renderW, renderH, renderX, renderY;
-            if (imgRatio > stageRatio) {
-                renderW = cWidth;
-                renderH = cWidth / imgRatio;
-                renderX = 0;
-                renderY = (cHeight - renderH) / 2;
-            } else {
-                renderH = cHeight;
-                renderW = cHeight * imgRatio;
-                renderX = (cWidth - renderW) / 2;
-                renderY = 0;
-            }
-
-            const offW = Math.min(natW, 960);
+            // 离屏画布：强制包裹 2 像素透明 Padding，杜绝边缘截断与穿身回环
+            const offW = Math.min(natW, 480);
             const offH = Math.max(30, Math.round(offW * (natH / natW)));
+            const pad = 2;
+            const padW = offW + pad * 2;
+            const padH = offH + pad * 2;
+
             const off = document.createElement('canvas');
-            off.width = offW;
-            off.height = offH;
+            off.width = padW;
+            off.height = padH;
             const offCtx = off.getContext('2d');
-            offCtx.drawImage(imgElement, 0, 0, offW, offH);
+            offCtx.clearRect(0, 0, padW, padH);
+            offCtx.drawImage(imgElement, pad, pad, offW, offH);
 
             let imgData;
             try {
-                imgData = offCtx.getImageData(0, 0, offW, offH);
+                imgData = offCtx.getImageData(0, 0, padW, padH);
             } catch (e) {
                 if (onComplete) onComplete();
                 return;
@@ -625,13 +701,13 @@
 
             const data = imgData.data;
             const alphaAt = (x, y) => {
-                if (x < 0 || x >= offW || y < 0 || y >= offH) return 0;
-                return data[(y * offW + x) * 4 + 3];
+                if (x < 0 || x >= padW || y < 0 || y >= padH) return 0;
+                return data[(y * padW + x) * 4 + 3];
             };
 
             let start = null;
-            for (let y = 0; y < offH; y++) {
-                for (let x = 0; x < offW; x++) {
+            for (let y = pad; y < padH - pad; y++) {
+                for (let x = pad; x < padW - pad; x++) {
                     if (alphaAt(x, y) > 90) {
                         start = { x: x, y: y };
                         break;
@@ -654,20 +730,20 @@
             let curr = { x: start.x, y: start.y };
             let backtrack = 6;
 
-            for (let step = 0; step < 4000; step++) {
-                rawPts.push({
-                    x: renderX + (curr.x / offW) * renderW,
-                    y: renderY + (curr.y / offH) * renderH
-                });
+            for (let step = 0; step < 6000; step++) {
+                // 保存归一化相对坐标 [0, 1]，支持在任何缩放级别下动态重投影
+                const nx = Math.max(0, Math.min(1, (curr.x - pad) / offW));
+                const ny = Math.max(0, Math.min(1, (curr.y - pad) / offH));
+                rawPts.push({ nx: nx, ny: ny });
 
                 let found = false;
                 for (let i = 0; i < 8; i++) {
                     const dirIdx = (backtrack + i) % 8;
-                    const nx = curr.x + dirs[dirIdx].x;
-                    const ny = curr.y + dirs[dirIdx].y;
-                    if (alphaAt(nx, ny) > 90) {
-                        curr = { x: nx, y: ny };
-                        backtrack = (dirIdx + 5) % 8;
+                    const testX = curr.x + dirs[dirIdx].x;
+                    const testY = curr.y + dirs[dirIdx].y;
+                    if (alphaAt(testX, testY) > 90) {
+                        curr = { x: testX, y: testY };
+                        backtrack = (dirIdx + 6) % 8;
                         found = true;
                         break;
                     }
@@ -685,14 +761,14 @@
             const resampled = [];
             let lastP = rawPts[0];
             resampled.push(lastP);
-            const minSpacing = Math.max(2, Math.min(5, Math.min(renderW, renderH) / 180));
-            const minSqDist = minSpacing * minSpacing;
+            const minNormSpacing = 1.0 / 220.0;
+            const minNormSqDist = minNormSpacing * minNormSpacing;
 
             for (let i = 1; i < rawPts.length; i++) {
                 const p = rawPts[i];
-                const dx = p.x - lastP.x;
-                const dy = p.y - lastP.y;
-                if (dx * dx + dy * dy >= minSqDist) {
+                const dnx = p.nx - lastP.nx;
+                const dny = p.ny - lastP.ny;
+                if (dnx * dnx + dny * dny >= minNormSqDist) {
                     resampled.push(p);
                     lastP = p;
                 }
@@ -707,8 +783,8 @@
                     const pCurr = smoothPts[i];
                     const pNext = smoothPts[(i + 1) % n];
                     nextPass.push({
-                        x: 0.25 * pPrev.x + 0.5 * pCurr.x + 0.25 * pNext.x,
-                        y: 0.25 * pPrev.y + 0.5 * pCurr.y + 0.25 * pNext.y
+                        nx: 0.25 * pPrev.nx + 0.5 * pCurr.nx + 0.25 * pNext.nx,
+                        ny: 0.25 * pPrev.ny + 0.5 * pCurr.ny + 0.25 * pNext.ny
                     });
                 }
                 smoothPts = nextPass;
@@ -716,99 +792,200 @@
 
             const totalPts = smoothPts.length;
 
-            function renderSplinePath(context, points, count) {
+            // 动态视口与图片绝对像素几何计算函数 (实时响应 Ctrl+滚轮 视口变化)
+            function getScreenRect() {
+                const vp = $('#stageCutoutViewport');
+                const pImg = $('#stagePersonImg');
+                const vpEl = vp.length ? vp[0] : (canvasContainer[0] || canvas);
+                const vpRect = vpEl && vpEl.getBoundingClientRect ? vpEl.getBoundingClientRect() : null;
+                const imgEl = pImg.length ? pImg[0] : (imgElement || null);
+                const imgRect = imgEl && imgEl.getBoundingClientRect ? imgEl.getBoundingClientRect() : null;
+
+                if (imgRect && imgRect.width > 20 && imgRect.height > 20 && vpRect && vpRect.width > 20) {
+                    return {
+                        x: imgRect.left - vpRect.left,
+                        y: imgRect.top - vpRect.top,
+                        w: imgRect.width,
+                        h: imgRect.height
+                    };
+                }
+
+                // 兜底几何计算：按 aspect-ratio 在当前容器中居中 contain
+                const curW = canvasContainer.width() || window.innerWidth;
+                const curH = canvasContainer.height() || window.innerHeight;
+                const sRatio = curW / Math.max(1, curH);
+                const iRatio = natW / Math.max(1, natH);
+                let rW, rH, rX, rY;
+                if (iRatio > sRatio) {
+                    rW = curW;
+                    rH = curW / iRatio;
+                    rX = 0;
+                    rY = (curH - rH) / 2;
+                } else {
+                    rH = curH;
+                    rW = curH * iRatio;
+                    rX = (curW - rW) / 2;
+                    rY = 0;
+                }
+                return { x: rX, y: rY, w: rW, h: rH };
+            }
+
+            function renderSplinePath(context, points, count, screenRect) {
                 if (count < 2) return;
                 context.beginPath();
-                const startMidX = (points[0].x + points[1].x) / 2;
-                const startMidY = (points[0].y + points[1].y) / 2;
-                context.moveTo(startMidX, startMidY);
+                const toScreen = function (p) {
+                    return {
+                        x: screenRect.x + p.nx * screenRect.w,
+                        y: screenRect.y + p.ny * screenRect.h
+                    };
+                };
+                const p0 = toScreen(points[0]);
+                const p1 = toScreen(points[1]);
+                context.moveTo((p0.x + p1.x) / 2, (p0.y + p1.y) / 2);
 
                 for (let i = 1; i < count; i++) {
-                    const pCurr = points[i];
-                    const nextIndex = i + 1 < count ? i + 1 : (count === points.length ? 0 : i);
-                    const pNext = points[nextIndex];
+                    const pCurr = toScreen(points[i]);
+                    const nextIndex = (i + 1 < count) ? (i + 1) : (count === points.length ? 0 : i);
+                    const pNext = toScreen(points[nextIndex]);
                     const midX = (pCurr.x + pNext.x) / 2;
                     const midY = (pCurr.y + pNext.y) / 2;
                     context.quadraticCurveTo(pCurr.x, pCurr.y, midX, midY);
                 }
                 if (count < points.length) {
-                    const last = points[count - 1];
+                    const last = toScreen(points[count - 1]);
                     context.lineTo(last.x, last.y);
+                } else {
+                    context.closePath();
                 }
             }
 
-            // 60FPS fluid curve dynamic flow across ~800ms
-            const duration = 800;
+            // 快速流畅 60FPS 动画时间分配（总计 900ms，轻快响应）
+            const duration1 = 380; // 阶段1: 激光流光轻快穿梭分割线 (~23帧)
+            const duration2 = 320; // 阶段2: 原背景自然淡出，人像跃迁就绪 (~19帧)
+            const duration3 = 200; // 阶段3: 背景平滑淡入呈现 (~12帧)
+            const totalDuration = duration1 + duration2 + duration3; // 总计 900ms 极速响应
+
+            const resultImg = $('#result--img');
+            const cutoutBg = $('#stageCutoutBg');
+            const defaultBgUrl = options.autoBackground ? 'resources/img/templates/' + options.autoBackground + '.jpg' : 'resources/img/templates/studio_light.jpg';
+
+            // 预设背景层置于底层，初始透明
+            cutoutBg.css({
+                'background-image': 'url("' + defaultBgUrl + '")',
+                'background-size': 'cover',
+                'background-position': 'center center',
+                'opacity': '0',
+                'display': 'block',
+                'z-index': '1'
+            });
+
+            // 人像初始置于中间层，初始透明待升起
+            cutoutPerson.css({
+                'visibility': 'visible',
+                'opacity': '0',
+                'z-index': '100'
+            });
+
             let startAnimTime = null;
 
             function step(timestamp) {
                 if (!isCurrentAnimation()) return;
                 if (!startAnimTime) startAnimTime = timestamp;
                 const elapsed = timestamp - startAnimTime;
-                const progress = Math.min(elapsed / duration, 1.0);
 
+                updateCanvasSize();
+                const screenRect = getScreenRect();
                 ctx.clearRect(0, 0, cWidth, cHeight);
 
-                const currentCount = Math.floor(progress * totalPts);
-                if (currentCount > 1) {
-                    ctx.save();
+                if (elapsed <= duration1) {
+                    // ================= 阶段 1：高亮流光线条沿分割线闭合流动穿梭 =================
+                    const p1 = Math.min(elapsed / duration1, 1.0);
+                    const currentCount = Math.floor(p1 * totalPts);
 
-                    // Outer Cyan Neon Glow
-                    renderSplinePath(ctx, smoothPts, currentCount);
-                    ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
-                    ctx.shadowColor = '#00f0ff';
-                    ctx.shadowBlur = 18;
-                    ctx.lineWidth = 4;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    ctx.stroke();
+                    if (currentCount > 1) {
+                        ctx.save();
 
-                    // White Core Laser Beam
-                    ctx.shadowBlur = 4;
-                    ctx.shadowColor = '#ffffff';
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1.8;
-                    ctx.stroke();
+                        // 外层青蓝发光霓虹线 (Cyan Neon Glow)
+                        renderSplinePath(ctx, smoothPts, currentCount, screenRect);
+                        ctx.strokeStyle = 'rgba(56, 189, 248, 0.95)';
+                        ctx.shadowColor = '#00f0ff';
+                        ctx.shadowBlur = 22;
+                        ctx.lineWidth = 4.5;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.stroke();
 
-                    // Flowing Tip Comet
-                    const tip = smoothPts[Math.min(currentCount, totalPts - 1)];
-                    ctx.beginPath();
-                    ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.shadowColor = '#38bdf8';
-                    ctx.shadowBlur = 20;
-                    ctx.fill();
+                        // 内层核心白光激光束
+                        ctx.shadowBlur = 4;
+                        ctx.shadowColor = '#ffffff';
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2.0;
+                        ctx.stroke();
 
-                    ctx.restore();
-                }
+                        // 彗星光头 (Flowing Tip Comet)
+                        const tipNorm = smoothPts[Math.min(currentCount, totalPts - 1)];
+                        const tipX = screenRect.x + tipNorm.nx * screenRect.w;
+                        const tipY = screenRect.y + tipNorm.ny * screenRect.h;
+                        ctx.beginPath();
+                        ctx.arc(tipX, tipY, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = '#ffffff';
+                        ctx.shadowColor = '#38bdf8';
+                        ctx.shadowBlur = 24;
+                        ctx.fill();
 
-                if (progress < 1.0) {
-                    requestAnimationFrame(step);
-                } else {
-                    // Flash bloom on completion
-                    let flashProgress = 0;
-                    function flash() {
-                        if (!isCurrentAnimation()) return;
-                        flashProgress += 0.08;
-                        ctx.clearRect(0, 0, cWidth, cHeight);
-                        if (flashProgress < 1.0) {
-                            const alpha = (1.0 - flashProgress) * 0.8;
-                            ctx.save();
-                            renderSplinePath(ctx, smoothPts, totalPts);
-                            ctx.closePath();
-                            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
-                            ctx.shadowColor = '#38bdf8';
-                            ctx.shadowBlur = 25 * (1.0 - flashProgress);
-                            ctx.lineWidth = 4.5;
-                            ctx.stroke();
-                            ctx.restore();
-                            requestAnimationFrame(flash);
-                        } else {
-                            ctx.clearRect(0, 0, cWidth, cHeight);
-                            if (onComplete) onComplete();
-                        }
+                        ctx.restore();
                     }
-                    requestAnimationFrame(flash);
+                    requestAnimationFrame(step);
+
+                } else if (elapsed <= duration1 + duration2) {
+                    // ================= 阶段 2：原背景自然淡出至0消失，人像跃迁至最高层 =================
+                    const p2 = Math.min((elapsed - duration1) / duration2, 1.0);
+
+                    // 1. 原拍摄背景透明度从 1.0 自然淡出至 0
+                    resultImg.css('opacity', (1.0 - p2).toFixed(3));
+
+                    // 2. 抠出的人像层升起并浮现至最高层，带有微小的立体跃迁感
+                    const personScale = (1.0 + 0.025 * (1.0 - p2)).toFixed(3);
+                    cutoutPerson.css({
+                        'visibility': 'visible',
+                        'opacity': p2.toFixed(3),
+                        'z-index': '100',
+                        'transform': 'scale(' + personScale + ')'
+                    });
+
+                    // 3. 分割线流光向外轻微扩散并自然淡化
+                    const lineAlpha = (1.0 - p2) * 0.95;
+                    if (lineAlpha > 0.02) {
+                        ctx.save();
+                        renderSplinePath(ctx, smoothPts, totalPts, screenRect);
+                        ctx.strokeStyle = 'rgba(56, 189, 248, ' + lineAlpha.toFixed(3) + ')';
+                        ctx.shadowColor = '#00f0ff';
+                        ctx.shadowBlur = 24 * (1.0 - p2);
+                        ctx.lineWidth = 4.0;
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    requestAnimationFrame(step);
+
+                } else if (elapsed <= totalDuration) {
+                    // ================= 阶段 3：底层全新摄影棚高清背景平滑淡入 =================
+                    const p3 = Math.min((elapsed - duration1 - duration2) / duration3, 1.0);
+                    resultImg.hide(); // 原背景彻底隐藏
+                    cutoutBg.css('opacity', p3.toFixed(3)); // 全新背景平滑淡入呈现
+                    requestAnimationFrame(step);
+
+                } else {
+                    // 动画全部完成，清理画布并呈现就绪状态
+                    ctx.clearRect(0, 0, cWidth, cHeight);
+                    resultImg.hide();
+                    cutoutBg.css('opacity', '1');
+                    cutoutPerson.css({
+                        'visibility': 'visible',
+                        'opacity': '1',
+                        'z-index': '100',
+                        'transform': 'none'
+                    });
+                    if (onComplete) onComplete();
                 }
             }
 
@@ -898,7 +1075,7 @@
                 file: baseOriginalName,
                 template: path,
                 action: 'apply',
-                engine: selectedEngine || 'birefnet',
+                engine: selectedEngine || 'rmbg2',
                 scale: customScale,
                 offset_x: getNormalizedOffsetX(),
                 offset_y: getNormalizedOffsetY(),
@@ -912,7 +1089,7 @@
                 type: 'POST',
                 data: postData,
                 dataType: 'json',
-                timeout: 35000
+                timeout: 90000
             }).done(function (res) {
                 if (requestId !== compositeRequestId) return;
                 if (!res || !res.success || !res.file) {
@@ -1327,6 +1504,7 @@
 
             // 1. Hide interactive transform controls and real-time cutout viewport
             modal.removeClass('active sidenav--open').hide();
+            $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
             transformBox.hide();
             resizerBar.hide();
             personTransformBox.hide();
@@ -1485,6 +1663,7 @@
 
             // Close right drawer and reset card selections
             modal.removeClass('active sidenav--open').hide();
+            $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
             grid.find('.rembg-template-card').removeClass('active is-locked is-loading');
             selectedNameEl.text('').hide();
         }
@@ -1589,9 +1768,14 @@
             currentTemplate = '';
             grid.find('.rembg-template-card').removeClass('active is-locked is-loading');
             modal.removeClass('active sidenav--open').hide();
+            $('#btnClassicCustomBg, .rembgbtn').removeClass('active is-drawer-open').attr('aria-expanded', 'false');
             notifyRembg('info', '已还原为拍摄原图');
         }
         window.startMattingAndFlow = startMattingAndFlow;
+        window.completeRembgAndApplyToStage = completeRembgAndApplyToStage;
+        window.isCutoutViewportActive = function () {
+            return $('#stageCutoutViewport').is(':visible') || $('#stagePersonTransformBox').is(':visible');
+        };
     }
 
     $(document).ready(function () {

@@ -1,4 +1,4 @@
-# Ensures the Windows mobile hotspot is on with the kiosk SSID/password.
+﻿# Ensures the Windows mobile hotspot is on with the kiosk SSID/password.
 # Called by local-services.ps1 on start; safe to run repeatedly.
 # NOTE: must run under Windows PowerShell 5.1 (WinRT types resolve there).
 param(

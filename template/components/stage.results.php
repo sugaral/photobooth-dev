@@ -28,6 +28,8 @@ echo '
         <span class="resizer-val" id="lblPersonScaleVal">100%</span>
         <button type="button" class="resizer-btn" id="btnPersonScalePlus" title="放大人像"><i class="fa fa-plus"></i></button>
         <button type="button" class="resizer-btn resizer-action" id="btnPersonReset" title="居中重置"><i class="fa fa-undo"></i> 居中重置</button>
+        <button type="button" class="resizer-btn resizer-action" id="btnResizerChangeBg" title="更换或上传自定义背景" style="display:none;"><i class="fa fa-images"></i> 自定义背景</button>
+        <button type="button" class="resizer-btn resizer-action resizer-confirm" id="btnPersonConfirm" title="确认调整并合层"><i class="fa fa-check"></i> 确认合层</button>
     </div>
 
     <!-- Custom Template Interactive Resizer & Transform Controls -->
@@ -46,6 +48,7 @@ echo '
         <button type="button" class="resizer-btn" id="btnBgScalePlus" title="放大"><i class="fa fa-plus"></i></button>
         <button type="button" class="resizer-btn resizer-action" id="btnBgScaleFit" title="铺满"><i class="fa fa-maximize"></i> 铺满</button>
         <button type="button" class="resizer-btn resizer-action" id="btnBgScaleReset" title="重置"><i class="fa fa-undo"></i> 重置</button>
+        <button type="button" class="resizer-btn resizer-action resizer-confirm" id="btnBgConfirm" title="确认调整并合层"><i class="fa fa-check"></i> 确认合层</button>
     </div>
 </div>
 
@@ -75,6 +78,7 @@ echo '<aside class="result-sidebar buttonbar buttonbar--sidebar" id="resultSideb
 echo '<div class="sidebar-section sidebar-section--edit">';
 echo '<div class="sidebar-section-title"><i class="fa fa-wand-magic-sparkles"></i> 创作修图</div>';
 echo '<div class="sidebar-section-buttons">';
+echo '<button type="button" class="button rotaryfocus classic-result-action rembgbtn" data-command="rembgbtn" id="btnClassicCustomBg" title="发丝抠图与自定义背景" style="display:none;"><span class="button--icon fa fa-scissors"></span><span class="button--label">自定义背景</span></button>';
 echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicToggleFilters" title="选择成片滤镜"><span class="button--icon fa fa-sliders"></span><span class="button--label">成片滤镜</span></button>';
 echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicToggleFrame" title="添加或移除潮流边框"><span class="button--icon fa fa-border-all"></span><span class="button--label">边框</span></button>';
 echo '<button type="button" class="button rotaryfocus classic-result-action" id="btnClassicAddSignature" title="添加手写签名"><span class="button--icon fa fa-signature"></span><span class="button--label">手写签名</span></button>';

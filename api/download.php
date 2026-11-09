@@ -3,8 +3,11 @@
 /** @var array $config */
 
 use Photobooth\Enum\FolderEnum;
+use Photobooth\Utility\HotspotUtility;
 
 require_once __DIR__ . '/../lib/boot.php';
+
+HotspotUtility::ensureStarted($config);
 
 $image = (isset($_GET['image']) && $_GET['image']) != '' ? $_GET['image'] : false;
 $forceDownload = !isset($_GET['inline']) || $_GET['inline'] !== '1';

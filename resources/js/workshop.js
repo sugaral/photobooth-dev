@@ -595,7 +595,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
       return _regenerator().w(function (_context6) {
         while (1) switch (_context6.n) {
           case 0:
-            status(backgroundTemplate ? '全部拍好了，正在逐张更换背景并拼接，首次加载背景模型可能需要一两分钟…' : '全部拍好了，正在拼成一张完整照片…');
+            status('全部拍好了，正在拼成一张完整照片…');
             el('workshopShotTitle').textContent = '正在生成成片';
             _context6.n = 1;
             return post('createWorkshop.php', {
@@ -603,7 +603,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
               tokens: photos.map(function (photo) {
                 return photo.token;
               }),
-              template: backgroundTemplate
+              template: ''
             });
           case 1:
             response = _context6.v;
@@ -617,8 +617,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
             completed = layout;
             close(false);
             resultLayout = completed;
-            photoBooth.setPhotoboothMode('classic');
-            window.sessionPhotoboothMode = 'classic';
+            photoBooth.setPhotoboothMode('workshop');
+            window.sessionPhotoboothMode = 'workshop';
             window.studioClassicLayout = 'single';
             window.burstLayout = '';
             window.burstModeActive = false;
@@ -648,7 +648,7 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
           case 1:
             if (!photos.length) {
               countdownSeconds = Math.max(1, Math.min(10, parseInt(el('studioCountdownSelect').value, 10) || 3));
-              backgroundTemplate = ((_window$selectedClass = window.selectedClassicTemplate) === null || _window$selectedClass === void 0 ? void 0 : _window$selectedClass.id) !== 'none' ? ((_window$selectedClass2 = window.selectedClassicTemplate) === null || _window$selectedClass2 === void 0 ? void 0 : _window$selectedClass2.image) || '' : '';
+              backgroundTemplate = '';
             }
             running = true;
             syncCaptureButton();
@@ -805,6 +805,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     el('workshopLayouts').append(button);
   });
   el('cardModeWorkshop').addEventListener('click', open);
+  var btnWorkshop = document.getElementById('btnWorkshopStart');
+  if (btnWorkshop) btnWorkshop.addEventListener('click', function (e) { e.stopPropagation(); open(); });
   el('cardModeWorkshop').addEventListener('keydown', function (event) {
     if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
@@ -812,6 +814,8 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     }
   });
   el('workshopChoose').addEventListener('click', enterCapture);
+  var directShoot = document.getElementById('workshopDirectShoot');
+  if (directShoot) directShoot.addEventListener('click', function () { notice.close(); run(); });
   el('workshopStart').addEventListener('click', function () {
     notice.close();
     el('studioSmoothSlider').focus();
@@ -848,6 +852,10 @@ function _asyncToGenerator(n) { return function () { var t = this, e = arguments
     if (resultLayout && resultStage.classList.contains('stage--active')) {
       el('lblResultPaperTitle').textContent = "\u521B\u610F\u5DE5\u574A \xB7 ".concat(resultLayout.name);
       el('lblResultPaperDetail').textContent = resultLayout.spec || '6 寸竖版 · 1200 × 1800 像素 · 300 DPI';
+      var customBgBtn = document.getElementById('btnClassicCustomBg');
+      if (customBgBtn) customBgBtn.style.setProperty('display', 'none', 'important');
+      var resizerBgBtn = document.getElementById('btnResizerChangeBg');
+      if (resizerBgBtn) resizerBgBtn.style.setProperty('display', 'none', 'important');
     }
   }).observe(resultStage, {
     attributes: true,

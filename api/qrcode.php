@@ -3,10 +3,13 @@
 /** @var array $config */
 
 use Photobooth\Service\RemoteStorageService;
+use Photobooth\Utility\HotspotUtility;
 use Photobooth\Utility\PathUtility;
 use Photobooth\Utility\QrCodeUtility;
 
 require_once __DIR__ . '/../lib/boot.php';
+
+HotspotUtility::ensureStarted($config);
 
 if (isset($_GET['wifi']) && $_GET['wifi'] === '1') {
     $ssid = (string)($config['webserver']['ssid'] ?? '');

@@ -215,12 +215,12 @@ function _arrayLikeToArray(r, a) {
   var api = photoBooth,
     catalog = PhotoboothCatalog;
   var drawerSelectors = '.editor-drawer, #classicFilterQuickBar, #signatureModal, #stickerModal, #textModal, #rembgModal, #beautyModal';
-  var drawerButtons = '#btnClassicToggleFilters, #btnClassicToggleFrame, #btnClassicAddSignature, #btnClassicInsertText, #btnClassicOpenStickers';
+  var drawerButtons = '#btnClassicCustomBg, #btnClassicToggleFilters, #btnClassicToggleFrame, #btnClassicAddSignature, #btnClassicInsertText, #btnClassicOpenStickers';
   var closeDrawers = function closeDrawers() {
     if (loading) exit();
     $(drawerSelectors).stop(true, true).hide().attr('aria-hidden', 'true').removeClass('active sidenav--open is-open');
     $(drawerButtons).attr('aria-expanded', 'false').removeClass('active is-drawer-open');
-    $('.classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"]').removeClass('active is-drawer-open');
+    $('.classic-result-action, .rembgbtn, .beautybtn, [data-command="rembgbtn"], [data-command="beautybtn"], #btnClassicCustomBg').attr('aria-expanded', 'false').removeClass('active is-drawer-open');
   };
   api.closeEditorDrawers = closeDrawers;
   var filterButtons = function filterButtons(className) {
@@ -268,6 +268,7 @@ function _arrayLikeToArray(r, a) {
     }
   });
   var drawerTargets = {
+    btnClassicCustomBg: '#rembgModal',
     btnClassicToggleFilters: '#classicFilterQuickBar',
     btnClassicToggleFrame: '#frameDrawer',
     btnClassicAddSignature: '#signatureModal',
@@ -275,22 +276,44 @@ function _arrayLikeToArray(r, a) {
     btnClassicOpenStickers: '#stickerModal'
   };
   $(drawerButtons).each(function () {
-    $(this).attr({
-      'aria-controls': drawerTargets[this.id].slice(1),
-      'aria-expanded': 'false'
-    });
+    if (drawerTargets[this.id]) {
+      $(this).attr({
+        'aria-controls': drawerTargets[this.id].slice(1),
+        'aria-expanded': 'false'
+      });
+    }
   });
   $(drawerSelectors).attr('aria-hidden', 'true');
   $(document).on('click', drawerButtons, function (e) {
     e.preventDefault();
     var target = drawerTargets[this.id];
     if (!target) return;
-    var visible = $(target).is(':visible');
+    var isCustomBg = (this.id === 'btnClassicCustomBg');
+    var visible = $(target).is(':visible') || (isCustomBg && ($('#stageCutoutViewport').is(':visible') || $('#rembgModal').hasClass('active')));
+
+    // If rembg or person adjustment is active and opening another tool, auto-finalize and merge layers first!
+    if (!isCustomBg && typeof window.completeRembgAndApplyToStage === 'function' && ($('#stageCutoutViewport').is(':visible') || $('#stagePersonTransformBox').is(':visible'))) {
+      window.completeRembgAndApplyToStage();
+    }
     closeDrawers();
     if (!visible) {
-      $(target).stop(true, true).show().attr('aria-hidden', 'false');
-      $(this).attr('aria-expanded', 'true').addClass('active is-drawer-open');
-      if (this.id === 'btnClassicOpenStickers' || this.id === 'btnClassicInsertText') $('#stickerCanvasOverlay').show();
+      if (isCustomBg) {
+        $(this).attr('aria-expanded', 'true').addClass('active is-drawer-open');
+        if (typeof window.startMattingAndFlow === 'function') {
+          window.startMattingAndFlow();
+        } else {
+          $(target).stop(true, true).show().attr('aria-hidden', 'false').addClass('active sidenav--open');
+        }
+      } else {
+        $(target).stop(true, true).show().attr('aria-hidden', 'false');
+        $(this).attr('aria-expanded', 'true').addClass('active is-drawer-open');
+        if (this.id === 'btnClassicOpenStickers' || this.id === 'btnClassicInsertText') $('#stickerCanvasOverlay').show();
+      }
+    }
+  });
+  $(document).on('click', '.primary-delivery-btn, #btnCommercialPrintPreview, .qrbtn, .mailbtn', function () {
+    if (typeof window.completeRembgAndApplyToStage === 'function' && ($('#stageCutoutViewport').is(':visible') || $('#stagePersonTransformBox').is(':visible'))) {
+      window.completeRembgAndApplyToStage();
     }
   });
   var pens = [{
@@ -1061,7 +1084,11 @@ function _arrayLikeToArray(r, a) {
     var chosenColor = color || currentSelectedTextColor || '#ffffff';
     $('#stickerCanvasOverlay').show();
     var overlay = $('#stickerCanvasOverlay');
-    var $sticker = $('<div class="placed-sticker placed-sticker--text is-active">' + '<button type="button" class="sticker-del-btn" title="删除"><i class="fa fa-times"></i></button>' + '<div class="sticker-rotate-btn" title="旋转"><i class="fa fa-rotate"></i></div>' + '<div class="placed-sticker-content"></div>' + '<div class="sticker-resize-btn" title="缩放"><i class="fa fa-up-right-and-down-left-from-center"></i></div>' + '</div>');
+    var overlayW = overlay.width() || 600;
+    var overlayH = overlay.height() || 800;
+    var posX = Math.round(overlayW * 0.45 + (Math.random() * 40 - 20));
+    var posY = Math.round(overlayH * 0.35 + (Math.random() * 40 - 20));
+    var $sticker = $('<div class="placed-sticker placed-sticker--text is-active" style="left: ' + posX + 'px; top: ' + posY + 'px;">' + '<button type="button" class="sticker-del-btn" title="删除"><i class="fa fa-times"></i></button>' + '<div class="sticker-rotate-btn" title="旋转"><i class="fa fa-rotate"></i></div>' + '<div class="placed-sticker-content"></div>' + '<div class="sticker-resize-btn" title="缩放"><i class="fa fa-up-right-and-down-left-from-center"></i></div>' + '</div>');
     $sticker.attr('data-type', 'text').attr('data-content', text).attr('data-font', chosenFont).attr('data-color', chosenColor);
     $sticker.find('.placed-sticker-content').text(text).css({
       'font-family': chosenFont + ', cursive, sans-serif',
